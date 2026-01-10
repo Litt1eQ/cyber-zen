@@ -1,0 +1,82 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CyberZen",
+  "version": "0.1.0",
+  "identifier": "com.littleq.cyberzen",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "赛博木鱼",
+        "width": 320,
+        "height": 320,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "acceptFirstMouse": true,
+        "maximizable": false,
+        "url": "index.html"
+      },
+      {
+        "label": "settings",
+        "title": "设置 - 赛博木鱼",
+        "width": 760,
+        "height": 560,
+        "resizable": true,
+        "transparent": false,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
+        "shadow": true,
+        "acceptFirstMouse": true,
+        "url": "settings.html"
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
+    },
+    "trayIcon": {
+      "id": "main",
+      "iconPath": "icons/32x32.png",
+      "menuOnLeftClick": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Litt1eQ/cyber-zen/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY5NTJEQTc2NUQ3QjAwMDAKUldRQUFIdGRkdHBTYWVLL2tTRmYyMHpFMWx1TXhNQXFvNFBudUU4T09lUUZ2UDBnaHRGMDM0b24K",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

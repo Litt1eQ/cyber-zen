@@ -1,0 +1,325 @@
+use crate::core::MeritStorage;
+use crate::models::{InputEvent, InputOrigin, InputSource};
+use once_cell::sync::Lazy;
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
+use std::collections::HashMap;
+use std::sync::mpsc::{self, Sender};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Emitter};
+
+const MAX_DIGIT: u64 = 9;
+const ANIM_EMIT_INTERVAL: Duration = Duration::from_millis(120);
+const STATS_EMIT_INTERVAL: Duration = Duration::from_millis(80);
+const IDLE_EVICT_AFTER: Duration = Duration::from_secs(2);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct Key {
+    origin: InputOrigin,
+    source: InputSource,
+}
+
+#[derive(Debug, Clone)]
+struct Trigger {
+    key: Key,
+    count: u64,
+    key_code: Option<String>,
+    app_handle: AppHandle,
+}
+
+#[derive(Debug, Clone)]
+struct AnimState {
+    pending: u64,
+    next_emit_at: Instant,
+    last_seen_at: Instant,
+    app_handle: AppHandle,
+}
+
+pub struct MeritBatcher {
+    tx: Sender<Trigger>,
+}
+
+impl MeritBatcher {
+    fn new() -> Self {
+        let (tx, rx) = mpsc::channel::<Trigger>();
+
+        std::thread::spawn(move || {
+            let mut rng = SmallRng::seed_from_u64(time_seed());
+            let mut anim: HashMap<Key, AnimState> = HashMap::new();
+
+            let mut stats_dirty = false;
+            let mut stats_handle: Option<AppHandle> = None;
+            let mut last_stats_emit = Instant::now()
+                .checked_sub(STATS_EMIT_INTERVAL)
+                .unwrap_or_else(Instant::now);
+
+            loop {
+                let now = Instant::now();
+                let timeout = next_timeout(now, stats_dirty, last_stats_emit, &anim);
+
+                match rx.recv_timeout(timeout) {
+                    Ok(first) => {
+                        let mut triggers = vec![first];
+                        while let Ok(next) = rx.try_recv() {
+                            triggers.push(next);
+                        }
+
+                        process_triggers(
+                            triggers,
+                            &mut rng,
+                            &mut anim,
+                            &mut stats_dirty,
+                            &mut stats_handle,
+                        );
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                }
+
+                let now = Instant::now();
+                if stats_dirty && now.duration_since(last_stats_emit) >= STATS_EMIT_INTERVAL {
+                    if let Some(handle) = stats_handle.as_ref() {
+                        emit_stats_updated(handle);
+                        last_stats_emit = now;
+                        stats_dirty = false;
+                    }
+                }
+
+                emit_due_anim(now, &mut rng, &mut anim);
+            }
+        });
+
+        Self { tx }
+    }
+
+    pub fn enqueue(
+        &self,
+        app_handle: AppHandle,
+        origin: InputOrigin,
+        source: InputSource,
+        count: u64,
+        key_code: Option<String>,
+    ) {
+        if count == 0 {
+            return;
+        }
+
+        let _ = self.tx.send(Trigger {
+            key: Key { origin, source },
+            count,
+            key_code,
+            app_handle,
+        });
+    }
+}
+
+static BATCHER: Lazy<MeritBatcher> = Lazy::new(MeritBatcher::new);
+
+pub fn enqueue_merit_trigger(
+    app_handle: AppHandle,
+    origin: InputOrigin,
+    source: InputSource,
+    count: u64,
+    key_code: Option<String>,
+) {
+    BATCHER.enqueue(app_handle, origin, source, count, key_code);
+}
+
+fn process_triggers(
+    triggers: Vec<Trigger>,
+    rng: &mut SmallRng,
+    anim: &mut HashMap<Key, AnimState>,
+    stats_dirty: &mut bool,
+    stats_handle: &mut Option<AppHandle>,
+) {
+    let mut by_key: HashMap<Key, (u64, AppHandle)> = HashMap::new();
+    let mut keyboard_key_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
+    let mut mouse_button_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
+
+    for trigger in triggers {
+        if trigger.count == 0 {
+            continue;
+        }
+
+        if let Some(code) = trigger.key_code.as_ref() {
+            match trigger.key.source {
+                InputSource::Keyboard => {
+                    keyboard_key_counts
+                        .entry(trigger.key.origin)
+                        .or_default()
+                        .entry(code.clone())
+                        .and_modify(|v| *v = v.saturating_add(trigger.count))
+                        .or_insert(trigger.count);
+                }
+                InputSource::MouseSingle => {
+                    mouse_button_counts
+                        .entry(trigger.key.origin)
+                        .or_default()
+                        .entry(code.clone())
+                        .and_modify(|v| *v = v.saturating_add(trigger.count))
+                        .or_insert(trigger.count);
+                }
+            }
+        }
+
+        by_key
+            .entry(trigger.key)
+            .and_modify(|(count, handle)| {
+                *count = count.saturating_add(trigger.count);
+                *handle = trigger.app_handle.clone();
+            })
+            .or_insert((trigger.count, trigger.app_handle.clone()));
+
+        *stats_handle = Some(trigger.app_handle);
+    }
+
+    if by_key.is_empty() {
+        return;
+    }
+
+    let mut allowed: HashMap<Key, bool> = HashMap::new();
+    {
+        let storage = MeritStorage::instance();
+        let mut storage = storage.write();
+        for (key, (count, _)) in &by_key {
+            let key_counts = match key.source {
+                InputSource::Keyboard => keyboard_key_counts.get(&key.origin),
+                InputSource::MouseSingle => mouse_button_counts.get(&key.origin),
+            };
+
+            let added = storage.add_merit_silent(key.origin, key.source, *count, key_counts);
+            allowed.insert(*key, added);
+            if added {
+                *stats_dirty = true;
+            }
+        }
+    }
+
+    if !*stats_dirty {
+        return;
+    }
+
+    let now = Instant::now();
+    for (key, (count, app_handle)) in by_key {
+        if !allowed.get(&key).copied().unwrap_or(false) {
+            continue;
+        }
+
+        // In-app clicks animate locally for better responsiveness and to avoid duplicate pops.
+        if key.origin == InputOrigin::App {
+            continue;
+        }
+
+        let entry = anim.entry(key).or_insert_with(|| AnimState {
+            pending: 0,
+            next_emit_at: now,
+            last_seen_at: now,
+            app_handle: app_handle.clone(),
+        });
+
+        let was_idle = entry.pending == 0;
+        entry.last_seen_at = now;
+        entry.app_handle = app_handle;
+        entry.pending = entry.pending.saturating_add(count);
+
+        if was_idle {
+            emit_first_anim(key, entry);
+        } else if entry.next_emit_at <= now {
+            emit_random_anim(key, entry, rng);
+        }
+    }
+}
+
+fn emit_due_anim(now: Instant, rng: &mut SmallRng, anim: &mut HashMap<Key, AnimState>) {
+    let mut evict = Vec::new();
+
+    for (key, state) in anim.iter_mut() {
+        if state.pending > 0 && now >= state.next_emit_at {
+            emit_random_anim(*key, state, rng);
+        }
+
+        if state.pending == 0 && now.duration_since(state.last_seen_at) >= IDLE_EVICT_AFTER {
+            evict.push(*key);
+        }
+    }
+
+    for key in evict {
+        anim.remove(&key);
+    }
+}
+
+fn emit_first_anim(key: Key, state: &mut AnimState) {
+    let chunk = state.pending.min(MAX_DIGIT);
+    state.pending -= chunk;
+    state.next_emit_at = Instant::now() + ANIM_EMIT_INTERVAL;
+    emit_input_event(&state.app_handle, key, chunk);
+}
+
+fn emit_random_anim(key: Key, state: &mut AnimState, rng: &mut SmallRng) {
+    let max = state.pending.min(MAX_DIGIT);
+    let chunk = rng.gen_range(1..=max);
+    state.pending -= chunk;
+    state.next_emit_at = Instant::now() + ANIM_EMIT_INTERVAL;
+    emit_input_event(&state.app_handle, key, chunk);
+}
+
+fn emit_input_event(app_handle: &AppHandle, key: Key, chunk: u64) {
+    if chunk == 0 {
+        return;
+    }
+
+    let _ = app_handle.emit(
+        "input-event",
+        InputEvent {
+            origin: key.origin,
+            source: key.source,
+            count: chunk,
+        },
+    );
+}
+
+fn emit_stats_updated(app_handle: &AppHandle) {
+    let stats = {
+        let storage = MeritStorage::instance();
+        let storage = storage.read();
+        storage.get_stats()
+    };
+
+    let _ = app_handle.emit("merit-updated", stats);
+    crate::core::persistence::request_save();
+}
+
+fn next_timeout(
+    now: Instant,
+    stats_dirty: bool,
+    last_stats_emit: Instant,
+    anim: &HashMap<Key, AnimState>,
+) -> Duration {
+    let mut next_deadline: Option<Instant> = None;
+
+    if stats_dirty {
+        next_deadline = Some(last_stats_emit + STATS_EMIT_INTERVAL);
+    }
+
+    for state in anim.values() {
+        if state.pending > 0 {
+            next_deadline = Some(match next_deadline {
+                Some(existing) => existing.min(state.next_emit_at),
+                None => state.next_emit_at,
+            });
+        }
+    }
+
+    match next_deadline {
+        Some(deadline) if deadline > now => deadline.duration_since(now),
+        Some(_) => Duration::from_millis(0),
+        None => Duration::from_millis(250),
+    }
+}
+
+fn time_seed() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64
+}

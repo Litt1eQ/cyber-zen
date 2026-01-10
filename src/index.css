@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@source "./**/*.{tsx,ts,jsx,js}";
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+:root {
+  --cz-titlebar-height: env(titlebar-area-height, 28px);
+  --cz-sidebar-padding-top: 32px;
+  --cz-main-padding-top: 0px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.window-drag {
+  -webkit-app-region: drag;
+}
+
+.window-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.settings-sidebar-header {
+  padding-top: var(--cz-sidebar-padding-top);
+}
+
+.settings-main-content {
+  padding-top: var(--cz-main-padding-top);
+}
