@@ -6,7 +6,9 @@ export type KeySpec = {
   width?: number
 }
 
-export const US_QWERTY_LAYOUT: KeySpec[][] = [
+export type KeyboardPlatform = 'mac' | 'windows' | 'linux'
+
+const US_QWERTY_LAYOUT_BASE: KeySpec[][] = [
   [
     { code: 'Backquote', label: '`' },
     { code: 'Digit1', label: '1' },
@@ -70,11 +72,11 @@ export const US_QWERTY_LAYOUT: KeySpec[][] = [
   ],
   [
     { code: 'ControlLeft', label: 'Ctrl', width: 1.5 },
-    { code: 'MetaLeft', label: '⌘', width: 1.25 },
+    { code: 'MetaLeft', label: 'Meta', width: 1.25 },
     { code: 'AltLeft', label: 'Alt', width: 1.25 },
     { code: 'Space', label: 'Space', width: 6 },
     { code: 'AltRight', label: 'Alt', width: 1.25 },
-    { code: 'MetaRight', label: '⌘', width: 1.25 },
+    { code: 'MetaRight', label: 'Meta', width: 1.25 },
     { code: 'ControlRight', label: 'Ctrl', width: 1.5 },
   ],
   [
@@ -84,6 +86,36 @@ export const US_QWERTY_LAYOUT: KeySpec[][] = [
     { code: 'ArrowRight', label: '→' },
   ],
 ]
+
+function withLabelOverrides(layout: KeySpec[][], overrides: Record<string, string>): KeySpec[][] {
+  return layout.map((row) =>
+    row.map((key) => {
+      const next = overrides[key.code]
+      return next ? { ...key, label: next } : key
+    })
+  )
+}
+
+export function getUSQwertyLayout(platform: KeyboardPlatform): KeySpec[][] {
+  if (platform === 'mac') {
+    return withLabelOverrides(US_QWERTY_LAYOUT_BASE, {
+      MetaLeft: '⌘',
+      MetaRight: '⌘',
+      AltLeft: '⌥',
+      AltRight: '⌥',
+    })
+  }
+  if (platform === 'windows') {
+    return withLabelOverrides(US_QWERTY_LAYOUT_BASE, {
+      MetaLeft: 'Win',
+      MetaRight: 'Win',
+    })
+  }
+  return withLabelOverrides(US_QWERTY_LAYOUT_BASE, {
+    MetaLeft: 'Super',
+    MetaRight: 'Super',
+  })
+}
 
 export function sumKeyCounts(maps: Array<KeyCounts | undefined | null>): KeyCounts {
   const out: KeyCounts = {}
@@ -103,4 +135,3 @@ export function totalKeyCount(map: KeyCounts | undefined | null): number {
   for (const v of Object.values(map)) sum += v
   return sum
 }
-

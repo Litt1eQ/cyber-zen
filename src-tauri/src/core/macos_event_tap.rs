@@ -22,6 +22,7 @@ mod imp {
         sync::{
             atomic::{AtomicPtr, Ordering},
             mpsc,
+            Mutex,
         },
     };
 
@@ -37,6 +38,7 @@ mod imp {
     type CGEventType = u32;
     type CGEventMask = u64;
     type CGEventField = i32;
+    type CGEventFlags = u64;
 
     type CGEventTapLocation = u32;
     type CGEventTapPlacement = u32;
@@ -50,12 +52,20 @@ mod imp {
     const K_CG_EVENT_RIGHT_MOUSE_DOWN: CGEventType = 3;
     const K_CG_EVENT_OTHER_MOUSE_DOWN: CGEventType = 25;
     const K_CG_EVENT_KEY_DOWN: CGEventType = 10;
+    const K_CG_EVENT_FLAGS_CHANGED: CGEventType = 12;
 
     const K_CG_EVENT_TAP_DISABLED_BY_TIMEOUT: CGEventType = u32::MAX - 1; // -2
     const K_CG_EVENT_TAP_DISABLED_BY_USER_INPUT: CGEventType = u32::MAX - 2; // -3
 
     // CoreGraphics constant: kCGKeyboardEventKeycode
     const K_CG_KEYBOARD_EVENT_KEYCODE: CGEventField = 9;
+
+    // CoreGraphics constants: CGEventFlags (CGEventTypes.h)
+    const K_CG_EVENT_FLAG_MASK_ALPHA_SHIFT: CGEventFlags = 1 << 16;
+    const K_CG_EVENT_FLAG_MASK_SHIFT: CGEventFlags = 1 << 17;
+    const K_CG_EVENT_FLAG_MASK_CONTROL: CGEventFlags = 1 << 18;
+    const K_CG_EVENT_FLAG_MASK_ALTERNATE: CGEventFlags = 1 << 19;
+    const K_CG_EVENT_FLAG_MASK_COMMAND: CGEventFlags = 1 << 20;
 
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
@@ -71,6 +81,7 @@ mod imp {
         fn CGEventTapEnable(tap: CFMachPortRef, enable: bool);
 
         fn CGEventGetIntegerValueField(event: CGEventRef, field: CGEventField) -> i64;
+        fn CGEventGetFlags(event: CGEventRef) -> CGEventFlags;
     }
 
     #[link(name = "CoreFoundation", kind = "framework")]
@@ -91,6 +102,7 @@ mod imp {
     struct CallbackCtx {
         tx: mpsc::Sender<RawInputEvent>,
         tap: AtomicPtr<c_void>,
+        modifier_down: Mutex<[bool; 256]>,
     }
 
     static CTX: AtomicPtr<CallbackCtx> = AtomicPtr::new(ptr::null_mut());
@@ -124,6 +136,55 @@ mod imp {
                     let code = unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
                     RawInputEvent::KeyDown(code as u16)
                 }
+                // Modifier keys on macOS are reported via `flagsChanged`, not `keyDown`.
+                K_CG_EVENT_FLAGS_CHANGED => {
+                    let code = unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
+                    let code_u16 = code as u16;
+                    let idx = code_u16 as usize;
+                    if idx >= 256 {
+                        return;
+                    }
+
+                    // Best-effort: determine "down" without relying on CGEventSourceKeyState (it can
+                    // return false under some environments). `flagsChanged` fires on both press and
+                    // release, so we track per-key state and only emit on transitions to "down".
+                    let flags = unsafe { CGEventGetFlags(event) };
+                    let group_mask = match code_u16 {
+                        56 | 60 => Some(K_CG_EVENT_FLAG_MASK_SHIFT),     // Shift L/R
+                        59 | 62 => Some(K_CG_EVENT_FLAG_MASK_CONTROL),   // Control L/R
+                        58 | 61 => Some(K_CG_EVENT_FLAG_MASK_ALTERNATE), // Option L/R
+                        54 | 55 => Some(K_CG_EVENT_FLAG_MASK_COMMAND),   // Command L/R
+                        57 => Some(K_CG_EVENT_FLAG_MASK_ALPHA_SHIFT),    // CapsLock
+                        _ => None,
+                    };
+
+                    if let Some(mask) = group_mask {
+                        // If the whole modifier group is now "up", this event must be a release of
+                        // the last pressed key in that group — ensure our per-key state is false
+                        // and don't emit.
+                        if (flags & mask) == 0 {
+                            if let Ok(mut state) = ctx.modifier_down.lock() {
+                                state[idx] = false;
+                            }
+                            return;
+                        }
+                    }
+
+                    let should_emit = if let Ok(mut state) = ctx.modifier_down.lock() {
+                        let was_down = state[idx];
+                        // Toggle the per-key state because this key is the one that changed.
+                        state[idx] = !was_down;
+                        !was_down
+                    } else {
+                        false
+                    };
+
+                    if !should_emit {
+                        return;
+                    }
+
+                    RawInputEvent::KeyDown(code_u16)
+                }
                 K_CG_EVENT_LEFT_MOUSE_DOWN => RawInputEvent::MouseDown(super::RawMouseButton::Left),
                 K_CG_EVENT_RIGHT_MOUSE_DOWN => RawInputEvent::MouseDown(super::RawMouseButton::Right),
                 K_CG_EVENT_OTHER_MOUSE_DOWN => RawInputEvent::MouseDown(super::RawMouseButton::Other),
@@ -149,6 +210,7 @@ mod imp {
         let boxed = Box::new(CallbackCtx {
             tx,
             tap: AtomicPtr::new(ptr::null_mut()),
+            modifier_down: Mutex::new([false; 256]),
         });
         let ctx_ptr = Box::into_raw(boxed);
         // If we ever re-run (e.g. after a failed init), leaking the previous ctx is the safest
@@ -157,6 +219,7 @@ mod imp {
 
         let events = mask_for(&[
             K_CG_EVENT_KEY_DOWN,
+            K_CG_EVENT_FLAGS_CHANGED,
             K_CG_EVENT_LEFT_MOUSE_DOWN,
             K_CG_EVENT_RIGHT_MOUSE_DOWN,
             K_CG_EVENT_OTHER_MOUSE_DOWN,

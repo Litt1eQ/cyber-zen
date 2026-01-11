@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import { type KeyCounts, US_QWERTY_LAYOUT, totalKeyCount } from '@/lib/keyboard'
+import { type KeyCounts, getUSQwertyLayout, totalKeyCount } from '@/lib/keyboard'
+import { isLinux, isMac, isWindows } from '@/utils/platform'
 
 type HeatBuckets = { q1: number; q2: number; q3: number } | null
 
@@ -43,16 +44,23 @@ function heatClass(level: 0 | 1 | 2 | 3 | 4): string {
 }
 
 export function KeyboardHeatmap({ counts }: { counts: KeyCounts }) {
+  const layout = useMemo(() => {
+    if (isMac()) return getUSQwertyLayout('mac')
+    if (isWindows()) return getUSQwertyLayout('windows')
+    if (isLinux()) return getUSQwertyLayout('linux')
+    return getUSQwertyLayout('windows')
+  }, [])
+
   const stats = useMemo(() => {
     const values: number[] = []
-    for (const row of US_QWERTY_LAYOUT) {
+    for (const row of layout) {
       for (const key of row) {
         values.push(counts[key.code] ?? 0)
       }
     }
     const max = values.reduce((acc, v) => Math.max(acc, v), 0)
     return { max, buckets: computeBuckets(values) }
-  }, [counts])
+  }, [counts, layout])
 
   const total = totalKeyCount(counts)
   const hasAny = total > 0
@@ -69,33 +77,37 @@ export function KeyboardHeatmap({ counts }: { counts: KeyCounts }) {
           暂无键盘记录
         </div>
       ) : (
-        <div className="space-y-1">
-          {US_QWERTY_LAYOUT.map((row, rowIdx) => (
-            <div key={rowIdx} className="flex gap-1">
-              {row.map((key) => {
-                const count = counts[key.code] ?? 0
-                const level = levelForCount(count, stats.max, stats.buckets)
-                return (
-                  <div
-                    key={key.code}
-                    className={cn(
-                      'h-10 rounded-lg border px-2 py-1 text-[11px] leading-tight select-none',
-                      'flex flex-col justify-between',
-                      heatClass(level)
-                    )}
-                    style={{ flex: key.width ?? 1 }}
-                    title={`${key.code}  ${count.toLocaleString()}`}
-                    data-no-drag
-                  >
-                    <div className={cn('font-medium', level === 4 ? 'text-white' : 'text-slate-800')}>{key.label}</div>
-                    <div className={cn('tabular-nums', level === 4 ? 'text-white/90' : 'text-slate-500')}>
-                      {count > 0 ? count.toLocaleString() : ''}
+        <div className="overflow-x-auto">
+          <div className="space-y-1 pr-1">
+            {layout.map((row, rowIdx) => (
+              <div key={rowIdx} className="flex gap-1">
+                {row.map((key) => {
+                  const count = counts[key.code] ?? 0
+                  const level = levelForCount(count, stats.max, stats.buckets)
+                  return (
+                    <div
+                      key={key.code}
+                      className={cn(
+                        'h-10 min-w-[2.25rem] rounded-lg border px-2 py-1 text-[11px] leading-tight select-none',
+                        'flex flex-col justify-between',
+                        heatClass(level)
+                      )}
+                      style={{ flex: key.width ?? 1 }}
+                      title={`${key.code}  ${count.toLocaleString()}`}
+                      data-no-drag
+                    >
+                      <div className={cn('font-medium truncate', level === 4 ? 'text-white' : 'text-slate-800')}>
+                        {key.label}
+                      </div>
+                      <div className={cn('tabular-nums truncate', level === 4 ? 'text-white/90' : 'text-slate-500')}>
+                        {count > 0 ? count.toLocaleString() : ''}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-          ))}
+                  )
+                })}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -111,4 +123,3 @@ export function KeyboardHeatmap({ counts }: { counts: KeyCounts }) {
     </div>
   )
 }
-
