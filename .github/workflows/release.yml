@@ -207,7 +207,7 @@ jobs:
           mkdir -p updater-entries
           OUT_JSON="updater-entries/${JSON_TARGET}.json"
           JSON_TARGET="$JSON_TARGET" ASSET_NAME="$ASSET_NAME" SIGNATURE="$SIGNATURE" OUT_JSON="$OUT_JSON" \
-            node -e 'const fs=require("fs");const entry={json_target:process.env.JSON_TARGET,asset_name:process.env.ASSET_NAME,signature:process.env.SIGNATURE};fs.writeFileSync(process.env.OUT_JSON, JSON.stringify(entry) + "\\n");'
+            node -e 'const fs=require("fs");const entry={json_target:process.env.JSON_TARGET,asset_name:process.env.ASSET_NAME,signature:process.env.SIGNATURE};fs.writeFileSync(process.env.OUT_JSON, JSON.stringify(entry) + "\n");'
 
           echo "archive_path=$ARCHIVE" >> "$GITHUB_OUTPUT"
           echo "upload_asset=$UPLOAD_ASSET" >> "$GITHUB_OUTPUT"
