@@ -21,7 +21,7 @@ import { Button } from '../ui/button'
 import { Card } from '../ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
-import { isMac } from '../../utils/platform'
+import { isLinux, isMac, isWindows } from '../../utils/platform'
 import { WOODEN_FISH_SKINS, type WoodenFishSkin, type WoodenFishSkinId } from '../WoodenFish/skins'
 
 type SettingsTab = 'general' | 'shortcuts' | 'statistics' | 'about'
@@ -59,7 +59,7 @@ export function Settings() {
 
   const canToggleListening = isListening || !inputMonitoring.supported || inputMonitoring.authorized
 
-  const autostartSupported = isMac()
+  const autostartSupported = isMac() || isWindows() || isLinux()
 
   useSettingsSync()
 
@@ -498,7 +498,7 @@ export function Settings() {
                 <SettingsSection title="应用设置">
                   <SettingRow
                     title="开机自启动"
-                    description={autostartSupported ? '登录后自动启动应用' : '仅支持 macOS'}
+                    description={autostartSupported ? '开机后自动启动应用' : '仅支持 macOS / Windows / Linux'}
                     extra={autostartError ?? undefined}
                     control={
                       <Switch
