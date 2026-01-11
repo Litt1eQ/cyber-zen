@@ -9,6 +9,17 @@ use tauri::{AppHandle, Emitter};
 static STORAGE: Lazy<Arc<RwLock<MeritStorage>>> =
     Lazy::new(|| Arc::new(RwLock::new(MeritStorage::new())));
 
+pub struct KeyboardCounts<'a> {
+    pub key_counts: Option<&'a HashMap<String, u64>>,
+    pub key_counts_unshifted: Option<&'a HashMap<String, u64>>,
+    pub key_counts_shifted: Option<&'a HashMap<String, u64>>,
+    pub shortcut_counts: Option<&'a HashMap<String, u64>>,
+}
+
+pub struct MouseCounts<'a> {
+    pub mouse_button_counts: Option<&'a HashMap<String, u64>>,
+}
+
 pub struct MeritStorage {
     stats: MeritStats,
     settings: Settings,
@@ -62,7 +73,8 @@ impl MeritStorage {
         origin: InputOrigin,
         source: InputSource,
         count: u64,
-        key_counts: Option<&HashMap<String, u64>>,
+        keyboard: Option<KeyboardCounts<'_>>,
+        mouse: Option<MouseCounts<'_>>,
     ) -> bool {
         let should_count = match origin {
             // Explicit in-app action should always count, independent of global input listening toggles.
@@ -80,13 +92,26 @@ impl MeritStorage {
         self.stats.add_merit(source, count);
         match source {
             InputSource::Keyboard => {
-                if let Some(counts) = key_counts {
-                    self.stats.add_keyboard_key_counts(counts);
+                if let Some(k) = keyboard {
+                    if let Some(counts) = k.key_counts {
+                        self.stats.add_keyboard_key_counts(counts);
+                    }
+                    if let Some(counts) = k.key_counts_unshifted {
+                        self.stats.add_keyboard_key_unshifted_counts(counts);
+                    }
+                    if let Some(counts) = k.key_counts_shifted {
+                        self.stats.add_keyboard_key_shifted_counts(counts);
+                    }
+                    if let Some(counts) = k.shortcut_counts {
+                        self.stats.add_shortcut_counts(counts);
+                    }
                 }
             }
             InputSource::MouseSingle => {
-                if let Some(counts) = key_counts {
-                    self.stats.add_mouse_button_counts(counts);
+                if let Some(m) = mouse {
+                    if let Some(counts) = m.mouse_button_counts {
+                        self.stats.add_mouse_button_counts(counts);
+                    }
                 }
             }
         }

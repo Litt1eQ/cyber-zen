@@ -26,7 +26,7 @@ pub async fn add_merit(app_handle: AppHandle, source: InputSource, count: u64) -
         suppress_mouse_for(180);
     }
 
-    enqueue_merit_trigger(app_handle, InputOrigin::App, source, count, None);
+    enqueue_merit_trigger(app_handle, InputOrigin::App, source, count, None, None, None);
     Ok(())
 }
 

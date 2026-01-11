@@ -9,7 +9,7 @@ pub enum RawMouseButton {
 
 #[derive(Debug, Clone, Copy)]
 pub enum RawInputEvent {
-    KeyDown(u16),
+    KeyDown { keycode: u16, flags: u64 },
     MouseDown(RawMouseButton),
 }
 
@@ -134,7 +134,11 @@ mod imp {
             let ev = match event_type {
                 K_CG_EVENT_KEY_DOWN => {
                     let code = unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
-                    RawInputEvent::KeyDown(code as u16)
+                    let flags = unsafe { CGEventGetFlags(event) };
+                    RawInputEvent::KeyDown {
+                        keycode: code as u16,
+                        flags,
+                    }
                 }
                 // Modifier keys on macOS are reported via `flagsChanged`, not `keyDown`.
                 K_CG_EVENT_FLAGS_CHANGED => {
@@ -183,7 +187,10 @@ mod imp {
                         return;
                     }
 
-                    RawInputEvent::KeyDown(code_u16)
+                    RawInputEvent::KeyDown {
+                        keycode: code_u16,
+                        flags,
+                    }
                 }
                 K_CG_EVENT_LEFT_MOUSE_DOWN => RawInputEvent::MouseDown(super::RawMouseButton::Left),
                 K_CG_EVENT_RIGHT_MOUSE_DOWN => RawInputEvent::MouseDown(super::RawMouseButton::Right),

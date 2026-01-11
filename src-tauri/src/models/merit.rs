@@ -54,6 +54,12 @@ pub struct DailyStats {
     #[serde(default)]
     pub key_counts: HashMap<String, u64>,
     #[serde(default)]
+    pub key_counts_unshifted: HashMap<String, u64>,
+    #[serde(default)]
+    pub key_counts_shifted: HashMap<String, u64>,
+    #[serde(default)]
+    pub shortcut_counts: HashMap<String, u64>,
+    #[serde(default)]
     pub mouse_button_counts: HashMap<String, u64>,
 }
 
@@ -65,6 +71,9 @@ impl DailyStats {
             keyboard: 0,
             mouse_single: 0,
             key_counts: HashMap::new(),
+            key_counts_unshifted: HashMap::new(),
+            key_counts_shifted: HashMap::new(),
+            shortcut_counts: HashMap::new(),
             mouse_button_counts: HashMap::new(),
         }
     }
@@ -101,6 +110,54 @@ impl DailyStats {
                 continue;
             }
             self.key_counts
+                .entry(key.clone())
+                .and_modify(|v| *v = v.saturating_add(*count))
+                .or_insert(*count);
+        }
+    }
+
+    pub fn add_key_unshifted_counts(&mut self, counts: &HashMap<String, u64>) {
+        if counts.is_empty() {
+            return;
+        }
+
+        for (key, count) in counts {
+            if *count == 0 {
+                continue;
+            }
+            self.key_counts_unshifted
+                .entry(key.clone())
+                .and_modify(|v| *v = v.saturating_add(*count))
+                .or_insert(*count);
+        }
+    }
+
+    pub fn add_key_shifted_counts(&mut self, counts: &HashMap<String, u64>) {
+        if counts.is_empty() {
+            return;
+        }
+
+        for (key, count) in counts {
+            if *count == 0 {
+                continue;
+            }
+            self.key_counts_shifted
+                .entry(key.clone())
+                .and_modify(|v| *v = v.saturating_add(*count))
+                .or_insert(*count);
+        }
+    }
+
+    pub fn add_shortcut_counts(&mut self, counts: &HashMap<String, u64>) {
+        if counts.is_empty() {
+            return;
+        }
+
+        for (key, count) in counts {
+            if *count == 0 {
+                continue;
+            }
+            self.shortcut_counts
                 .entry(key.clone())
                 .and_modify(|v| *v = v.saturating_add(*count))
                 .or_insert(*count);
@@ -172,6 +229,30 @@ impl MeritStats {
         }
         self.normalize_today();
         self.today.add_key_counts(counts);
+    }
+
+    pub fn add_keyboard_key_unshifted_counts(&mut self, counts: &HashMap<String, u64>) {
+        if counts.is_empty() {
+            return;
+        }
+        self.normalize_today();
+        self.today.add_key_unshifted_counts(counts);
+    }
+
+    pub fn add_keyboard_key_shifted_counts(&mut self, counts: &HashMap<String, u64>) {
+        if counts.is_empty() {
+            return;
+        }
+        self.normalize_today();
+        self.today.add_key_shifted_counts(counts);
+    }
+
+    pub fn add_shortcut_counts(&mut self, counts: &HashMap<String, u64>) {
+        if counts.is_empty() {
+            return;
+        }
+        self.normalize_today();
+        self.today.add_shortcut_counts(counts);
     }
 
     pub fn add_mouse_button_counts(&mut self, counts: &HashMap<String, u64>) {

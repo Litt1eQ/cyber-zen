@@ -1,3 +1,4 @@
+use crate::core::merit_storage::{KeyboardCounts, MouseCounts};
 use crate::core::MeritStorage;
 use crate::models::{InputEvent, InputOrigin, InputSource};
 use once_cell::sync::Lazy;
@@ -24,6 +25,8 @@ struct Trigger {
     key: Key,
     count: u64,
     key_code: Option<String>,
+    is_shifted: Option<bool>,
+    shortcut: Option<String>,
     app_handle: AppHandle,
 }
 
@@ -99,6 +102,8 @@ impl MeritBatcher {
         source: InputSource,
         count: u64,
         key_code: Option<String>,
+        is_shifted: Option<bool>,
+        shortcut: Option<String>,
     ) {
         if count == 0 {
             return;
@@ -108,6 +113,8 @@ impl MeritBatcher {
             key: Key { origin, source },
             count,
             key_code,
+            is_shifted,
+            shortcut,
             app_handle,
         });
     }
@@ -121,8 +128,10 @@ pub fn enqueue_merit_trigger(
     source: InputSource,
     count: u64,
     key_code: Option<String>,
+    is_shifted: Option<bool>,
+    shortcut: Option<String>,
 ) {
-    BATCHER.enqueue(app_handle, origin, source, count, key_code);
+    BATCHER.enqueue(app_handle, origin, source, count, key_code, is_shifted, shortcut);
 }
 
 fn process_triggers(
@@ -134,6 +143,9 @@ fn process_triggers(
 ) {
     let mut by_key: HashMap<Key, (u64, AppHandle)> = HashMap::new();
     let mut keyboard_key_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
+    let mut keyboard_key_counts_unshifted: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
+    let mut keyboard_key_counts_shifted: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
+    let mut shortcut_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
     let mut mouse_button_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
 
     for trigger in triggers {
@@ -150,6 +162,24 @@ fn process_triggers(
                         .entry(code.clone())
                         .and_modify(|v| *v = v.saturating_add(trigger.count))
                         .or_insert(trigger.count);
+
+                    if let Some(is_shifted) = trigger.is_shifted {
+                        if is_shifted {
+                            keyboard_key_counts_shifted
+                                .entry(trigger.key.origin)
+                                .or_default()
+                                .entry(code.clone())
+                                .and_modify(|v| *v = v.saturating_add(trigger.count))
+                                .or_insert(trigger.count);
+                        } else {
+                            keyboard_key_counts_unshifted
+                                .entry(trigger.key.origin)
+                                .or_default()
+                                .entry(code.clone())
+                                .and_modify(|v| *v = v.saturating_add(trigger.count))
+                                .or_insert(trigger.count);
+                        }
+                    }
                 }
                 InputSource::MouseSingle => {
                     mouse_button_counts
@@ -160,6 +190,15 @@ fn process_triggers(
                         .or_insert(trigger.count);
                 }
             }
+        }
+
+        if let Some(shortcut) = trigger.shortcut.as_ref() {
+            shortcut_counts
+                .entry(trigger.key.origin)
+                .or_default()
+                .entry(shortcut.clone())
+                .and_modify(|v| *v = v.saturating_add(trigger.count))
+                .or_insert(trigger.count);
         }
 
         by_key
@@ -182,12 +221,24 @@ fn process_triggers(
         let storage = MeritStorage::instance();
         let mut storage = storage.write();
         for (key, (count, _)) in &by_key {
-            let key_counts = match key.source {
-                InputSource::Keyboard => keyboard_key_counts.get(&key.origin),
-                InputSource::MouseSingle => mouse_button_counts.get(&key.origin),
+            let keyboard = match key.source {
+                InputSource::Keyboard => Some(KeyboardCounts {
+                    key_counts: keyboard_key_counts.get(&key.origin),
+                    key_counts_unshifted: keyboard_key_counts_unshifted.get(&key.origin),
+                    key_counts_shifted: keyboard_key_counts_shifted.get(&key.origin),
+                    shortcut_counts: shortcut_counts.get(&key.origin),
+                }),
+                InputSource::MouseSingle => None,
             };
 
-            let added = storage.add_merit_silent(key.origin, key.source, *count, key_counts);
+            let mouse = match key.source {
+                InputSource::Keyboard => None,
+                InputSource::MouseSingle => Some(MouseCounts {
+                    mouse_button_counts: mouse_button_counts.get(&key.origin),
+                }),
+            };
+
+            let added = storage.add_merit_silent(key.origin, key.source, *count, keyboard, mouse);
             allowed.insert(*key, added);
             if added {
                 *stats_dirty = true;

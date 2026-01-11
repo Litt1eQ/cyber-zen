@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import { type KeyCounts, getUSQwertyLayout, totalKeyCount } from '@/lib/keyboard'
+import { buildKeySpecIndex, type KeyCounts, getUSQwertyLayout, totalKeyCount } from '@/lib/keyboard'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 
 type HeatBuckets = { q1: number; q2: number; q3: number } | null
@@ -43,38 +43,34 @@ function heatClass(level: 0 | 1 | 2 | 3 | 4): string {
   }
 }
 
-export function KeyboardHeatmap({ counts }: { counts: KeyCounts }) {
-  const layout = useMemo(() => {
-    if (isMac()) return getUSQwertyLayout('mac')
-    if (isWindows()) return getUSQwertyLayout('windows')
-    if (isLinux()) return getUSQwertyLayout('linux')
-    return getUSQwertyLayout('windows')
-  }, [])
-
-  const stats = useMemo(() => {
-    const values: number[] = []
-    for (const row of layout) {
-      for (const key of row) {
-        values.push(counts[key.code] ?? 0)
-      }
-    }
-    const max = values.reduce((acc, v) => Math.max(acc, v), 0)
-    return { max, buckets: computeBuckets(values) }
-  }, [counts, layout])
-
+function KeyboardView({
+  title,
+  layout,
+  counts,
+  max,
+  buckets,
+  showShiftedLabel,
+}: {
+  title: string
+  layout: ReturnType<typeof getUSQwertyLayout>
+  counts: KeyCounts
+  max: number
+  buckets: HeatBuckets
+  showShiftedLabel: boolean
+}) {
+  const keyIndex = useMemo(() => buildKeySpecIndex(layout), [layout])
   const total = totalKeyCount(counts)
-  const hasAny = total > 0
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-slate-500">击键分布（按键次数）</div>
+        <div className="text-xs text-slate-500">{title}</div>
         <div className="text-xs text-slate-500 tabular-nums">{total.toLocaleString()}</div>
       </div>
 
-      {!hasAny ? (
-        <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
-          暂无键盘记录
+      {total <= 0 ? (
+        <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
+          暂无记录
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -83,7 +79,9 @@ export function KeyboardHeatmap({ counts }: { counts: KeyCounts }) {
               <div key={rowIdx} className="flex gap-1">
                 {row.map((key) => {
                   const count = counts[key.code] ?? 0
-                  const level = levelForCount(count, stats.max, stats.buckets)
+                  const level = levelForCount(count, max, buckets)
+                  const label = showShiftedLabel ? key.shiftLabel ?? key.label : key.label
+                  const rawLabel = keyIndex[key.code]?.label ?? key.label
                   return (
                     <div
                       key={key.code}
@@ -93,11 +91,11 @@ export function KeyboardHeatmap({ counts }: { counts: KeyCounts }) {
                         heatClass(level)
                       )}
                       style={{ flex: key.width ?? 1 }}
-                      title={`${key.code}  ${count.toLocaleString()}`}
+                      title={`${key.code} (${rawLabel}${key.shiftLabel ? `/${key.shiftLabel}` : ''})  ${count.toLocaleString()}`}
                       data-no-drag
                     >
                       <div className={cn('font-medium truncate', level === 4 ? 'text-white' : 'text-slate-800')}>
-                        {key.label}
+                        {label}
                       </div>
                       <div className={cn('tabular-nums truncate', level === 4 ? 'text-white/90' : 'text-slate-500')}>
                         {count > 0 ? count.toLocaleString() : ''}
@@ -108,6 +106,73 @@ export function KeyboardHeatmap({ counts }: { counts: KeyCounts }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function KeyboardHeatmap({
+  unshiftedCounts,
+  shiftedCounts,
+}: {
+  unshiftedCounts: KeyCounts
+  shiftedCounts: KeyCounts
+}) {
+  const platform = useMemo(() => {
+    if (isMac()) return 'mac'
+    if (isWindows()) return 'windows'
+    if (isLinux()) return 'linux'
+    return 'windows'
+  }, [])
+
+  const layout = useMemo(() => getUSQwertyLayout(platform), [platform])
+
+  const combinedStats = useMemo(() => {
+    const values: number[] = []
+    for (const row of layout) {
+      for (const key of row) {
+        const u = unshiftedCounts[key.code] ?? 0
+        const s = shiftedCounts[key.code] ?? 0
+        values.push(u, s)
+      }
+    }
+    const max = values.reduce((acc, v) => Math.max(acc, v), 0)
+    return { max, buckets: computeBuckets(values) }
+  }, [layout, shiftedCounts, unshiftedCounts])
+
+  const total = totalKeyCount(unshiftedCounts) + totalKeyCount(shiftedCounts)
+  const hasAny = total > 0
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-slate-500">击键分布（区分 Shift）</div>
+        <div className="text-xs text-slate-500 tabular-nums">{total.toLocaleString()}</div>
+      </div>
+
+      {!hasAny ? (
+        <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
+          暂无键盘记录
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <KeyboardView
+            title="无 Shift / 小写 / 数字"
+            layout={layout}
+            counts={unshiftedCounts}
+            max={combinedStats.max}
+            buckets={combinedStats.buckets}
+            showShiftedLabel={false}
+          />
+          <KeyboardView
+            title="Shift / 大写 / 符号"
+            layout={layout}
+            counts={shiftedCounts}
+            max={combinedStats.max}
+            buckets={combinedStats.buckets}
+            showShiftedLabel
+          />
         </div>
       )}
 

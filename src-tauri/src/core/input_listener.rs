@@ -2,6 +2,8 @@ use crate::models::InputSource;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 #[cfg(not(target_os = "macos"))]
+use parking_lot::Mutex;
+#[cfg(not(target_os = "macos"))]
 use rdev::{listen, Event, EventType};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -21,6 +23,94 @@ static IGNORE_MOUSE_WHEN_APP_FOCUSED: AtomicBool = AtomicBool::new(true);
 static SUPPRESS_MOUSE_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
 
 static LAST_ERROR: Lazy<RwLock<Option<InputListenerError>>> = Lazy::new(|| RwLock::new(None));
+
+#[cfg(not(target_os = "macos"))]
+#[derive(Debug, Clone, Copy, Default)]
+struct ModState {
+    shift_left: bool,
+    shift_right: bool,
+    ctrl_left: bool,
+    ctrl_right: bool,
+    alt_left: bool,
+    alt_right: bool,
+    meta_left: bool,
+    meta_right: bool,
+    caps_lock: bool,
+}
+
+#[cfg(not(target_os = "macos"))]
+impl ModState {
+    fn shift(&self) -> bool {
+        self.shift_left || self.shift_right
+    }
+
+    fn ctrl(&self) -> bool {
+        self.ctrl_left || self.ctrl_right
+    }
+
+    fn alt(&self) -> bool {
+        self.alt_left || self.alt_right
+    }
+
+    fn meta(&self) -> bool {
+        self.meta_left || self.meta_right
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+static MOD_STATE: Lazy<Mutex<ModState>> = Lazy::new(|| Mutex::new(ModState::default()));
+
+fn is_letter_code(code: &str) -> bool {
+    let bytes = code.as_bytes();
+    if bytes.len() != 4 {
+        return false;
+    }
+    if &bytes[0..3] != b"Key" {
+        return false;
+    }
+    bytes[3].is_ascii_uppercase()
+}
+
+fn is_modifier_code(code: &str) -> bool {
+    matches!(
+        code,
+        "ShiftLeft"
+            | "ShiftRight"
+            | "ControlLeft"
+            | "ControlRight"
+            | "AltLeft"
+            | "AltRight"
+            | "MetaLeft"
+            | "MetaRight"
+            | "CapsLock"
+    )
+}
+
+fn effective_shifted(code: &str, shift_down: bool, caps_lock: bool) -> bool {
+    if is_letter_code(code) {
+        shift_down ^ caps_lock
+    } else {
+        shift_down
+    }
+}
+
+fn shortcut_id(meta: bool, ctrl: bool, alt: bool, shift: bool, code: &str) -> String {
+    let mut parts: Vec<&str> = Vec::with_capacity(5);
+    if meta {
+        parts.push("Meta");
+    }
+    if ctrl {
+        parts.push("Ctrl");
+    }
+    if alt {
+        parts.push("Alt");
+    }
+    if shift {
+        parts.push("Shift");
+    }
+    parts.push(code);
+    parts.join("+")
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -78,10 +168,44 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                     }
 
                     let (source, count, detail_code) = match raw {
-                        crate::core::macos_event_tap::RawInputEvent::KeyDown(keycode) => {
+                        crate::core::macos_event_tap::RawInputEvent::KeyDown { keycode, flags } => {
                             let code = key_codes::from_macos_virtual_keycode(keycode)
                                 .map(|v| v.to_string());
-                            (InputSource::Keyboard, 1u64, code)
+                            let (is_shifted, shortcut) = if let Some(code) = code.as_deref() {
+                                const MASK_ALPHA_SHIFT: u64 = 1 << 16;
+                                const MASK_SHIFT: u64 = 1 << 17;
+                                const MASK_CTRL: u64 = 1 << 18;
+                                const MASK_ALT: u64 = 1 << 19;
+                                const MASK_META: u64 = 1 << 20;
+
+                                let shift_down = (flags & MASK_SHIFT) != 0;
+                                let caps_lock = (flags & MASK_ALPHA_SHIFT) != 0;
+                                let is_shifted = effective_shifted(code, shift_down, caps_lock);
+
+                                let ctrl = (flags & MASK_CTRL) != 0;
+                                let alt = (flags & MASK_ALT) != 0;
+                                let meta = (flags & MASK_META) != 0;
+                                let shortcut = if (ctrl || alt || meta) && !is_modifier_code(code) {
+                                    Some(shortcut_id(meta, ctrl, alt, shift_down, code))
+                                } else {
+                                    None
+                                };
+
+                                (Some(is_shifted), shortcut)
+                            } else {
+                                (None, None)
+                            };
+
+                            enqueue_merit_trigger(
+                                worker_handle.clone(),
+                                InputOrigin::Global,
+                                InputSource::Keyboard,
+                                1u64,
+                                code,
+                                is_shifted,
+                                shortcut,
+                            );
+                            continue;
                         }
                         crate::core::macos_event_tap::RawInputEvent::MouseDown(button) => {
                             if should_suppress_mouse_press() {
@@ -111,6 +235,8 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         source,
                         count,
                         detail_code,
+                        None,
+                        None,
                     );
                 }
             });
@@ -134,8 +260,64 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                     return;
                 }
 
-                let (source, count, detail_code) = match event.event_type {
-                    EventType::KeyPress(key) => (InputSource::Keyboard, 1u64, key_codes::from_rdev_key(key)),
+                let (source, count, detail_code, is_shifted, shortcut) = match event.event_type {
+                    EventType::KeyPress(key) => {
+                        let raw = format!("{:?}", key);
+                        let (snapshot, code) = {
+                            let mut state = MOD_STATE.lock();
+                            match raw.as_str() {
+                                "ShiftLeft" => state.shift_left = true,
+                                "ShiftRight" => state.shift_right = true,
+                                "ControlLeft" => state.ctrl_left = true,
+                                "ControlRight" => state.ctrl_right = true,
+                                "Alt" | "AltLeft" => state.alt_left = true,
+                                "AltGr" | "AltRight" => state.alt_right = true,
+                                "MetaLeft" | "Super" => state.meta_left = true,
+                                "MetaRight" => state.meta_right = true,
+                                "CapsLock" => state.caps_lock = !state.caps_lock,
+                                _ => {}
+                            }
+                            (*state, key_codes::from_rdev_key(key))
+                        };
+
+                        let (is_shifted, shortcut) = if let Some(code) = code.as_deref() {
+                            let shift_down = snapshot.shift();
+                            let is_shifted = effective_shifted(code, shift_down, snapshot.caps_lock);
+                            let shortcut =
+                                if (snapshot.ctrl() || snapshot.alt() || snapshot.meta()) && !is_modifier_code(code) {
+                                    Some(shortcut_id(
+                                        snapshot.meta(),
+                                        snapshot.ctrl(),
+                                        snapshot.alt(),
+                                        shift_down,
+                                        code,
+                                    ))
+                                } else {
+                                    None
+                                };
+                            (Some(is_shifted), shortcut)
+                        } else {
+                            (None, None)
+                        };
+
+                        (InputSource::Keyboard, 1u64, code, is_shifted, shortcut)
+                    }
+                    EventType::KeyRelease(key) => {
+                        let raw = format!("{:?}", key);
+                        let mut state = MOD_STATE.lock();
+                        match raw.as_str() {
+                            "ShiftLeft" => state.shift_left = false,
+                            "ShiftRight" => state.shift_right = false,
+                            "ControlLeft" => state.ctrl_left = false,
+                            "ControlRight" => state.ctrl_right = false,
+                            "Alt" | "AltLeft" => state.alt_left = false,
+                            "AltGr" | "AltRight" => state.alt_right = false,
+                            "MetaLeft" | "Super" => state.meta_left = false,
+                            "MetaRight" => state.meta_right = false,
+                            _ => {}
+                        }
+                        return;
+                    }
                     EventType::ButtonPress(button) => {
                         if should_suppress_mouse_press() {
                             return;
@@ -154,6 +336,8 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             InputSource::MouseSingle,
                             1u64,
                             code,
+                            None,
+                            None,
                         )
                     }
                     _ => return,
@@ -165,6 +349,8 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                     source,
                     count,
                     detail_code,
+                    is_shifted,
+                    shortcut,
                 );
             };
 

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { sumKeyCounts, type KeyCounts } from '@/lib/keyboard'
 import { KeyboardHeatmap } from './KeyboardHeatmap'
 import { MouseButtonsHeatmap } from './MouseButtonsHeatmap'
+import { ShortcutList } from './ShortcutList'
 import {
   addMonths,
   daysInMonth,
@@ -188,12 +189,36 @@ export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
   }, [cursor, monthDays, selectedKey, todayKey])
 
   const selectedDay = selectedKey ? byDateKey.get(selectedKey) : undefined
-  const keyCounts: KeyCounts = useMemo(() => {
+  const keyCountsUnshifted: KeyCounts = useMemo(() => {
     if (keyHeatMode === 'total') {
-      return sumKeyCounts(days.map((d) => d.key_counts))
+      return sumKeyCounts(days.map((d) => d.key_counts_unshifted ?? d.key_counts))
     }
-    return selectedDay?.key_counts ?? {}
-  }, [days, keyHeatMode, selectedDay?.key_counts])
+    return selectedDay?.key_counts_unshifted ?? selectedDay?.key_counts ?? {}
+  }, [days, keyHeatMode, selectedDay?.key_counts, selectedDay?.key_counts_unshifted])
+
+  const keyCountsShifted: KeyCounts = useMemo(() => {
+    if (keyHeatMode === 'total') {
+      return sumKeyCounts(days.map((d) => d.key_counts_shifted))
+    }
+    return selectedDay?.key_counts_shifted ?? {}
+  }, [days, keyHeatMode, selectedDay?.key_counts_shifted])
+
+  const shortcutCounts: Record<string, number> = useMemo(() => {
+    if (keyHeatMode === 'total') {
+      const merged: Record<string, number> = {}
+      for (const day of days) {
+        const map = day.shortcut_counts
+        if (!map) continue
+        for (const [k, v] of Object.entries(map)) {
+          if (!v) continue
+          merged[k] = (merged[k] ?? 0) + v
+        }
+      }
+      return merged
+    }
+    return selectedDay?.shortcut_counts ?? {}
+  }, [days, keyHeatMode, selectedDay?.shortcut_counts])
+
   const mouseButtonCounts: Record<string, number> = useMemo(() => {
     if (keyHeatMode === 'total') {
       const merged: Record<string, number> = {}
@@ -381,7 +406,17 @@ export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
             <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
           </div>
           <div className="mt-3">
-            <KeyboardHeatmap counts={keyCounts} />
+            <KeyboardHeatmap unshiftedCounts={keyCountsUnshifted} shiftedCounts={keyCountsShifted} />
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-slate-500">快捷键排行</div>
+            <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
+          </div>
+          <div className="mt-3">
+            <ShortcutList counts={shortcutCounts} />
           </div>
         </div>
 

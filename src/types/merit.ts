@@ -11,6 +11,9 @@ export interface DailyStats {
   keyboard: number
   mouse_single: number
   key_counts: Record<string, number>
+  key_counts_unshifted?: Record<string, number>
+  key_counts_shifted?: Record<string, number>
+  shortcut_counts?: Record<string, number>
   mouse_button_counts: Record<string, number>
 }
 
