@@ -191,7 +191,18 @@ jobs:
           fi
 
           ASSET_NAME="$(basename "$ARCHIVE")"
-          SIGNATURE="$(pnpm -s tauri signer sign "$ARCHIVE" | tr -d '\r\n')"
+
+          # `tauri signer sign` prints extra logs; use the generated `.sig` file to build a clean base64 signature.
+          SIGN_OUT="$(pnpm -s tauri signer sign "$ARCHIVE" 2>&1)" || {
+            echo "$SIGN_OUT"
+            exit 1
+          }
+          SIG_FILE="${ARCHIVE}.sig"
+          if [ ! -f "$SIG_FILE" ]; then
+            echo "Signature file not found: $SIG_FILE"
+            exit 1
+          fi
+          SIGNATURE="$(node -e 'const fs=require(\"fs\");const p=process.argv[1];const s=fs.readFileSync(p,\"utf8\").replace(/\\r\\n/g,\"\\n\");process.stdout.write(Buffer.from(s,\"utf8\").toString(\"base64\"));' "$SIG_FILE")"
 
           mkdir -p updater-entries
           OUT_JSON="updater-entries/${JSON_TARGET}.json"
