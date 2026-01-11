@@ -110,37 +110,51 @@ jobs:
           args: --target ${{ matrix.target }}
 
       - name: Generate updater entry (for latest.json)
+        id: updater_entry
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
 
           if [ -z "${TAURI_PRIVATE_KEY:-}" ]; then
-            echo "TAURI_PRIVATE_KEY is empty. Configure the GitHub secret used for signing (e.g. TAURI_SIGNING_PRIVATE_KEY)."
+            echo "TAURI_PRIVATE_KEY is empty. Configure a signing secret (e.g. TAURI_SIGNING_PRIVATE_KEY / TAURI_PRIVATE_KEY)."
             exit 1
           fi
 
+          VERSION="${TAG#v}"
           BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
           if [ ! -d "$BUNDLE_DIR" ]; then
             echo "Bundle dir not found: $BUNDLE_DIR"
             exit 1
           fi
 
+          UPLOAD_ASSET="false"
+          ARCH_LABEL=""
           case "${{ matrix.target }}" in
             aarch64-apple-darwin)
               JSON_TARGET="darwin-aarch64"
+              ARCH_LABEL="aarch64"
+              # Prefer the bundler-produced updater archive if present.
               PATTERNS=("*.app.tar.gz")
               ;;
             x86_64-apple-darwin)
               JSON_TARGET="darwin-x86_64"
+              ARCH_LABEL="x86_64"
               PATTERNS=("*.app.tar.gz")
               ;;
             x86_64-pc-windows-msvc)
               JSON_TARGET="windows-x86_64"
-              PATTERNS=("*.msi.zip" "*.exe.zip" "*.nsis.zip")
+              ARCH_LABEL="x86_64"
+              # On Windows, the updater can download either a zip or the raw installer (.exe/.msi).
+              # Prefer NSIS `*-setup.exe` to match common Tauri updater usage (see BongoCat latest.json).
+              PATTERNS=("*-setup.exe.zip" "*-setup.exe" "*.msi.zip" "*.msi")
               ;;
             x86_64-unknown-linux-gnu)
               JSON_TARGET="linux-x86_64"
-              PATTERNS=("*.AppImage.tar.gz" "*.appimage.tar.gz")
+              ARCH_LABEL="x86_64"
+              # On Linux, the updater can download a raw AppImage.
+              PATTERNS=("*.AppImage.tar.gz" "*.appimage.tar.gz" "*.AppImage" "*.appimage")
               ;;
             *)
               echo "Unsupported target for updater manifest: ${{ matrix.target }}"
@@ -157,8 +171,20 @@ jobs:
             fi
           done
 
+          # macOS: if the `.app.tar.gz` isn't present, create one from the `.app` bundle and upload it.
+          if [ -z "$ARCHIVE" ] && [[ "${{ matrix.target }}" == *apple-darwin ]]; then
+            APP_DIR="$(find "$BUNDLE_DIR" -type d -name '*.app' -print -quit || true)"
+            if [ -n "$APP_DIR" ]; then
+              APP_BASENAME="$(basename "$APP_DIR" .app)"
+              mkdir -p updater-payloads
+              ARCHIVE="updater-payloads/${APP_BASENAME}_${VERSION}_${ARCH_LABEL}.app.tar.gz"
+              tar -czf "$ARCHIVE" -C "$(dirname "$APP_DIR")" "$(basename "$APP_DIR")"
+              UPLOAD_ASSET="true"
+            fi
+          fi
+
           if [ -z "$ARCHIVE" ]; then
-            echo "Could not find updater archive under: $BUNDLE_DIR"
+            echo "Could not find updater payload under: $BUNDLE_DIR"
             echo "Files present:"
             find "$BUNDLE_DIR" -type f | sed -n '1,200p'
             exit 1
@@ -171,6 +197,18 @@ jobs:
           cat > "updater-entries/${JSON_TARGET}.json" <<EOF
           {"json_target":"${JSON_TARGET}","asset_name":"${ASSET_NAME}","signature":"${SIGNATURE}"}
           EOF
+
+          echo "archive_path=$ARCHIVE" >> "$GITHUB_OUTPUT"
+          echo "upload_asset=$UPLOAD_ASSET" >> "$GITHUB_OUTPUT"
+
+      - name: Upload derived updater asset to release
+        if: steps.updater_entry.outputs.upload_asset == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: ${{ steps.updater_entry.outputs.archive_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload updater entry artifact
         uses: actions/upload-artifact@v4
