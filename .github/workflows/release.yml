@@ -43,6 +43,9 @@ jobs:
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.platform }}
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -94,8 +97,6 @@ jobs:
         env:
           CI: false
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: CyberZen ${{ inputs.tag || github.ref_name }}
@@ -103,3 +104,104 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
+
+      - name: Generate updater entry (for latest.json)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            echo "Bundle dir not found: $BUNDLE_DIR"
+            exit 1
+          fi
+
+          case "${{ matrix.target }}" in
+            aarch64-apple-darwin)
+              JSON_TARGET="darwin-aarch64"
+              PATTERNS=("*.app.tar.gz")
+              ;;
+            x86_64-apple-darwin)
+              JSON_TARGET="darwin-x86_64"
+              PATTERNS=("*.app.tar.gz")
+              ;;
+            x86_64-pc-windows-msvc)
+              JSON_TARGET="windows-x86_64"
+              PATTERNS=("*.msi.zip" "*.exe.zip" "*.nsis.zip")
+              ;;
+            x86_64-unknown-linux-gnu)
+              JSON_TARGET="linux-x86_64"
+              PATTERNS=("*.AppImage.tar.gz" "*.appimage.tar.gz")
+              ;;
+            *)
+              echo "Unsupported target for updater manifest: ${{ matrix.target }}"
+              exit 1
+              ;;
+          esac
+
+          ARCHIVE=""
+          for pattern in "${PATTERNS[@]}"; do
+            found="$(find "$BUNDLE_DIR" -type f -name "$pattern" -print -quit || true)"
+            if [ -n "$found" ]; then
+              ARCHIVE="$found"
+              break
+            fi
+          done
+
+          if [ -z "$ARCHIVE" ]; then
+            echo "Could not find updater archive under: $BUNDLE_DIR"
+            echo "Files present:"
+            find "$BUNDLE_DIR" -type f | sed -n '1,200p'
+            exit 1
+          fi
+
+          ASSET_NAME="$(basename "$ARCHIVE")"
+          SIGNATURE="$(pnpm -s tauri signer sign "$ARCHIVE" | tr -d '\r\n')"
+
+          mkdir -p updater-entries
+          cat > "updater-entries/${JSON_TARGET}.json" <<EOF
+          {"json_target":"${JSON_TARGET}","asset_name":"${ASSET_NAME}","signature":"${SIGNATURE}"}
+          EOF
+
+      - name: Upload updater entry artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-entry-${{ matrix.target }}
+          path: updater-entries/*.json
+
+  updater-manifest:
+    needs: build-app
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download updater entry artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: updater-entries
+
+      - name: Generate latest.json
+        run: |
+          node scripts/updater/generate-latest-json.mjs \
+            --repo "$GITHUB_REPOSITORY" \
+            --tag "${{ inputs.tag || github.ref_name }}" \
+            --entries-dir updater-entries \
+            --out latest.json
+
+      - name: Upload latest.json to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
