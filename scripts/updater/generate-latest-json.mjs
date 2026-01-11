@@ -65,7 +65,15 @@ async function main() {
   const platforms = {};
   for (const filePath of jsonFiles) {
     const raw = await fs.readFile(filePath, "utf8");
-    const entry = JSON.parse(raw);
+    let entry;
+    try {
+      entry = JSON.parse(raw);
+    } catch (error) {
+      const preview = raw.length > 400 ? raw.slice(0, 400) + "…" : raw;
+      throw new Error(
+        `Failed to parse updater entry JSON: ${filePath}\n${String(error)}\nPreview:\n${preview}`
+      );
+    }
     const jsonTarget = entry.json_target;
     const assetName = entry.asset_name;
     const signature = entry.signature;
@@ -98,4 +106,3 @@ main().catch((error) => {
   console.error(error?.stack || String(error));
   process.exit(1);
 });
-
