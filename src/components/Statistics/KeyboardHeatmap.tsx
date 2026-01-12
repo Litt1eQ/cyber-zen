@@ -2,60 +2,30 @@ import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { buildKeySpecIndex, type KeyCounts, getUSQwertyLayout, totalKeyCount } from '@/lib/keyboard'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
-
-type HeatBuckets = { q1: number; q2: number; q3: number } | null
-
-function computeBuckets(values: number[]): HeatBuckets {
-  const nonZero = values.filter((v) => v > 0).sort((a, b) => a - b)
-  if (nonZero.length < 4) return null
-  const at = (p: number) => nonZero[Math.min(nonZero.length - 1, Math.floor(p * (nonZero.length - 1)))]
-  return { q1: at(0.25), q2: at(0.5), q3: at(0.75) }
-}
-
-function levelForCount(count: number, max: number, buckets: HeatBuckets): 0 | 1 | 2 | 3 | 4 {
-  if (count <= 0) return 0
-  if (buckets) {
-    if (count <= buckets.q1) return 1
-    if (count <= buckets.q2) return 2
-    if (count <= buckets.q3) return 3
-    return 4
-  }
-  if (max <= 0) return 0
-  const ratio = count / max
-  if (ratio <= 0.25) return 1
-  if (ratio <= 0.5) return 2
-  if (ratio <= 0.75) return 3
-  return 4
-}
-
-function heatClass(level: 0 | 1 | 2 | 3 | 4): string {
-  switch (level) {
-    case 0:
-      return 'bg-slate-100 border-slate-200 text-slate-700'
-    case 1:
-      return 'bg-blue-50 border-blue-100 text-slate-900'
-    case 2:
-      return 'bg-blue-100 border-blue-200 text-slate-900'
-    case 3:
-      return 'bg-blue-200 border-blue-300 text-slate-900'
-    case 4:
-      return 'bg-blue-600 border-blue-700 text-white'
-  }
-}
+import {
+  computeHeatThresholds,
+  heatClass,
+  heatLevelForValue,
+  heatLevels,
+  isHeatDark,
+  normalizeHeatLevelCount,
+} from './heatScale'
 
 function KeyboardView({
   title,
   layout,
   counts,
   max,
-  buckets,
+  thresholds,
+  heatLevelCount,
   showShiftedLabel,
 }: {
   title: string
   layout: ReturnType<typeof getUSQwertyLayout>
   counts: KeyCounts
   max: number
-  buckets: HeatBuckets
+  thresholds: number[] | null
+  heatLevelCount: number
   showShiftedLabel: boolean
 }) {
   const keyIndex = useMemo(() => buildKeySpecIndex(layout), [layout])
@@ -79,7 +49,7 @@ function KeyboardView({
               <div key={rowIdx} className="flex gap-1">
                 {row.map((key) => {
                   const count = counts[key.code] ?? 0
-                  const level = levelForCount(count, max, buckets)
+                  const level = heatLevelForValue(count, max, thresholds, heatLevelCount)
                   const label = showShiftedLabel ? key.shiftLabel ?? key.label : key.label
                   const rawLabel = keyIndex[key.code]?.label ?? key.label
                   return (
@@ -88,16 +58,26 @@ function KeyboardView({
                       className={cn(
                         'h-10 min-w-[2.25rem] rounded-lg border px-2 py-1 text-[11px] leading-tight select-none',
                         'flex flex-col justify-between',
-                        heatClass(level)
+                        heatClass(level, heatLevelCount)
                       )}
                       style={{ flex: key.width ?? 1 }}
                       title={`${key.code} (${rawLabel}${key.shiftLabel ? `/${key.shiftLabel}` : ''})  ${count.toLocaleString()}`}
                       data-no-drag
                     >
-                      <div className={cn('font-medium truncate', level === 4 ? 'text-white' : 'text-slate-800')}>
+                      <div
+                        className={cn(
+                          'font-medium truncate',
+                          isHeatDark(level, heatLevelCount) ? 'text-white' : 'text-slate-800'
+                        )}
+                      >
                         {label}
                       </div>
-                      <div className={cn('tabular-nums truncate', level === 4 ? 'text-white/90' : 'text-slate-500')}>
+                      <div
+                        className={cn(
+                          'tabular-nums truncate',
+                          isHeatDark(level, heatLevelCount) ? 'text-white/90' : 'text-slate-500'
+                        )}
+                      >
                         {count > 0 ? count.toLocaleString() : ''}
                       </div>
                     </div>
@@ -115,10 +95,13 @@ function KeyboardView({
 export function KeyboardHeatmap({
   unshiftedCounts,
   shiftedCounts,
+  heatLevelCount,
 }: {
   unshiftedCounts: KeyCounts
   shiftedCounts: KeyCounts
+  heatLevelCount?: number
 }) {
+  const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const platform = useMemo(() => {
     if (isMac()) return 'mac'
     if (isWindows()) return 'windows'
@@ -138,8 +121,8 @@ export function KeyboardHeatmap({
       }
     }
     const max = values.reduce((acc, v) => Math.max(acc, v), 0)
-    return { max, buckets: computeBuckets(values) }
-  }, [layout, shiftedCounts, unshiftedCounts])
+    return { max, thresholds: computeHeatThresholds(values, heatLevelsCount) }
+  }, [heatLevelsCount, layout, shiftedCounts, unshiftedCounts])
 
   const total = totalKeyCount(unshiftedCounts) + totalKeyCount(shiftedCounts)
   const hasAny = total > 0
@@ -162,7 +145,8 @@ export function KeyboardHeatmap({
             layout={layout}
             counts={unshiftedCounts}
             max={combinedStats.max}
-            buckets={combinedStats.buckets}
+            thresholds={combinedStats.thresholds}
+            heatLevelCount={heatLevelsCount}
             showShiftedLabel={false}
           />
           <KeyboardView
@@ -170,7 +154,8 @@ export function KeyboardHeatmap({
             layout={layout}
             counts={shiftedCounts}
             max={combinedStats.max}
-            buckets={combinedStats.buckets}
+            thresholds={combinedStats.thresholds}
+            heatLevelCount={heatLevelsCount}
             showShiftedLabel
           />
         </div>
@@ -179,8 +164,8 @@ export function KeyboardHeatmap({
       <div className="flex items-center justify-between text-xs text-slate-500">
         <span>少</span>
         <div className="flex items-center gap-1" aria-hidden="true">
-          {[0, 1, 2, 3, 4].map((lv) => (
-            <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv as 0 | 1 | 2 | 3 | 4))} />
+          {heatLevels(heatLevelsCount).map((lv) => (
+            <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} />
           ))}
         </div>
         <span>多</span>

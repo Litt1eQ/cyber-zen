@@ -24,6 +24,7 @@ const defaultSettings: Settings = {
   opacity: 0.95,
   animation_speed: 1.0,
   window_scale: 100,
+  heatmap_levels: 10,
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

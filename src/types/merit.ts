@@ -34,6 +34,7 @@ export interface Settings {
   opacity: number
   animation_speed: number
   window_scale: number
+  heatmap_levels?: number
   shortcut_toggle_main?: string | null
   shortcut_toggle_settings?: string | null
   shortcut_toggle_listening?: string | null

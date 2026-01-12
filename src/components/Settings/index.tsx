@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { isLinux, isMac, isWindows } from '../../utils/platform'
 import { WOODEN_FISH_SKINS, type WoodenFishSkin, type WoodenFishSkinId } from '../WoodenFish/skins'
+import { HEAT_LEVEL_COUNT_DEFAULT, HEAT_LEVEL_COUNT_MAX, HEAT_LEVEL_COUNT_MIN } from '../Statistics/heatScale'
 
 type SettingsTab = 'general' | 'shortcuts' | 'statistics' | 'about'
 
@@ -618,6 +619,24 @@ export function Settings() {
                       </div>
                     </div>
                   </div>
+                </SettingsSection>
+
+                <SettingsSection title="热力图">
+                  <SettingRow
+                    title="颜色分级档位"
+                    description={`${settings.heatmap_levels ?? HEAT_LEVEL_COUNT_DEFAULT} 档（${HEAT_LEVEL_COUNT_MIN}-${HEAT_LEVEL_COUNT_MAX}）`}
+                    control={
+                      <Slider
+                        min={HEAT_LEVEL_COUNT_MIN}
+                        max={HEAT_LEVEL_COUNT_MAX}
+                        step={1}
+                        value={[settings.heatmap_levels ?? HEAT_LEVEL_COUNT_DEFAULT]}
+                        onValueChange={([v]) => updateSettings({ heatmap_levels: Math.round(v) })}
+                        className="w-56"
+                        data-no-drag
+                      />
+                    }
+                  />
                 </SettingsSection>
 
                 <SettingsSection title="历史统计">

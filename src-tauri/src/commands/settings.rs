@@ -37,6 +37,10 @@ fn normalize_skin_id(id: String) -> String {
     }
 }
 
+fn normalize_heatmap_levels(levels: u8) -> u8 {
+    levels.clamp(5, 15)
+}
+
 #[tauri::command]
 pub async fn get_settings() -> Result<Settings, String> {
     let storage = MeritStorage::instance();
@@ -49,6 +53,7 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     let mut settings = settings;
     settings.window_scale = normalize_scale(settings.window_scale);
     settings.wooden_fish_skin = normalize_skin_id(settings.wooden_fish_skin);
+    settings.heatmap_levels = normalize_heatmap_levels(settings.heatmap_levels);
 
     let storage = MeritStorage::instance();
     let mut storage = storage.write();

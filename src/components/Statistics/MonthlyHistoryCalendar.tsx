@@ -9,6 +9,14 @@ import { KeyboardHeatmap } from './KeyboardHeatmap'
 import { MouseButtonsHeatmap } from './MouseButtonsHeatmap'
 import { ShortcutList } from './ShortcutList'
 import {
+  computeHeatThresholds,
+  heatClass,
+  heatLevelForValue,
+  heatLevels,
+  isHeatDark,
+  normalizeHeatLevelCount,
+} from './heatScale'
+import {
   addMonths,
   daysInMonth,
   formatMonthLabel,
@@ -28,46 +36,7 @@ const WEEKDAYS_ZH = ['一', '二', '三', '四', '五', '六', '日'] as const
 type Props = {
   days: DailyStats[]
   todayKey?: string
-}
-
-type HeatBuckets = { q1: number; q2: number; q3: number } | null
-
-function computeBuckets(totals: number[]): HeatBuckets {
-  const nonZero = totals.filter((v) => v > 0).sort((a, b) => a - b)
-  if (nonZero.length < 4) return null
-  const at = (p: number) => nonZero[Math.min(nonZero.length - 1, Math.floor(p * (nonZero.length - 1)))]
-  return { q1: at(0.25), q2: at(0.5), q3: at(0.75) }
-}
-
-function levelForTotal(total: number, maxTotal: number, buckets: HeatBuckets): 0 | 1 | 2 | 3 | 4 {
-  if (total <= 0) return 0
-  if (buckets) {
-    if (total <= buckets.q1) return 1
-    if (total <= buckets.q2) return 2
-    if (total <= buckets.q3) return 3
-    return 4
-  }
-  if (maxTotal <= 0) return 0
-  const ratio = total / maxTotal
-  if (ratio <= 0.25) return 1
-  if (ratio <= 0.5) return 2
-  if (ratio <= 0.75) return 3
-  return 4
-}
-
-function heatClass(level: 0 | 1 | 2 | 3 | 4): string {
-  switch (level) {
-    case 0:
-      return 'bg-slate-100 border-slate-200 text-slate-600'
-    case 1:
-      return 'bg-blue-50 border-blue-100 text-slate-800'
-    case 2:
-      return 'bg-blue-100 border-blue-200 text-slate-900'
-    case 3:
-      return 'bg-blue-200 border-blue-300 text-slate-900'
-    case 4:
-      return 'bg-blue-600 border-blue-700 text-white'
-  }
+  heatLevelCount?: number
 }
 
 function safeLocalDateFromKey(dateKey: string): Date | null {
@@ -106,7 +75,8 @@ function pickRange(days: DailyStats[], todayKey?: string): { min: YearMonth; max
   return { min, max }
 }
 
-export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
+export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount }: Props) {
+  const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const byDateKey = useMemo(() => {
     const map = new Map<string, DailyStats>()
     for (const day of days) {
@@ -160,8 +130,8 @@ export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
       totals.push(byDateKey.get(cell.key)?.total ?? 0)
     }
     const maxTotal = totals.reduce((acc, v) => Math.max(acc, v), 0)
-    return { maxTotal, buckets: computeBuckets(totals) }
-  }, [byDateKey, monthDays])
+    return { maxTotal, thresholds: computeHeatThresholds(totals, heatLevelsCount) }
+  }, [byDateKey, heatLevelsCount, monthDays])
 
   useEffect(() => {
     const todayYm = todayKey ? yearMonthFromNaiveDateKey(todayKey) : null
@@ -300,7 +270,7 @@ export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
               return <div key={`empty-${idx}`} className="aspect-square" aria-hidden="true" />
             }
             const total = byDateKey.get(cell.key)?.total ?? 0
-            const level = levelForTotal(total, monthTotals.maxTotal, monthTotals.buckets)
+            const level = heatLevelForValue(total, monthTotals.maxTotal, monthTotals.thresholds, heatLevelsCount)
             const isSelected = selectedKey === cell.key
             const isToday = todayKey === cell.key
             return (
@@ -310,7 +280,7 @@ export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
                 onClick={() => setSelectedKey(cell.key)}
                 className={cn(
                   'aspect-square rounded-lg border text-left px-2 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
-                  heatClass(level),
+                  heatClass(level, heatLevelsCount),
                   isSelected && 'ring-2 ring-blue-500 ring-offset-2',
                   isToday && 'outline outline-1 outline-blue-600/60'
                 )}
@@ -319,8 +289,15 @@ export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
                 title={`${cell.key}  总计 ${total}`}
                 data-no-drag
               >
-                <div className={cn('text-xs font-medium', level === 4 ? 'text-white' : 'text-slate-700')}>{cell.day}</div>
-                <div className={cn('mt-1 text-[11px] tabular-nums', level === 4 ? 'text-white/90' : 'text-slate-500')}>
+                <div className={cn('text-xs font-medium', isHeatDark(level, heatLevelsCount) ? 'text-white' : 'text-slate-700')}>
+                  {cell.day}
+                </div>
+                <div
+                  className={cn(
+                    'mt-1 text-[11px] tabular-nums',
+                    isHeatDark(level, heatLevelsCount) ? 'text-white/90' : 'text-slate-500'
+                  )}
+                >
                   {total > 0 ? total.toLocaleString() : ''}
                 </div>
               </button>
@@ -335,12 +312,8 @@ export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
           </div>
           <div className="flex items-center gap-2">
             <span>少</span>
-            {[0, 1, 2, 3, 4].map((lv) => (
-              <span
-                key={lv}
-                className={cn('h-3 w-3 rounded border', heatClass(lv as 0 | 1 | 2 | 3 | 4))}
-                aria-hidden="true"
-              />
+            {heatLevels(heatLevelsCount).map((lv) => (
+              <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} aria-hidden="true" />
             ))}
             <span>多</span>
           </div>
@@ -406,7 +379,11 @@ export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
             <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
           </div>
           <div className="mt-3">
-            <KeyboardHeatmap unshiftedCounts={keyCountsUnshifted} shiftedCounts={keyCountsShifted} />
+            <KeyboardHeatmap
+              unshiftedCounts={keyCountsUnshifted}
+              shiftedCounts={keyCountsShifted}
+              heatLevelCount={heatLevelsCount}
+            />
           </div>
         </div>
 
@@ -426,7 +403,7 @@ export function MonthlyHistoryCalendar({ days, todayKey }: Props) {
             <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
           </div>
           <div className="mt-3">
-            <MouseButtonsHeatmap counts={mouseButtonCounts} />
+            <MouseButtonsHeatmap counts={mouseButtonCounts} heatLevelCount={heatLevelsCount} />
           </div>
         </div>
       </Card>

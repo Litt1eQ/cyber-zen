@@ -1,47 +1,15 @@
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import {
+  computeHeatThresholds,
+  heatClass,
+  heatLevelForValue,
+  heatLevels,
+  isHeatDark,
+  normalizeHeatLevelCount,
+} from './heatScale'
 
 type Counts = Record<string, number>
-
-type HeatBuckets = { q1: number; q2: number; q3: number } | null
-
-function computeBuckets(values: number[]): HeatBuckets {
-  const nonZero = values.filter((v) => v > 0).sort((a, b) => a - b)
-  if (nonZero.length < 4) return null
-  const at = (p: number) => nonZero[Math.min(nonZero.length - 1, Math.floor(p * (nonZero.length - 1)))]
-  return { q1: at(0.25), q2: at(0.5), q3: at(0.75) }
-}
-
-function levelForCount(count: number, max: number, buckets: HeatBuckets): 0 | 1 | 2 | 3 | 4 {
-  if (count <= 0) return 0
-  if (buckets) {
-    if (count <= buckets.q1) return 1
-    if (count <= buckets.q2) return 2
-    if (count <= buckets.q3) return 3
-    return 4
-  }
-  if (max <= 0) return 0
-  const ratio = count / max
-  if (ratio <= 0.25) return 1
-  if (ratio <= 0.5) return 2
-  if (ratio <= 0.75) return 3
-  return 4
-}
-
-function heatClass(level: 0 | 1 | 2 | 3 | 4): string {
-  switch (level) {
-    case 0:
-      return 'bg-slate-100 border-slate-200 text-slate-700'
-    case 1:
-      return 'bg-blue-50 border-blue-100 text-slate-900'
-    case 2:
-      return 'bg-blue-100 border-blue-200 text-slate-900'
-    case 3:
-      return 'bg-blue-200 border-blue-300 text-slate-900'
-    case 4:
-      return 'bg-blue-600 border-blue-700 text-white'
-  }
-}
 
 function sumCounts(counts: Counts): number {
   let sum = 0
@@ -54,12 +22,13 @@ const BUTTONS = [
   { code: 'MouseRight', label: '右键', flex: 1 },
 ] as const
 
-export function MouseButtonsHeatmap({ counts }: { counts: Counts }) {
+export function MouseButtonsHeatmap({ counts, heatLevelCount }: { counts: Counts; heatLevelCount?: number }) {
+  const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const stats = useMemo(() => {
     const values = BUTTONS.map((b) => counts[b.code] ?? 0)
     const max = values.reduce((acc, v) => Math.max(acc, v), 0)
-    return { max, buckets: computeBuckets(values) }
-  }, [counts])
+    return { max, thresholds: computeHeatThresholds(values, heatLevelsCount) }
+  }, [counts, heatLevelsCount])
 
   const total = sumCounts(counts)
   const hasAny = total > 0
@@ -79,21 +48,23 @@ export function MouseButtonsHeatmap({ counts }: { counts: Counts }) {
         <div className="flex gap-2">
           {BUTTONS.map((b) => {
             const count = counts[b.code] ?? 0
-            const level = levelForCount(count, stats.max, stats.buckets)
+            const level = heatLevelForValue(count, stats.max, stats.thresholds, heatLevelsCount)
             return (
               <div
                 key={b.code}
                 className={cn(
                   'h-14 rounded-lg border px-3 py-2 text-[12px] leading-tight select-none',
                   'flex flex-col justify-between',
-                  heatClass(level)
+                  heatClass(level, heatLevelsCount)
                 )}
                 style={{ flex: b.flex }}
                 title={`${b.code}  ${count.toLocaleString()}`}
                 data-no-drag
               >
-                <div className={cn('font-medium', level === 4 ? 'text-white' : 'text-slate-800')}>{b.label}</div>
-                <div className={cn('tabular-nums', level === 4 ? 'text-white/90' : 'text-slate-500')}>
+                <div className={cn('font-medium', isHeatDark(level, heatLevelsCount) ? 'text-white' : 'text-slate-800')}>
+                  {b.label}
+                </div>
+                <div className={cn('tabular-nums', isHeatDark(level, heatLevelsCount) ? 'text-white/90' : 'text-slate-500')}>
                   {count > 0 ? count.toLocaleString() : ''}
                 </div>
               </div>
@@ -105,8 +76,8 @@ export function MouseButtonsHeatmap({ counts }: { counts: Counts }) {
       <div className="flex items-center justify-between text-xs text-slate-500">
         <span>少</span>
         <div className="flex items-center gap-1" aria-hidden="true">
-          {[0, 1, 2, 3, 4].map((lv) => (
-            <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv as 0 | 1 | 2 | 3 | 4))} />
+          {heatLevels(heatLevelsCount).map((lv) => (
+            <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} />
           ))}
         </div>
         <span>多</span>
@@ -114,4 +85,3 @@ export function MouseButtonsHeatmap({ counts }: { counts: Counts }) {
     </div>
   )
 }
-
