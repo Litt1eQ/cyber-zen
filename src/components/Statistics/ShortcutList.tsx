@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { buildKeySpecIndex, getUSQwertyLayout, shortcutDisplay, type KeyboardPlatform } from '@/lib/keyboard'
+import { buildKeySpecIndex, getKeyboardLayout, shortcutDisplay, type KeyboardPlatform } from '@/lib/keyboard'
 import { cn } from '@/lib/utils'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 
@@ -11,7 +11,7 @@ export function ShortcutList({ counts }: { counts: Record<string, number> }) {
     return 'windows'
   }, [])
 
-  const keyIndex = useMemo(() => buildKeySpecIndex(getUSQwertyLayout(platform)), [platform])
+  const keyIndex = useMemo(() => buildKeySpecIndex(getKeyboardLayout('full_108', platform)), [platform])
 
   const entries = useMemo(() => {
     return Object.entries(counts)
@@ -51,4 +51,3 @@ export function ShortcutList({ counts }: { counts: Record<string, number> }) {
     </div>
   )
 }
-

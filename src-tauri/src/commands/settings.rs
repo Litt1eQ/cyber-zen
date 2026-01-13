@@ -37,6 +37,22 @@ fn normalize_skin_id(id: String) -> String {
     }
 }
 
+fn normalize_keyboard_layout(id: String) -> String {
+    match id.as_str() {
+        "full_100" | "full_104" => "full_104".to_string(),
+        "full_108"
+        | "compact_98"
+        | "compact_96"
+        | "tkl_80"
+        | "compact_75"
+        | "compact_65"
+        | "compact_60"
+        | "hhkb"
+        | "macbook_pro" => id,
+        _ => "tkl_80".to_string(),
+    }
+}
+
 fn normalize_heatmap_levels(levels: u8) -> u8 {
     levels.clamp(5, 15)
 }
@@ -53,6 +69,7 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     let mut settings = settings;
     settings.window_scale = normalize_scale(settings.window_scale);
     settings.wooden_fish_skin = normalize_skin_id(settings.wooden_fish_skin);
+    settings.keyboard_layout = normalize_keyboard_layout(settings.keyboard_layout);
     settings.heatmap_levels = normalize_heatmap_levels(settings.heatmap_levels);
 
     let storage = MeritStorage::instance();

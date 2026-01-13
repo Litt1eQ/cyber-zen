@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import type { Settings } from '../types/merit'
 import { COMMANDS } from '../types/events'
+import { DEFAULT_KEYBOARD_LAYOUT_ID } from '@/lib/keyboard'
 
 interface SettingsState {
   settings: Settings | null
@@ -21,6 +22,7 @@ const defaultSettings: Settings = {
   show_taskbar_icon: false,
   launch_on_startup: false,
   wooden_fish_skin: 'rosewood',
+  keyboard_layout: DEFAULT_KEYBOARD_LAYOUT_ID,
   opacity: 0.95,
   animation_speed: 1.0,
   window_scale: 100,

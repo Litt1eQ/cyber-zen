@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { DailyStats } from '../../types/merit'
-import { buildKeySpecIndex, getUSQwertyLayout, shortcutDisplay, type KeyboardPlatform } from '@/lib/keyboard'
+import { buildKeySpecIndex, getKeyboardLayout, shortcutDisplay, type KeyboardPlatform } from '@/lib/keyboard'
 import { cn } from '@/lib/utils'
 
 type DeltaEntry = { id: string; base: number; reference: number; delta: number }
@@ -48,7 +48,7 @@ export function DayComparison({
   reference?: DailyStats
   platform: KeyboardPlatform
 }) {
-  const keyIndex = useMemo(() => buildKeySpecIndex(getUSQwertyLayout(platform)), [platform])
+  const keyIndex = useMemo(() => buildKeySpecIndex(getKeyboardLayout('full_108', platform)), [platform])
 
   const summary = useMemo(() => {
     const bTotal = base?.total ?? 0

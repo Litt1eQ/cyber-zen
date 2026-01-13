@@ -7,6 +7,22 @@ fn normalize_key_code(raw: &str) -> Option<String> {
         return None;
     }
 
+    if let Some(digit) = raw.strip_prefix("NumPad") {
+        if digit.len() == 1 && digit.chars().all(|c| c.is_ascii_digit()) {
+            return Some(format!("Numpad{}", digit));
+        }
+    }
+    if let Some(digit) = raw.strip_prefix("Numpad") {
+        if digit.len() == 1 && digit.chars().all(|c| c.is_ascii_digit()) {
+            return Some(format!("Numpad{}", digit));
+        }
+    }
+    if let Some(digit) = raw.strip_prefix("Kp") {
+        if digit.len() == 1 && digit.chars().all(|c| c.is_ascii_digit()) {
+            return Some(format!("Numpad{}", digit));
+        }
+    }
+
     if raw.len() == 4 && raw.starts_with("Key") {
         return Some(raw.to_string());
     }
@@ -45,6 +61,20 @@ fn normalize_key_code(raw: &str) -> Option<String> {
         "ArrowRight" | "RightArrow" => "ArrowRight",
         "ArrowUp" | "UpArrow" => "ArrowUp",
         "ArrowDown" | "DownArrow" => "ArrowDown",
+        "NumLock" | "Numlock" => "NumLock",
+        "NumPadAdd" | "NumpadAdd" | "NumPadPlus" => "NumpadAdd",
+        "NumPadSubtract" | "NumpadSubtract" | "NumPadMinus" => "NumpadSubtract",
+        "NumPadMultiply" | "NumpadMultiply" => "NumpadMultiply",
+        "NumPadDivide" | "NumpadDivide" => "NumpadDivide",
+        "NumPadDecimal" | "NumpadDecimal" => "NumpadDecimal",
+        "NumPadEnter" | "NumpadEnter" | "KpEnter" | "KpReturn" => "NumpadEnter",
+        "KpPlus" => "NumpadAdd",
+        "KpMinus" => "NumpadSubtract",
+        "KpMultiply" => "NumpadMultiply",
+        "KpDivide" => "NumpadDivide",
+        "KpDelete" => "NumpadDecimal",
+        "NumPadEqual" | "NumpadEqual" => "NumpadEqual",
+        "Function" | "Fn" => "Fn",
         _ => return None,
     };
 
@@ -123,9 +153,26 @@ pub fn from_macos_virtual_keycode(keycode: u16) -> Option<&'static str> {
         60 => "ShiftRight",
         61 => "AltRight",
         62 => "ControlRight",
+        63 => "Fn",
+        65 => "NumpadDecimal",
+        67 => "NumpadMultiply",
+        69 => "NumpadAdd",
         71 => "NumLock",
         72 => "Pause",
-        76 => "Enter",
+        75 => "NumpadDivide",
+        76 => "NumpadEnter",
+        78 => "NumpadSubtract",
+        81 => "NumpadEqual",
+        82 => "Numpad0",
+        83 => "Numpad1",
+        84 => "Numpad2",
+        85 => "Numpad3",
+        86 => "Numpad4",
+        87 => "Numpad5",
+        88 => "Numpad6",
+        89 => "Numpad7",
+        91 => "Numpad8",
+        92 => "Numpad9",
         96 => "F5",
         97 => "F6",
         98 => "F7",

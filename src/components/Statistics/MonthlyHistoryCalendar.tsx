@@ -41,6 +41,7 @@ type Props = {
   days: DailyStats[]
   todayKey?: string
   heatLevelCount?: number
+  keyboardLayoutId?: string | null
 }
 
 function safeLocalDateFromKey(dateKey: string): Date | null {
@@ -79,7 +80,7 @@ function pickRange(days: DailyStats[], todayKey?: string): { min: YearMonth; max
   return { min, max }
 }
 
-export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount }: Props) {
+export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount, keyboardLayoutId }: Props) {
   const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const byDateKey = useMemo(() => {
     const map = new Map<string, DailyStats>()
@@ -458,6 +459,7 @@ export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount }: Props
               unshiftedCounts={keyCountsUnshifted}
               shiftedCounts={keyCountsShifted}
               heatLevelCount={heatLevelsCount}
+              layoutId={keyboardLayoutId}
             />
           </div>
         </div>

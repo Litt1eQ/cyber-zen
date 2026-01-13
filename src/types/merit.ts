@@ -36,6 +36,7 @@ export interface Settings {
   show_taskbar_icon: boolean
   launch_on_startup: boolean
   wooden_fish_skin: 'rosewood' | 'wood'
+  keyboard_layout?: string
   opacity: number
   animation_speed: number
   window_scale: number

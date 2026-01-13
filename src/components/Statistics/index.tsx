@@ -9,6 +9,7 @@ import { Card } from '../ui/card'
 export function Statistics() {
   const stats = useMeritStore((state) => state.stats)
   const heatLevelCount = useSettingsStore((state) => state.settings?.heatmap_levels)
+  const keyboardLayoutId = useSettingsStore((state) => state.settings?.keyboard_layout)
   const allDays = stats ? [stats.today, ...stats.history] : []
   const [range, setRange] = useState<7 | 30>(7)
   const trendDays = useMemo(() => allDays, [allDays])
@@ -50,7 +51,12 @@ export function Statistics() {
             </div>
           </Card>
 
-          <MonthlyHistoryCalendar days={allDays} todayKey={stats.today.date} heatLevelCount={heatLevelCount} />
+          <MonthlyHistoryCalendar
+            days={allDays}
+            todayKey={stats.today.date}
+            heatLevelCount={heatLevelCount}
+            keyboardLayoutId={keyboardLayoutId}
+          />
         </div>
       ) : (
         <div className="rounded-xl p-5 border border-slate-200 bg-white shadow-sm text-slate-500">

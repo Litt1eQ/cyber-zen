@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { isLinux, isMac, isWindows } from '../../utils/platform'
 import { WOODEN_FISH_SKINS, type WoodenFishSkin, type WoodenFishSkinId } from '../WoodenFish/skins'
 import { HEAT_LEVEL_COUNT_DEFAULT, HEAT_LEVEL_COUNT_MAX, HEAT_LEVEL_COUNT_MIN } from '../Statistics/heatScale'
+import { KEYBOARD_LAYOUTS, normalizeKeyboardLayoutId } from '@/lib/keyboard'
 
 type SettingsTab = 'general' | 'shortcuts' | 'statistics' | 'about'
 
@@ -202,6 +203,8 @@ export function Settings() {
       </div>
     )
   }
+
+  const keyboardLayoutId = normalizeKeyboardLayoutId(settings.keyboard_layout)
 
   const handleToggleAutostart = async (enabled: boolean) => {
     if (!autostartSupported) return
@@ -478,6 +481,43 @@ export function Settings() {
                   />
                 </SettingsSection>
 
+                <SettingsSection title="热力图" description="统计页热力图显示偏好">
+                  <SettingRow
+                    title="键盘配列"
+                    description="影响统计页键盘热力图的键位显示"
+                    control={
+                      <Select value={keyboardLayoutId} onValueChange={(v) => updateSettings({ keyboard_layout: v })}>
+                        <SelectTrigger className="w-44" data-no-drag>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {KEYBOARD_LAYOUTS.map((opt) => (
+                            <SelectItem key={opt.id} value={opt.id}>
+                              {opt.name}
+                              {opt.keyCountHint ? ` (${opt.keyCountHint})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+                  <SettingRow
+                    title="颜色分级档位"
+                    description={`${settings.heatmap_levels ?? HEAT_LEVEL_COUNT_DEFAULT} 档（${HEAT_LEVEL_COUNT_MIN}-${HEAT_LEVEL_COUNT_MAX}）`}
+                    control={
+                      <Slider
+                        min={HEAT_LEVEL_COUNT_MIN}
+                        max={HEAT_LEVEL_COUNT_MAX}
+                        step={1}
+                        value={[settings.heatmap_levels ?? HEAT_LEVEL_COUNT_DEFAULT]}
+                        onValueChange={([v]) => updateSettings({ heatmap_levels: Math.round(v) })}
+                        className="w-56"
+                        data-no-drag
+                      />
+                    }
+                  />
+                </SettingsSection>
+
                 <SettingsSection title="外观设置">
                   <SettingCard>
                     <div className="flex items-start justify-between gap-4">
@@ -629,24 +669,6 @@ export function Settings() {
                       </div>
                     </div>
                   </div>
-                </SettingsSection>
-
-                <SettingsSection title="热力图">
-                  <SettingRow
-                    title="颜色分级档位"
-                    description={`${settings.heatmap_levels ?? HEAT_LEVEL_COUNT_DEFAULT} 档（${HEAT_LEVEL_COUNT_MIN}-${HEAT_LEVEL_COUNT_MAX}）`}
-                    control={
-                      <Slider
-                        min={HEAT_LEVEL_COUNT_MIN}
-                        max={HEAT_LEVEL_COUNT_MAX}
-                        step={1}
-                        value={[settings.heatmap_levels ?? HEAT_LEVEL_COUNT_DEFAULT]}
-                        onValueChange={([v]) => updateSettings({ heatmap_levels: Math.round(v) })}
-                        className="w-56"
-                        data-no-drag
-                      />
-                    }
-                  />
                 </SettingsSection>
 
                 <SettingsSection title="历史统计">
