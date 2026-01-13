@@ -16,12 +16,14 @@ export function WoodenFish({
   onHit,
   windowScale,
   skin = ROSEWOOD_SKIN,
+  interactive = true,
 }: {
   isAnimating: boolean
   animationSpeed: number
   onHit: () => void
   windowScale: number
   skin?: WoodenFishSkin
+  interactive?: boolean
 }) {
   const duration = getWoodenFishHitDurationSeconds(animationSpeed)
 
@@ -54,25 +56,32 @@ export function WoodenFish({
   return (
     <div className="relative w-full h-full flex items-center justify-center">
       <motion.div
-        className="relative cursor-pointer select-none flex items-center justify-center"
+        className={[
+          'relative select-none flex items-center justify-center',
+          interactive ? 'cursor-pointer' : 'cursor-default pointer-events-none',
+        ].join(' ')}
         style={{ width: size, height: size }}
-        onPointerDown={dragGesture.onPointerDown}
-        onPointerMove={dragGesture.onPointerMove}
-        onPointerUp={(event) => {
-          dragGesture.onPointerUp()
-          if (event.button !== 0) return
-          if (dragGesture.consumeIgnoreClick()) return
-          if (hitCooldownRef.current) return
+        onPointerDown={interactive ? dragGesture.onPointerDown : undefined}
+        onPointerMove={interactive ? dragGesture.onPointerMove : undefined}
+        onPointerUp={
+          interactive
+            ? (event) => {
+              dragGesture.onPointerUp()
+              if (event.button !== 0) return
+              if (dragGesture.consumeIgnoreClick()) return
+              if (hitCooldownRef.current) return
 
-          // Avoid accidental double-hit on some platforms where click may fire twice.
-          hitCooldownRef.current = true
-          queueMicrotask(() => {
-            hitCooldownRef.current = false
-          })
-          onHit()
-        }}
-        onPointerCancel={dragGesture.onPointerCancel}
-        onPointerLeave={dragGesture.onPointerLeave}
+              // Avoid accidental double-hit on some platforms where click may fire twice.
+              hitCooldownRef.current = true
+              queueMicrotask(() => {
+                hitCooldownRef.current = false
+              })
+              onHit()
+            }
+            : undefined
+        }
+        onPointerCancel={interactive ? dragGesture.onPointerCancel : undefined}
+        onPointerLeave={interactive ? dragGesture.onPointerLeave : undefined}
         animate={isAnimating ? { scale: [1, 0.94, 1] } : { scale: 1 }}
         transition={{ duration, ease: [0.2, 0.9, 0.2, 1] }}
       >

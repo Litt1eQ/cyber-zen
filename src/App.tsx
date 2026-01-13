@@ -4,11 +4,12 @@ import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { WoodenFish } from './components/WoodenFish'
 import { MeritPop } from './components/MeritPop'
-import { DEFAULT_WOODEN_FISH_SKIN_ID, WOODEN_FISH_SKINS, type WoodenFishSkinId } from './components/WoodenFish/skins'
+import { DEFAULT_WOODEN_FISH_SKIN_ID, WOODEN_FISH_SKINS, type BuiltinWoodenFishSkinId, type WoodenFishSkinId } from './components/WoodenFish/skins'
 import { useDailyReset } from './hooks/useDailyReset'
 import { useInputListener } from './hooks/useInputListener'
 import { useInputMonitoringPermission } from './hooks/useInputMonitoringPermission'
 import { useMeritPopQueue } from './hooks/useMeritPopQueue'
+import { useCustomWoodenFishSkins } from './hooks/useCustomWoodenFishSkins'
 import { useSettingsSync } from './hooks/useSettingsSync'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { useMeritStore } from './stores/useMeritStore'
@@ -63,8 +64,12 @@ function App() {
 
   const windowScale = settings?.window_scale ?? 100
   const popScale = windowScale / 100
+  const { mapById: customSkinsById } = useCustomWoodenFishSkins()
   const skinId = (settings?.wooden_fish_skin as WoodenFishSkinId | undefined) ?? DEFAULT_WOODEN_FISH_SKIN_ID
-  const skin = WOODEN_FISH_SKINS[skinId] ?? WOODEN_FISH_SKINS[DEFAULT_WOODEN_FISH_SKIN_ID]
+  const skin =
+    WOODEN_FISH_SKINS[skinId as BuiltinWoodenFishSkinId] ??
+    customSkinsById.get(skinId)?.skin ??
+    WOODEN_FISH_SKINS[DEFAULT_WOODEN_FISH_SKIN_ID]
   const animationSpeed = settings?.animation_speed ?? 1
   const pulseTimeoutMs = useMemo(() => getWoodenFishHitTimeoutMs(animationSpeed), [animationSpeed])
   const pulseTimeoutRef = useRef<number | null>(null)

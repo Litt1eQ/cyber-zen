@@ -22,7 +22,7 @@ import { Card } from '../ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { isLinux, isMac, isWindows } from '../../utils/platform'
-import { WOODEN_FISH_SKINS, type WoodenFishSkin, type WoodenFishSkinId } from '../WoodenFish/skins'
+import { SkinManager } from './SkinManager'
 import { HEAT_LEVEL_COUNT_DEFAULT, HEAT_LEVEL_COUNT_MAX, HEAT_LEVEL_COUNT_MIN } from '../Statistics/heatScale'
 import { KEYBOARD_LAYOUTS, normalizeKeyboardLayoutId } from '@/lib/keyboard'
 
@@ -519,31 +519,10 @@ export function Settings() {
                 </SettingsSection>
 
                 <SettingsSection title="外观设置">
-                  <SettingCard>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="font-medium text-slate-900">木鱼皮肤</div>
-                        <div className="text-sm text-slate-500 mt-1">点击切换木鱼与木槌外观</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-3" data-no-drag>
-                      <SkinPreviewCard
-                        id="rosewood"
-                        title="紫檀"
-                        selected={(settings.wooden_fish_skin ?? 'rosewood') === 'rosewood'}
-                        skin={WOODEN_FISH_SKINS.rosewood}
-                        onSelect={(id) => updateSettings({ wooden_fish_skin: id })}
-                      />
-                      <SkinPreviewCard
-                        id="wood"
-                        title="原木"
-                        selected={(settings.wooden_fish_skin ?? 'rosewood') === 'wood'}
-                        skin={WOODEN_FISH_SKINS.wood}
-                        onSelect={(id) => updateSettings({ wooden_fish_skin: id })}
-                      />
-                    </div>
-                  </SettingCard>
+                  <SkinManager
+                    selectedId={settings.wooden_fish_skin ?? 'rosewood'}
+                    onSelect={(id) => updateSettings({ wooden_fish_skin: id })}
+                  />
                 </SettingsSection>
 
                 <SettingsSection title="应用设置">
@@ -979,60 +958,6 @@ function SettingRow({
         {control}
       </div>
     </div>
-  )
-}
-
-function SkinPreviewCard({
-  id,
-  title,
-  selected,
-  skin,
-  onSelect,
-}: {
-  id: WoodenFishSkinId
-  title: string
-  selected: boolean
-  skin: WoodenFishSkin
-  onSelect: (id: WoodenFishSkinId) => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(id)}
-      className={[
-        'group text-left rounded-xl border p-3 transition-colors',
-        selected
-          ? 'border-blue-200 bg-blue-50/60'
-          : 'border-slate-200/60 bg-white hover:border-slate-300 hover:bg-slate-50',
-      ].join(' ')}
-      aria-pressed={selected}
-      data-no-drag
-    >
-      <div className="relative aspect-[4/3] w-full rounded-lg overflow-hidden border border-slate-200/60 bg-white">
-        <img
-          src={skin.body.src}
-          alt={skin.body.alt}
-          draggable={false}
-          className="absolute left-1/2 top-1/2 h-[76%] w-auto -translate-x-1/2 -translate-y-1/2 select-none"
-        />
-        <img
-          src={skin.hammer.src}
-          alt={skin.hammer.alt}
-          draggable={false}
-          className="absolute right-2 top-2 h-[44%] w-auto rotate-[12deg] select-none drop-shadow-sm opacity-95"
-        />
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="text-sm font-medium text-slate-900">{title}</div>
-        <div
-          className={[
-            'h-2.5 w-2.5 rounded-full border',
-            selected ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300',
-          ].join(' ')}
-          aria-hidden="true"
-        />
-      </div>
-    </button>
   )
 }
 

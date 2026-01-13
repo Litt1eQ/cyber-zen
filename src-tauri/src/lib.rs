@@ -103,6 +103,10 @@ pub fn run() {
             commands::window::quit_app,
             commands::updater::check_update,
             commands::updater::download_and_install_update,
+            commands::skins::get_custom_wooden_fish_skins,
+            commands::skins::import_custom_wooden_fish_skin_zip,
+            commands::skins::delete_custom_wooden_fish_skin,
+            commands::skins::export_wooden_fish_skin_zip,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Focused(focused) = event {

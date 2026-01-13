@@ -5,6 +5,7 @@ pub mod macos_permissions;
 pub mod merit_batcher;
 pub mod merit_storage;
 pub mod persistence;
+pub mod wooden_fish_skins;
 pub mod window_placement;
 
 #[cfg(target_os = "macos")]

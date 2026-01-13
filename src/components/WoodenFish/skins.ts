@@ -33,7 +33,47 @@ export type WoodenFishSkin = {
   }
 }
 
-export type WoodenFishSkinId = 'rosewood' | 'wood'
+export type BuiltinWoodenFishSkinId = 'rosewood' | 'wood'
+export type WoodenFishSkinId = BuiltinWoodenFishSkinId | `custom:${string}`
+
+export const DEFAULT_WOODEN_FISH_SKIN_LAYOUT: Pick<WoodenFishSkin, 'body' | 'hammer'> = {
+  body: {
+    alt: '木鱼',
+    center: { x: 0.5, y: 0.52 },
+    widthRatio: 0.75,
+    aspectRatio: 10 / 7,
+    src: '',
+  },
+  hammer: {
+    alt: '木鱼锤',
+    anchor: { x: 0.72, y: 0.22 },
+    widthRatio: 0.95,
+    aspectRatio: 10 / 3,
+    pivot: { x: 0.95, y: 0.76 },
+    rest: { rotate: -6, x: 0, y: 0 },
+    src: '',
+  },
+}
+
+export function createWoodenFishSkinFromUrls(params: {
+  muyuSrc: string
+  hammerSrc: string
+  bodyAlt?: string
+  hammerAlt?: string
+}): WoodenFishSkin {
+  return {
+    body: {
+      ...DEFAULT_WOODEN_FISH_SKIN_LAYOUT.body,
+      src: params.muyuSrc,
+      alt: params.bodyAlt ?? DEFAULT_WOODEN_FISH_SKIN_LAYOUT.body.alt,
+    },
+    hammer: {
+      ...DEFAULT_WOODEN_FISH_SKIN_LAYOUT.hammer,
+      src: params.hammerSrc,
+      alt: params.hammerAlt ?? DEFAULT_WOODEN_FISH_SKIN_LAYOUT.hammer.alt,
+    },
+  }
+}
 
 export const ROSEWOOD_SKIN: WoodenFishSkin = {
   body: {
@@ -74,9 +114,9 @@ export const WOOD_SKIN: WoodenFishSkin = {
   },
 }
 
-export const DEFAULT_WOODEN_FISH_SKIN_ID: WoodenFishSkinId = 'rosewood'
+export const DEFAULT_WOODEN_FISH_SKIN_ID: BuiltinWoodenFishSkinId = 'rosewood'
 
-export const WOODEN_FISH_SKINS: Record<WoodenFishSkinId, WoodenFishSkin> = {
+export const WOODEN_FISH_SKINS: Record<BuiltinWoodenFishSkinId, WoodenFishSkin> = {
   rosewood: ROSEWOOD_SKIN,
   wood: WOOD_SKIN,
 }

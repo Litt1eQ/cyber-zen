@@ -1,4 +1,5 @@
 use crate::core::MeritStorage;
+use crate::core::wooden_fish_skins;
 use crate::models::Settings;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size};
 
@@ -30,10 +31,17 @@ fn normalize_scale(scale: u32) -> u32 {
     }
 }
 
-fn normalize_skin_id(id: String) -> String {
+fn normalize_skin_id(app_handle: &AppHandle, id: String) -> String {
     match id.as_str() {
         "rosewood" | "wood" => id,
-        _ => "rosewood".to_string(),
+        _ => {
+            if let Some(raw_id) = wooden_fish_skins::parse_custom_skin_settings_id(&id) {
+                if wooden_fish_skins::custom_skin_exists(app_handle, raw_id) {
+                    return id;
+                }
+            }
+            "rosewood".to_string()
+        }
     }
 }
 
@@ -68,7 +76,7 @@ pub async fn get_settings() -> Result<Settings, String> {
 pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Result<(), String> {
     let mut settings = settings;
     settings.window_scale = normalize_scale(settings.window_scale);
-    settings.wooden_fish_skin = normalize_skin_id(settings.wooden_fish_skin);
+    settings.wooden_fish_skin = normalize_skin_id(&app_handle, settings.wooden_fish_skin);
     settings.keyboard_layout = normalize_keyboard_layout(settings.keyboard_layout);
     settings.heatmap_levels = normalize_heatmap_levels(settings.heatmap_levels);
 

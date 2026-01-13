@@ -35,7 +35,7 @@ export interface Settings {
   window_pass_through: boolean
   show_taskbar_icon: boolean
   launch_on_startup: boolean
-  wooden_fish_skin: 'rosewood' | 'wood'
+  wooden_fish_skin: string
   keyboard_layout?: string
   opacity: number
   animation_speed: number

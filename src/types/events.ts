@@ -3,6 +3,7 @@ export const EVENTS = {
   INPUT_LISTENER_ERROR: 'input-listener-error',
   MERIT_UPDATED: 'merit-updated',
   SETTINGS_UPDATED: 'settings-updated',
+  WOODEN_FISH_SKINS_UPDATED: 'wooden-fish-skins-updated',
 } as const
 
 export const COMMANDS = {
@@ -36,4 +37,8 @@ export const COMMANDS = {
   AUTOSTART_IS_ENABLED: 'autostart_is_enabled',
   AUTOSTART_ENABLE: 'autostart_enable',
   AUTOSTART_DISABLE: 'autostart_disable',
+  GET_CUSTOM_WOODEN_FISH_SKINS: 'get_custom_wooden_fish_skins',
+  IMPORT_CUSTOM_WOODEN_FISH_SKIN_ZIP: 'import_custom_wooden_fish_skin_zip',
+  DELETE_CUSTOM_WOODEN_FISH_SKIN: 'delete_custom_wooden_fish_skin',
+  EXPORT_WOODEN_FISH_SKIN_ZIP: 'export_wooden_fish_skin_zip',
 } as const
