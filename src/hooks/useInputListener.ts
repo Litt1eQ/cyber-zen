@@ -5,19 +5,13 @@ import { useMeritStore } from '../stores/useMeritStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
 import type { MeritStats } from '../types/merit'
 import { COMMANDS, EVENTS } from '../types/events'
+import { isMac } from '../utils/platform'
 
 export type InputListenerErrorCode = 'permission_required' | 'listen_failed'
 
 export type InputListenerError = {
   code: InputListenerErrorCode
   message: string
-}
-
-function isMacOS() {
-  return (
-    navigator.platform.toLowerCase().includes('mac') ||
-    navigator.userAgent.toLowerCase().includes('mac os x')
-  )
 }
 
 export function useInputListener() {
@@ -39,7 +33,7 @@ export function useInputListener() {
   const startListening = async () => {
     try {
       setError(null)
-      if (isMacOS()) {
+      if (isMac()) {
         const permitted = await invoke<boolean>(COMMANDS.CHECK_INPUT_MONITORING_PERMISSION)
         if (!permitted) {
           setError({

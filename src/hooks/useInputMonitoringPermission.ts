@@ -1,18 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { COMMANDS } from '../types/events'
-
-function isMacOS() {
-  return (
-    navigator.platform.toLowerCase().includes('mac') ||
-    navigator.userAgent.toLowerCase().includes('mac os x')
-  )
-}
+import { isMac } from '../utils/platform'
 
 export function useInputMonitoringPermission() {
-  const supported = useMemo(() => isMacOS(), [])
+  const supported = useMemo(() => isMac(), [])
   const [authorized, setAuthorized] = useState<boolean>(!supported)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(supported)
   const [lastError, setLastError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {

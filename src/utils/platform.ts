@@ -1,6 +1,8 @@
 export function isMac() {
   if (typeof navigator === 'undefined') return false
-  return navigator.platform.toLowerCase().includes('mac')
+  const platform = navigator.platform.toLowerCase()
+  const userAgent = navigator.userAgent.toLowerCase()
+  return platform.includes('mac') || userAgent.includes('mac os x')
 }
 
 export function isWindows() {

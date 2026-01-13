@@ -100,6 +100,12 @@ export function Settings() {
   }, [])
 
   useEffect(() => {
+    if (!inputPermissionDialogOpen) return
+    if (!inputMonitoring.authorized) return
+    void closeInputPermissionDialog(false)
+  }, [closeInputPermissionDialog, inputMonitoring.authorized, inputPermissionDialogOpen])
+
+  useEffect(() => {
     fetchSettings()
     fetchStats()
   }, [fetchSettings, fetchStats])
@@ -325,9 +331,13 @@ export function Settings() {
                         <div className="min-w-0">
                           <div className="font-medium text-slate-900">macOS 输入监控权限</div>
                           <div className="text-sm text-slate-500 mt-1">
-                            {inputMonitoring.authorized ? '已授权' : '未授权（无法接收全局键盘/鼠标事件）'}
+                            {inputMonitoring.loading
+                              ? '检测中...'
+                              : inputMonitoring.authorized
+                                ? '已授权'
+                                : '未授权（无法接收全局键盘/鼠标事件）'}
                           </div>
-                          {!inputMonitoring.authorized && (
+                          {!inputMonitoring.authorized && !inputMonitoring.loading && (
                             <div className="text-xs text-slate-500 mt-1">
                               如已授权仍无效：请在“输入监控”中移除本应用后重新添加，并重启应用。
                             </div>
@@ -338,7 +348,7 @@ export function Settings() {
                         </div>
 
                         <div className="flex items-center gap-2" data-no-drag>
-                          {!inputMonitoring.authorized && (
+                          {!inputMonitoring.authorized && !inputMonitoring.loading && (
                             <>
                               <Button
                                 disabled={inputMonitoring.loading}
