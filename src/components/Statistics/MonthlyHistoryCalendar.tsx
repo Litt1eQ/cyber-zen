@@ -8,6 +8,8 @@ import { sumKeyCounts, type KeyCounts } from '@/lib/keyboard'
 import { KeyboardHeatmap } from './KeyboardHeatmap'
 import { MouseButtonsHeatmap } from './MouseButtonsHeatmap'
 import { ShortcutList } from './ShortcutList'
+import { HourlyDistribution } from './HourlyDistribution'
+import { DayComparison } from './DayComparison'
 import {
   computeHeatThresholds,
   heatClass,
@@ -28,8 +30,10 @@ import {
   parseNaiveDate,
   startOfMonth,
   type YearMonth,
+  addDaysToNaiveDateKey,
   yearMonthFromNaiveDateKey,
 } from '@/lib/date'
+import { isLinux, isMac, isWindows } from '@/utils/platform'
 
 const WEEKDAYS_ZH = ['一', '二', '三', '四', '五', '六', '日'] as const
 
@@ -98,6 +102,7 @@ export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount }: Props
   const [cursor, setCursor] = useState<YearMonth>(initialCursor)
   const [selectedKey, setSelectedKey] = useState<string | null>(todayKey ?? null)
   const [keyHeatMode, setKeyHeatMode] = useState<'day' | 'total'>('day')
+  const [compareMode, setCompareMode] = useState<'yesterday' | 'last_week'>('yesterday')
 
   useEffect(() => {
     setCursor(initialCursor)
@@ -159,6 +164,27 @@ export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount }: Props
   }, [cursor, monthDays, selectedKey, todayKey])
 
   const selectedDay = selectedKey ? byDateKey.get(selectedKey) : undefined
+
+  const platform = useMemo(() => {
+    if (isMac()) return 'mac'
+    if (isWindows()) return 'windows'
+    if (isLinux()) return 'linux'
+    return 'windows'
+  }, [])
+
+  const compareKeys = useMemo(() => {
+    if (!selectedKey) return { yesterday: null, lastWeek: null }
+    return {
+      yesterday: addDaysToNaiveDateKey(selectedKey, -1),
+      lastWeek: addDaysToNaiveDateKey(selectedKey, -7),
+    }
+  }, [selectedKey])
+
+  const compareReferenceDay = useMemo(() => {
+    const key = compareMode === 'yesterday' ? compareKeys.yesterday : compareKeys.lastWeek
+    if (!key) return undefined
+    return byDateKey.get(key)
+  }, [byDateKey, compareKeys.lastWeek, compareKeys.yesterday, compareMode])
   const keyCountsUnshifted: KeyCounts = useMemo(() => {
     if (keyHeatMode === 'total') {
       return sumKeyCounts(days.map((d) => d.key_counts_unshifted ?? d.key_counts))
@@ -372,6 +398,55 @@ export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount }: Props
             </div>
           </div>
         </div>
+
+        {keyHeatMode === 'day' && (
+          <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
+            <div className="text-xs text-slate-500">按小时分布</div>
+            <div className="mt-3">
+              <HourlyDistribution hourly={selectedDay?.hourly ?? null} />
+            </div>
+          </div>
+        )}
+
+        {keyHeatMode === 'day' && (
+          <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs text-slate-500">对比</div>
+              <div className="flex items-center gap-2" data-no-drag>
+                <Button
+                  type="button"
+                  variant={compareMode === 'yesterday' ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => setCompareMode('yesterday')}
+                  data-no-drag
+                >
+                  较昨日
+                </Button>
+                <Button
+                  type="button"
+                  variant={compareMode === 'last_week' ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => setCompareMode('last_week')}
+                  data-no-drag
+                >
+                  较上周同日
+                </Button>
+              </div>
+            </div>
+            <div className="mt-4">
+              <DayComparison
+                title={
+                  compareMode === 'yesterday'
+                    ? `${selectedKey ?? '当日'} vs 昨日（${compareKeys.yesterday ?? 'N/A'}）`
+                    : `${selectedKey ?? '当日'} vs 上周同日（${compareKeys.lastWeek ?? 'N/A'}）`
+                }
+                base={selectedDay}
+                reference={compareReferenceDay}
+                platform={platform}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
           <div className="flex items-center justify-between gap-2">

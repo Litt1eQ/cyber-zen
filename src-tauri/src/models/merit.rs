@@ -1,7 +1,35 @@
-use chrono::{Local, NaiveDate};
+use chrono::{Local, NaiveDate, Timelike};
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
+
+fn default_hourly_stats() -> Vec<HourlyStats> {
+    vec![HourlyStats::default(); 24]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct HourlyStats {
+    #[serde(default)]
+    pub total: u64,
+    #[serde(default)]
+    pub keyboard: u64,
+    #[serde(default)]
+    pub mouse_single: u64,
+}
+
+impl HourlyStats {
+    pub fn add_merit(&mut self, source: InputSource, count: u64) {
+        if count == 0 {
+            return;
+        }
+
+        self.total = self.total.saturating_add(count);
+        match source {
+            InputSource::Keyboard => self.keyboard = self.keyboard.saturating_add(count),
+            InputSource::MouseSingle => self.mouse_single = self.mouse_single.saturating_add(count),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
@@ -27,10 +55,7 @@ impl<'de> Deserialize<'de> for InputSource {
             "keyboard" => Ok(Self::Keyboard),
             "mouse_single" => Ok(Self::MouseSingle),
             "mouse_double" => Ok(Self::MouseSingle),
-            _ => Err(de::Error::custom(format!(
-                "invalid input source: {}",
-                raw
-            ))),
+            _ => Err(de::Error::custom(format!("invalid input source: {}", raw))),
         }
     }
 }
@@ -51,6 +76,8 @@ pub struct DailyStats {
     pub keyboard: u64,
     #[serde(default)]
     pub mouse_single: u64,
+    #[serde(default = "default_hourly_stats")]
+    pub hourly: Vec<HourlyStats>,
     #[serde(default)]
     pub key_counts: HashMap<String, u64>,
     #[serde(default)]
@@ -70,12 +97,29 @@ impl DailyStats {
             total: 0,
             keyboard: 0,
             mouse_single: 0,
+            hourly: default_hourly_stats(),
             key_counts: HashMap::new(),
             key_counts_unshifted: HashMap::new(),
             key_counts_shifted: HashMap::new(),
             shortcut_counts: HashMap::new(),
             mouse_button_counts: HashMap::new(),
         }
+    }
+
+    pub fn normalize_hourly(&mut self) {
+        if self.hourly.len() == 24 {
+            return;
+        }
+        if self.hourly.is_empty() {
+            self.hourly = default_hourly_stats();
+            return;
+        }
+
+        let mut next = default_hourly_stats();
+        for (idx, value) in self.hourly.iter().take(24).enumerate() {
+            next[idx] = value.clone();
+        }
+        self.hourly = next;
     }
 
     pub fn add_merit(&mut self, source: InputSource, count: u64) {
@@ -94,9 +138,23 @@ impl DailyStats {
         }
     }
 
+    pub fn add_hourly_merit(&mut self, hour: usize, source: InputSource, count: u64) {
+        if count == 0 {
+            return;
+        }
+        if hour >= 24 {
+            return;
+        }
+        self.normalize_hourly();
+        if let Some(bucket) = self.hourly.get_mut(hour) {
+            bucket.add_merit(source, count);
+        }
+    }
+
     pub fn recompute_counters(&mut self) {
         // Older versions persisted per-event records and recomputed totals from them.
         // Current best practice is to persist only aggregated counters to keep state compact.
+        self.normalize_hourly();
         self.total = self.keyboard.saturating_add(self.mouse_single);
     }
 
@@ -219,8 +277,10 @@ impl MeritStats {
             self.today = DailyStats::new(today);
         }
 
+        let hour = Local::now().hour() as usize;
         self.total_merit = self.total_merit.saturating_add(count);
         self.today.add_merit(source, count);
+        self.today.add_hourly_merit(hour, source, count);
     }
 
     pub fn add_keyboard_key_counts(&mut self, counts: &HashMap<String, u64>) {

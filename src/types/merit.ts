@@ -10,6 +10,11 @@ export interface DailyStats {
   total: number
   keyboard: number
   mouse_single: number
+  hourly?: Array<{
+    total: number
+    keyboard: number
+    mouse_single: number
+  }>
   key_counts: Record<string, number>
   key_counts_unshifted?: Record<string, number>
   key_counts_shifted?: Record<string, number>

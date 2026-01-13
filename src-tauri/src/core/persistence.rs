@@ -2,16 +2,16 @@ use crate::models::{MeritStats, Settings, WindowPlacement};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Sender};
 use std::time::{Duration, Instant};
 
 use super::MeritStorage;
 
-const CURRENT_STATE_VERSION: u32 = 2;
+const CURRENT_STATE_VERSION: u32 = 3;
 
 fn default_state_version() -> u32 {
     1
@@ -60,14 +60,16 @@ pub fn request_save() {
     }
 }
 
-pub fn load(path: &Path) -> io::Result<Option<(MeritStats, Settings, BTreeMap<String, WindowPlacement>)>> {
+pub fn load(
+    path: &Path,
+) -> io::Result<Option<(MeritStats, Settings, BTreeMap<String, WindowPlacement>)>> {
     if !path.exists() {
         return Ok(None);
     }
 
     let bytes = fs::read(path)?;
-    let mut state: PersistedState =
-        serde_json::from_slice(&bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let mut state: PersistedState = serde_json::from_slice(&bytes)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     state.stats.normalize_today();
     state.stats.recompute_counters();

@@ -763,21 +763,21 @@ export function Settings() {
           void closeInputPermissionDialog(true)
         }}
       >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>需要输入监控权限</DialogTitle>
-            <DialogDescription>
-              <div className="space-y-2">
-                <div>开启 macOS「输入监控」权限后才能接收全局键盘/鼠标事件。</div>
-                <div className="text-xs text-slate-500">
-                  如已开启仍无效：请在“输入监控”中移除本应用后重新添加，并重启应用。
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>需要输入监控权限</DialogTitle>
+              <DialogDescription asChild>
+                <div className="space-y-2">
+                  <div>开启 macOS「输入监控」权限后才能接收全局键盘/鼠标事件。</div>
+                  <div className="text-xs text-slate-500">
+                    如已开启仍无效：请在“输入监控”中移除本应用后重新添加，并重启应用。
+                  </div>
+                  {inputMonitoring.lastError && (
+                    <div className="text-xs text-red-600">{inputMonitoring.lastError}</div>
+                  )}
                 </div>
-                {inputMonitoring.lastError && (
-                  <div className="text-xs text-red-600">{inputMonitoring.lastError}</div>
-                )}
-              </div>
-            </DialogDescription>
-          </DialogHeader>
+              </DialogDescription>
+            </DialogHeader>
           <DialogFooter className="gap-2">
             <Button
               variant="outline"
@@ -854,23 +854,25 @@ export function Settings() {
               {updateState.status === 'error' && '更新失败'}
               {updateState.status === 'idle' && '检查更新'}
             </DialogTitle>
-            <DialogDescription>
-              {updateState.status === 'available' && (
-                <div className="space-y-2">
-                  <div>
-                    版本：<span className="font-medium text-slate-900">{updateState.update.version}</span>
-                  </div>
-                  {updateState.update.body && (
-                    <div className="whitespace-pre-wrap break-words text-slate-600">
-                      {updateState.update.body}
+            <DialogDescription asChild>
+              <div>
+                {updateState.status === 'available' && (
+                  <div className="space-y-2">
+                    <div>
+                      版本：<span className="font-medium text-slate-900">{updateState.update.version}</span>
                     </div>
-                  )}
-                </div>
-              )}
-              {updateState.status === 'latest' && '当前已是最新版本。'}
-              {updateState.status === 'checking' && '请稍候...'}
-              {updateState.status === 'installing' && '下载并安装完成后会自动重启应用。'}
-              {updateState.status === 'error' && updateState.message}
+                    {updateState.update.body && (
+                      <div className="whitespace-pre-wrap break-words text-slate-600">
+                        {updateState.update.body}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {updateState.status === 'latest' && '当前已是最新版本。'}
+                {updateState.status === 'checking' && '请稍候...'}
+                {updateState.status === 'installing' && '下载并安装完成后会自动重启应用。'}
+                {updateState.status === 'error' && updateState.message}
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

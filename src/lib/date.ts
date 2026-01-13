@@ -64,3 +64,10 @@ export function formatWeekdayZh(date: Date): string {
   return `周${weekdays[date.getDay()]}`
 }
 
+export function addDaysToNaiveDateKey(dateKey: string, deltaDays: number): string | null {
+  const parts = parseNaiveDate(dateKey)
+  if (!parts) return null
+  const date = new Date(parts.year, parts.month - 1, parts.day, 12)
+  date.setDate(date.getDate() + deltaDays)
+  return formatNaiveDateKey({ year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() })
+}
