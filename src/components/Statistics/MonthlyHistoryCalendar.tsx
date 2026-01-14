@@ -511,14 +511,8 @@ export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount, keyboar
           </div>
         </div>
 
-        <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-slate-500">快捷键排行</div>
-            <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
-          </div>
-          <div className="mt-3">
-            <ShortcutList counts={shortcutCounts} />
-          </div>
+        <div className="mt-4">
+          <ShortcutList counts={shortcutCounts} modeLabel={keyHeatMode === 'day' ? '当日' : '累计'} />
         </div>
 
         <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">

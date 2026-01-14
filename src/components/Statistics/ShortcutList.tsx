@@ -5,11 +5,17 @@ import {
   shortcutDisplayParts,
   type KeyboardPlatform,
 } from '@/lib/keyboard'
-import { cn } from '@/lib/utils'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 import { KeyCombo } from '@/components/ui/key-combo'
+import { RankingPanel, type RankingEntry } from '@/components/Statistics/ranking/RankingPanel'
 
-export function ShortcutList({ counts }: { counts: Record<string, number> }) {
+export function ShortcutList({
+  counts,
+  modeLabel,
+}: {
+  counts: Record<string, number>
+  modeLabel?: string
+}) {
   const platform: KeyboardPlatform = useMemo(() => {
     if (isMac()) return 'mac'
     if (isWindows()) return 'windows'
@@ -19,41 +25,39 @@ export function ShortcutList({ counts }: { counts: Record<string, number> }) {
 
   const keyIndex = useMemo(() => buildKeySpecIndex(getKeyboardLayout('full_108', platform)), [platform])
 
-  const entries = useMemo(() => {
+  const sorted = useMemo(() => {
     return Object.entries(counts)
-      .filter(([, v]) => v > 0)
+      .filter(([, v]) => (v ?? 0) > 0)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 200)
   }, [counts])
 
-  if (entries.length === 0) {
-    return (
-      <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-        暂无快捷键记录
-      </div>
-    )
-  }
+  const maxCount = sorted[0]?.[1] ?? 0
+
+  const entries: RankingEntry[] = useMemo(() => {
+    return sorted.map(([id, count]) => ({
+      id,
+      value: count,
+      label: <KeyCombo parts={shortcutDisplayParts(id, platform, keyIndex)} wrap className="font-medium" />,
+      title: id,
+    }))
+  }, [keyIndex, platform, sorted])
+
+  const headerRight = useMemo(() => {
+    return modeLabel ?? null
+  }, [modeLabel])
 
   return (
-    <div className="max-h-64 overflow-y-auto pr-2">
-      <div className="space-y-1">
-        {entries.map(([id, count]) => (
-          <div
-            key={id}
-            className={cn(
-              'flex items-center justify-between gap-4 rounded-lg border border-slate-200/60 bg-white px-3 py-2.5 text-sm',
-              'transition-colors hover:bg-slate-50/80'
-            )}
-            title={id}
-            data-no-drag
-          >
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <KeyCombo parts={shortcutDisplayParts(id, platform, keyIndex)} wrap className="font-medium" />
-            </div>
-            <div className="w-14 shrink-0 text-right tabular-nums text-slate-500">{count.toLocaleString()}</div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <RankingPanel
+      title="快捷键排行"
+      subtitle={`覆盖 ${sorted.length.toLocaleString()} 个快捷键（>0）`}
+      entries={entries}
+      limit={entries.length}
+      maxValue={maxCount}
+      tone="up"
+      emptyLabel="暂无快捷键记录"
+      headerRight={headerRight}
+      listContainerClassName="max-h-72 overflow-y-auto pr-2"
+      className="p-4"
+    />
   )
 }
