@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { DailyStats } from '../../types/merit'
-import { buildKeySpecIndex, getKeyboardLayout, shortcutDisplay, type KeyboardPlatform } from '@/lib/keyboard'
+import { buildKeySpecIndex, getKeyboardLayout, shortcutDisplayParts, type KeyboardPlatform } from '@/lib/keyboard'
 import { cn } from '@/lib/utils'
+import { KeyCombo } from '@/components/ui/key-combo'
 
 type DeltaEntry = { id: string; base: number; reference: number; delta: number }
 
@@ -121,12 +122,12 @@ export function DayComparison({
           title="Top 按键变化"
           up={keyUp.map((e) => ({
             id: e.id,
-            label: keyIndex[e.id]?.label ?? e.id,
+            label: <KeyCombo parts={[{ type: 'key', label: keyIndex[e.id]?.label ?? e.id }]} />,
             delta: e.delta,
           }))}
           down={keyDown.map((e) => ({
             id: e.id,
-            label: keyIndex[e.id]?.label ?? e.id,
+            label: <KeyCombo parts={[{ type: 'key', label: keyIndex[e.id]?.label ?? e.id }]} />,
             delta: e.delta,
           }))}
         />
@@ -135,12 +136,12 @@ export function DayComparison({
           title="Top 快捷键变化"
           up={shortcutUp.map((e) => ({
             id: e.id,
-            label: shortcutDisplay(e.id, platform, keyIndex),
+            label: <KeyCombo parts={shortcutDisplayParts(e.id, platform, keyIndex)} wrap />,
             delta: e.delta,
           }))}
           down={shortcutDown.map((e) => ({
             id: e.id,
-            label: shortcutDisplay(e.id, platform, keyIndex),
+            label: <KeyCombo parts={shortcutDisplayParts(e.id, platform, keyIndex)} wrap />,
             delta: e.delta,
           }))}
         />
@@ -181,8 +182,8 @@ function DeltaGroup({
   down,
 }: {
   title: string
-  up: Array<{ id: string; label: string; delta: number }>
-  down: Array<{ id: string; label: string; delta: number }>
+  up: Array<{ id: string; label: ReactNode; delta: number }>
+  down: Array<{ id: string; label: ReactNode; delta: number }>
 }) {
   const hasAny = up.length > 0 || down.length > 0
   if (!hasAny) {
@@ -210,7 +211,7 @@ function DeltaList({
   tone,
 }: {
   title: string
-  entries: Array<{ id: string; label: string; delta: number }>
+  entries: Array<{ id: string; label: ReactNode; delta: number }>
   tone: 'up' | 'down'
 }) {
   return (
@@ -225,12 +226,20 @@ function DeltaList({
           {entries.map((e) => (
             <div
               key={e.id}
-              className="flex items-center justify-between gap-3 rounded-md border border-slate-200/60 bg-white px-3 py-2"
+              className={cn(
+                'flex items-center justify-between gap-4 rounded-lg border border-slate-200/60 bg-white px-3 py-2.5 text-sm',
+                'transition-colors hover:bg-slate-50/80'
+              )}
               title={e.id}
               data-no-drag
             >
-              <div className="min-w-0 truncate text-sm font-medium text-slate-900">{e.label}</div>
-              <div className={cn('tabular-nums text-sm', tone === 'up' ? 'text-emerald-600' : 'text-rose-600')}>
+              <div className="min-w-0 flex-1 overflow-hidden">{e.label}</div>
+              <div
+                className={cn(
+                  'w-16 shrink-0 text-right tabular-nums',
+                  tone === 'up' ? 'text-emerald-600' : 'text-rose-600'
+                )}
+              >
                 {deltaLabel(e.delta)}
               </div>
             </div>

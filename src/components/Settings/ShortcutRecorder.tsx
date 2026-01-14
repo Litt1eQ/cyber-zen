@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isMac } from '../../utils/platform'
 import { Card } from '../ui/card'
+import { KeyCombo, type KeyComboPart } from '../ui/key-combo'
 
 const modifierOrder = ['Command', 'Control', 'Alt', 'Shift'] as const
 type ModifierKey = (typeof modifierOrder)[number]
@@ -81,6 +82,18 @@ function parseValue(value: string | null | undefined) {
   return trimmed.split('+').filter(Boolean)
 }
 
+function toKeyComboParts(keys: string[], mac: boolean): KeyComboPart[] {
+  if (keys.length === 0) return []
+  if (mac) return keys.map((label) => ({ type: 'key', label }))
+
+  const out: KeyComboPart[] = []
+  for (const [index, label] of keys.entries()) {
+    if (index > 0) out.push({ type: 'sep', label: '+' })
+    out.push({ type: 'key', label })
+  }
+  return out
+}
+
 export function ShortcutRecorder({
   title,
   description,
@@ -104,6 +117,7 @@ export function ShortcutRecorder({
   }, [isRecording, parsedValue])
 
   const hint = isRecording ? '按下快捷键…' : '点击录制快捷键'
+  const mac = isMac()
 
   return (
     <Card className="flex items-center justify-between gap-5 p-4">
@@ -158,9 +172,7 @@ export function ShortcutRecorder({
           {pressed.length === 0 ? (
             <span className="text-sm text-slate-400">{hint}</span>
           ) : (
-            <span className="text-sm font-semibold text-slate-900">
-              {pressed.map(formatKey).join(isMac() ? ' ' : ' + ')}
-            </span>
+            <KeyCombo parts={toKeyComboParts(pressed.map(formatKey), mac)} size="sm" />
           )}
 
           <button

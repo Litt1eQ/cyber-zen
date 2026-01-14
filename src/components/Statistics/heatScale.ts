@@ -22,6 +22,31 @@ const HEAT_PALETTE = [
   'bg-blue-950 border-blue-950 text-white',
 ] as const
 
+type HeatPaint = {
+  fill: string
+  stroke: string
+  text: string
+  textMuted: string
+}
+
+const HEAT_PALETTE_COLORS: Array<{ fill: string; stroke: string; darkText: boolean }> = [
+  { fill: '#f1f5f9', stroke: '#e2e8f0', darkText: true }, // slate-100
+  { fill: '#eff6ff', stroke: '#dbeafe', darkText: true }, // blue-50 / blue-100
+  { fill: '#dbeafe', stroke: '#bfdbfe', darkText: true }, // blue-100 / blue-200
+  { fill: '#bfdbfe', stroke: '#93c5fd', darkText: true }, // blue-200 / blue-300
+  { fill: '#93c5fd', stroke: '#60a5fa', darkText: true }, // blue-300 / blue-400
+  { fill: 'rgba(96,165,250,0.55)', stroke: '#3b82f6', darkText: true }, // blue-400/55 / blue-500
+  { fill: '#60a5fa', stroke: '#3b82f6', darkText: true }, // blue-400 / blue-500
+  { fill: 'rgba(59,130,246,0.65)', stroke: '#2563eb', darkText: false }, // blue-500/65 / blue-600
+  { fill: '#3b82f6', stroke: '#2563eb', darkText: false }, // blue-500 / blue-600
+  { fill: 'rgba(37,99,235,0.85)', stroke: '#1d4ed8', darkText: false }, // blue-600/85 / blue-700
+  { fill: '#2563eb', stroke: '#1d4ed8', darkText: false }, // blue-600 / blue-700
+  { fill: '#1d4ed8', stroke: '#1e40af', darkText: false }, // blue-700 / blue-800
+  { fill: '#1e40af', stroke: '#1e3a8a', darkText: false }, // blue-800 / blue-900
+  { fill: '#1e3a8a', stroke: '#172554', darkText: false }, // blue-900 / blue-950
+  { fill: '#172554', stroke: '#172554', darkText: false }, // blue-950
+]
+
 export function normalizeHeatLevelCount(levelCount: number | undefined | null): number {
   const n = Number.isFinite(levelCount as number) ? Math.round(levelCount as number) : HEAT_LEVEL_COUNT_DEFAULT
   return Math.min(HEAT_LEVEL_COUNT_MAX, Math.max(HEAT_LEVEL_COUNT_MIN, n))
@@ -82,4 +107,14 @@ export function isHeatDark(level: HeatLevel, levelCount: number): boolean {
 
 export function heatClass(level: HeatLevel, levelCount: number): string {
   return HEAT_PALETTE[paletteIndexFor(level, levelCount)]
+}
+
+export function heatPaint(level: HeatLevel, levelCount: number): HeatPaint {
+  const idx = paletteIndexFor(level, levelCount)
+  const paletteIdx = Math.min(HEAT_PALETTE_COLORS.length - 1, Math.max(0, idx))
+  const { fill, stroke, darkText } = HEAT_PALETTE_COLORS[paletteIdx]
+  if (darkText) {
+    return { fill, stroke, text: '#0f172a', textMuted: 'rgba(15,23,42,0.62)' }
+  }
+  return { fill, stroke, text: '#ffffff', textMuted: 'rgba(255,255,255,0.9)' }
 }

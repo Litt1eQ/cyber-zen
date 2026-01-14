@@ -13,8 +13,8 @@ export type KeyboardPlatform = 'mac' | 'windows' | 'linux'
 
 // “配列”这里指键盘物理尺寸/键位分布（100%/TKL/75%/65%/60%/96/98），而非 QWERTY 等字符布局。
 export type KeyboardLayoutId =
-  | 'full_104'
   | 'full_108'
+  | 'full_104'
   | 'compact_98'
   | 'compact_96'
   | 'tkl_80'
@@ -23,24 +23,28 @@ export type KeyboardLayoutId =
   | 'compact_60'
   | 'hhkb'
   | 'macbook_pro'
+  | 'macbook_pro_no_touchbar'
 
 export const DEFAULT_KEYBOARD_LAYOUT_ID: KeyboardLayoutId = 'tkl_80'
+
+export const MBP_NO_TOUCHBAR_ARROW_CLUSTER_CODE = '__mbp_ntb_arrow_cluster' as const
+export const MBP_TOUCHBAR_STRIP_CODE = '__mbp_touchbar_strip' as const
+export const MBP_TOUCHBAR_ARROW_CLUSTER_CODE = '__mbp_touchbar_arrow_cluster' as const
 
 export const KEYBOARD_LAYOUTS: ReadonlyArray<{
   id: KeyboardLayoutId
   name: string
   keyCountHint?: string
 }> = [
-  { id: 'full_104', name: '全尺寸（104）', keyCountHint: '104' },
-  { id: 'full_108', name: '全尺寸（108）', keyCountHint: '108' },
+  { id: 'full_108', name: '全尺寸（108）', keyCountHint: '108/104' },
   { id: 'compact_98', name: '98%', keyCountHint: '98' },
-  { id: 'compact_96', name: '96%', keyCountHint: '96' },
   { id: 'tkl_80', name: '80%（TKL）', keyCountHint: '87' },
   { id: 'compact_75', name: '75%', keyCountHint: '82/84' },
   { id: 'compact_65', name: '65%', keyCountHint: '68' },
   { id: 'compact_60', name: '60%', keyCountHint: '61' },
   { id: 'hhkb', name: 'HHKB', keyCountHint: '60' },
-  { id: 'macbook_pro', name: 'MacBook Pro', keyCountHint: 'Touch Bar' },
+  { id: 'macbook_pro', name: 'MacBook Pro（Touch Bar）', keyCountHint: 'Touch Bar' },
+  { id: 'macbook_pro_no_touchbar', name: 'MacBook Pro（无 Touch Bar）', keyCountHint: 'F1–F12' },
 ]
 // Layout definitions live in `getKeyboardLayout` to keep each preset explicit and self-contained.
 
@@ -79,7 +83,9 @@ function modifierLabelOverrides(platform: KeyboardPlatform): Record<string, KeyO
 export function normalizeKeyboardLayoutId(value: unknown): KeyboardLayoutId {
   if (typeof value !== 'string') return DEFAULT_KEYBOARD_LAYOUT_ID
   // Backward-compatible aliases
-  if (value === 'full_100') return 'full_104'
+  if (value === 'full_100') return 'full_108'
+  if (value === 'full_104') return 'full_108'
+  if (value === 'compact_96') return 'compact_98'
   for (const entry of KEYBOARD_LAYOUTS) {
     if (entry.id === value) return entry.id
   }
@@ -87,6 +93,8 @@ export function normalizeKeyboardLayoutId(value: unknown): KeyboardLayoutId {
 }
 
 export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: KeyboardPlatform): KeySpec[][] {
+  if (layoutId === 'compact_96') return getKeyboardLayout('compact_98', platform)
+  if (layoutId === 'full_104') return getKeyboardLayout('full_108', platform)
   const withMods = (layout: KeySpec[][]) => withKeyOverrides(layout, modifierLabelOverrides(platform))
   const spacer = (code: string, width = 1): KeySpec => ({ code, label: '', width, kind: 'spacer' })
 
@@ -158,14 +166,14 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
     { code: 'ShiftRight', label: 'Shift', width: 2.75 },
   ]
 
-  const bottomRow: KeySpec[] = [
+  const bottomRowFull: KeySpec[] = [
     { code: 'ControlLeft', label: 'Ctrl', width: 1.25 },
     { code: 'MetaLeft', label: 'Meta', width: 1.25 },
     { code: 'AltLeft', label: 'Alt', width: 1.25 },
     { code: 'Space', label: 'Space', width: 6.25 },
     { code: 'AltRight', label: 'Alt', width: 1.25 },
     { code: 'MetaRight', label: 'Meta', width: 1.25 },
-    { code: 'Fn', label: 'Fn', width: 1.25 },
+    { code: 'ContextMenu', label: 'Menu', width: 1.25 },
     { code: 'ControlRight', label: 'Ctrl', width: 1.25 },
   ]
 
@@ -215,9 +223,20 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
   ]
 
   if (layoutId === 'tkl_80') {
+    const bottomRowTkl: KeySpec[] = [
+      { code: 'ControlLeft', label: 'Ctrl', width: 1.25 },
+      { code: 'MetaLeft', label: 'Meta', width: 1.25 },
+      { code: 'AltLeft', label: 'Alt', width: 1.25 },
+      { code: 'Space', label: 'Space', width: 6.25 },
+      { code: 'AltRight', label: 'Alt', width: 1.25 },
+      { code: 'Fn', label: 'Fn', width: 1.25 },
+      { code: 'ContextMenu', label: 'Menu', width: 1.25 },
+      { code: 'ControlRight', label: 'Ctrl', width: 1.25 },
+    ]
+
     const layout: KeySpec[][] = [
       [
-        { code: 'Escape', label: 'Esc' },
+        { code: 'Escape', label: 'ESC' },
         gapBetweenBlocks('tkl_r1_g1', 0.5),
         { code: 'F1', label: 'F1' },
         { code: 'F2', label: 'F2' },
@@ -233,7 +252,8 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
         { code: 'F10', label: 'F10' },
         { code: 'F11', label: 'F11' },
         { code: 'F12', label: 'F12' },
-        gapBetweenBlocks('tkl_r1_g4', 0.25),
+        // Keep the right-side 3-key cluster aligned with the navigation block below.
+        gapBetweenBlocks('tkl_r1_g4', 0.75),
         { code: 'PrintScreen', label: 'PrtSc' },
         { code: 'ScrollLock', label: 'ScrLk' },
         { code: 'Pause', label: 'Pause' },
@@ -242,70 +262,7 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
       [...qRow, gapBetweenBlocks('tkl_r3'), ...navBottomRow],
       [...aRow],
       [...zRow, gapBetweenBlocks('tkl_r5'), ...arrowUpRow('tkl')],
-      [...bottomRow, gapBetweenBlocks('tkl_r6'), ...arrowBottomRow],
-    ]
-    return withMods(layout)
-  }
-
-  if (layoutId === 'full_104') {
-    const layout: KeySpec[][] = [
-      [
-        { code: 'Escape', label: 'Esc' },
-        gapBetweenBlocks('full_r1_g1', 0.5),
-        { code: 'F1', label: 'F1' },
-        { code: 'F2', label: 'F2' },
-        { code: 'F3', label: 'F3' },
-        { code: 'F4', label: 'F4' },
-        gapBetweenBlocks('full_r1_g2', 0.5),
-        { code: 'F5', label: 'F5' },
-        { code: 'F6', label: 'F6' },
-        { code: 'F7', label: 'F7' },
-        { code: 'F8', label: 'F8' },
-        gapBetweenBlocks('full_r1_g3', 0.5),
-        { code: 'F9', label: 'F9' },
-        { code: 'F10', label: 'F10' },
-        { code: 'F11', label: 'F11' },
-        { code: 'F12', label: 'F12' },
-        gapBetweenBlocks('full_r1_g4', 0.25),
-        { code: 'PrintScreen', label: 'PrtSc' },
-        { code: 'ScrollLock', label: 'ScrLk' },
-        { code: 'Pause', label: 'Pause' },
-      ],
-      [
-        ...numberRow,
-        gapBetweenBlocks('full_r2_g1'),
-        ...navTopRow,
-        gapBetweenBlocks('full_r2_g2'),
-        ...numpadTopRow,
-      ],
-      [
-        ...qRow,
-        gapBetweenBlocks('full_r3_g1'),
-        ...navBottomRow,
-        gapBetweenBlocks('full_r3_g2'),
-        ...numpadRow7,
-      ],
-      [
-        ...aRow,
-        gapBetweenBlocks('full_r4_g1'),
-        spacer('__full_r4_nav_blank', 3),
-        gapBetweenBlocks('full_r4_g2'),
-        ...numpadRow4,
-      ],
-      [
-        ...zRow,
-        gapBetweenBlocks('full_r5_g1'),
-        ...arrowUpRow('full'),
-        gapBetweenBlocks('full_r5_g2'),
-        ...numpadRow1,
-      ],
-      [
-        ...bottomRow,
-        gapBetweenBlocks('full_r6_g1'),
-        ...arrowBottomRow,
-        gapBetweenBlocks('full_r6_g2'),
-        ...numpadRow0,
-      ],
+      [...bottomRowTkl, gapBetweenBlocks('tkl_r6'), ...arrowBottomRow],
     ]
     return withMods(layout)
   }
@@ -313,7 +270,7 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
   if (layoutId === 'full_108') {
     const layout: KeySpec[][] = [
       [
-        { code: 'Escape', label: 'Esc' },
+        { code: 'Escape', label: 'ESC' },
         gapBetweenBlocks('full108_r1_g1', 0.5),
         { code: 'F1', label: 'F1' },
         { code: 'F2', label: 'F2' },
@@ -329,7 +286,8 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
         { code: 'F10', label: 'F10' },
         { code: 'F11', label: 'F11' },
         { code: 'F12', label: 'F12' },
-        gapBetweenBlocks('full108_r1_g4', 0.25),
+        // Align the right-side clusters with the navigation + numpad blocks below.
+        gapBetweenBlocks('full108_r1_g4', 0.75),
         { code: 'PrintScreen', label: 'PrtSc' },
         { code: 'ScrollLock', label: 'ScrLk' },
         { code: 'Pause', label: 'Pause' },
@@ -368,7 +326,7 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
         ...numpadRow1,
       ],
       [
-        ...bottomRow,
+        ...bottomRowFull,
         gapBetweenBlocks('full108_r6_g1'),
         ...arrowBottomRow,
         gapBetweenBlocks('full108_r6_g2'),
@@ -379,30 +337,75 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
   }
 
   if (layoutId === 'compact_98') {
+    // 98% (1800-like): integrate the arrow cluster into the right-side column so it doesn't "stick out".
+    // Column (top→bottom): Del / Home / End / PgUp / PgDn / ←
+    // Arrow block: (PgDn, ↑, blank) over (←, ↓, →)
+    const zRow98: KeySpec[] = [
+      { code: 'ShiftLeft', label: 'Shift', width: 2.25 },
+      { code: 'KeyZ', label: 'z', shiftLabel: 'Z' },
+      { code: 'KeyX', label: 'x', shiftLabel: 'X' },
+      { code: 'KeyC', label: 'c', shiftLabel: 'C' },
+      { code: 'KeyV', label: 'v', shiftLabel: 'V' },
+      { code: 'KeyB', label: 'b', shiftLabel: 'B' },
+      { code: 'KeyN', label: 'n', shiftLabel: 'N' },
+      { code: 'KeyM', label: 'm', shiftLabel: 'M' },
+      { code: 'Comma', label: ',', shiftLabel: '<' },
+      { code: 'Period', label: '.', shiftLabel: '>' },
+      { code: 'Slash', label: '/', shiftLabel: '?' },
+      // Slightly shorter right-Shift to visually merge with the compact right-side cluster.
+      { code: 'ShiftRight', label: 'Shift', width: 1.75 },
+      // Keep a dedicated Fn key but avoid duplicate codes by placing it on this row (some 98% boards do this).
+      { code: 'Fn', label: 'Fn' },
+    ]
+
+    const bottomRow98: KeySpec[] = [
+      { code: 'ControlLeft', label: 'Ctrl', width: 1.25 },
+      { code: 'MetaLeft', label: 'Meta', width: 1.25 },
+      { code: 'AltLeft', label: 'Alt', width: 1.25 },
+      { code: 'Space', label: 'Space', width: 7.5 },
+      { code: 'AltRight', label: 'Alt', width: 1.25 },
+      { code: 'MetaRight', label: 'Meta', width: 1.25 },
+      { code: 'ControlRight', label: 'Ctrl', width: 1.25 },
+    ]
+
     const layout: KeySpec[][] = [
       [
-        { code: 'Escape', label: 'Esc' },
+        { code: 'Escape', label: 'ESC' },
+        // Match 15u main-cluster width so the right-side blocks (nav/arrows/numpad) align with the rows below.
+        gapBetweenBlocks('c98_r1_g0', 0.5),
         { code: 'F1', label: 'F1' },
         { code: 'F2', label: 'F2' },
         { code: 'F3', label: 'F3' },
         { code: 'F4', label: 'F4' },
+        gapBetweenBlocks('c98_r1_g2', 0.5),
         { code: 'F5', label: 'F5' },
         { code: 'F6', label: 'F6' },
         { code: 'F7', label: 'F7' },
         { code: 'F8', label: 'F8' },
+        gapBetweenBlocks('c98_r1_g3', 0.5),
         { code: 'F9', label: 'F9' },
         { code: 'F10', label: 'F10' },
         { code: 'F11', label: 'F11' },
         { code: 'F12', label: 'F12' },
+        gapBetweenBlocks('c98_r1_g4', 0.5),
+        // Single navigation column (1800/98% style): Del / Home / End / PgUp / PgDn.
+        { code: 'Delete', label: 'Del' },
+        // Reserve only the 2u area above (↑, →) columns; the left column is occupied by the nav key itself.
+        spacer('__c98_r1_above_arrows', 2),
+        { code: 'Insert', label: 'Ins' },
         { code: 'PrintScreen', label: 'PrtSc' },
         { code: 'ScrollLock', label: 'ScrLk' },
         { code: 'Pause', label: 'Pause' },
       ],
-      [...numberRow, ...navTopRow, ...numpadTopRow],
-      [...qRow, ...navBottomRow, ...numpadRow7],
-      [...aRow, ...numpadRow4],
-      [...zRow, ...arrowUpRow('c98'), ...numpadRow1],
-      [...bottomRow, ...arrowBottomRow, ...numpadRow0],
+      [...numberRow, { code: 'Home', label: 'Home' }, spacer('__c98_r2_above_arrows', 2), ...numpadTopRow],
+      [...qRow, { code: 'End', label: 'End' }, spacer('__c98_r3_above_arrows', 2), ...numpadRow7],
+      [...aRow, { code: 'PageUp', label: 'PgUp' }, spacer('__c98_r4_above_arrows', 2), ...numpadRow4],
+      [...zRow98, { code: 'PageDown', label: 'PgDn' }, { code: 'ArrowUp', label: '↑' }, spacer('__c98_r5_arrow_blank', 1), ...numpadRow1],
+      [
+        ...bottomRow98,
+        ...arrowBottomRow,
+        ...numpadRow0,
+      ],
     ]
     return withMods(layout)
   }
@@ -411,7 +414,7 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
     // HHKB-style: no function row, Control on home-row, Backspace key labeled Delete, dedicated Fn key.
     const layout: KeySpec[][] = [
       [
-        { code: 'Escape', label: 'Esc' },
+        { code: 'Escape', label: 'ESC' },
         { code: 'Digit1', label: '1', shiftLabel: '!' },
         { code: 'Digit2', label: '2', shiftLabel: '@' },
         { code: 'Digit3', label: '3', shiftLabel: '#' },
@@ -487,11 +490,17 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
   }
 
   if (layoutId === 'macbook_pro') {
-    // Approximate the MacBook Pro (Touch Bar era) physical keyboard: no function row, with inverted-T arrow cluster.
-    // Note: arrow key heights are not modeled; shown as a single-row cluster for consistency with other presets.
+    // MacBook Pro (Touch Bar era) physical keyboard:
+    // - Top row: ESC + Touch Bar strip + Touch ID (power)
+    // - Bottom-right: inverted-T arrow cluster with half-height ↑/↓ and full-height ←/→
     const layout: KeySpec[][] = [
       [
-        { code: 'Escape', label: 'Esc', width: 1.25 },
+        { code: 'Escape', label: 'esc', width: 1.25 },
+        // Keep the Touch Bar space but don't render it in the heatmap.
+        { code: MBP_TOUCHBAR_STRIP_CODE, label: '', width: 12, kind: 'spacer' },
+        { code: 'Power', label: 'Power', width: 1.75 },
+      ],
+      [
         { code: 'Backquote', label: '`', shiftLabel: '~' },
         { code: 'Digit1', label: '1', shiftLabel: '!' },
         { code: 'Digit2', label: '2', shiftLabel: '@' },
@@ -505,7 +514,7 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
         { code: 'Digit0', label: '0', shiftLabel: ')' },
         { code: 'Minus', label: '-', shiftLabel: '_' },
         { code: 'Equal', label: '=', shiftLabel: '+' },
-        { code: 'Backspace', label: 'Del', width: 2 },
+        { code: 'Backspace', label: 'delete', width: 2 },
       ],
       [
         { code: 'Tab', label: 'Tab', width: 1.5 },
@@ -553,26 +562,118 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
         { code: 'ShiftRight', label: 'Shift', width: 2.75 },
       ],
       [
-        { code: 'Fn', label: 'Fn', width: 1.25 },
-        { code: 'ControlLeft', label: 'Ctrl', width: 1.25 },
-        { code: 'AltLeft', label: 'Alt', width: 1.25 },
-        { code: 'MetaLeft', label: 'Meta', width: 1.5 },
-        { code: 'Space', label: 'Space', width: 6 },
-        { code: 'MetaRight', label: 'Meta', width: 1.5 },
-        { code: 'AltRight', label: 'Alt', width: 1.25 },
-        { code: 'ArrowLeft', label: '←' },
-        { code: 'ArrowUp', label: '↑' },
-        { code: 'ArrowDown', label: '↓' },
-        { code: 'ArrowRight', label: '→' },
+        { code: 'Fn', label: 'fn', width: 1 },
+        { code: 'ControlLeft', label: 'Ctrl', width: 1 },
+        { code: 'AltLeft', label: 'Alt', width: 1 },
+        { code: 'MetaLeft', label: 'Meta', width: 1.25 },
+        { code: 'Space', label: 'Space', width: 5.5 },
+        { code: 'MetaRight', label: 'Meta', width: 1.25 },
+        { code: 'AltRight', label: 'Alt', width: 1 },
+        { code: MBP_TOUCHBAR_ARROW_CLUSTER_CODE, label: '', width: 3 },
       ],
     ]
     return withMods(layout)
   }
 
-  if (layoutId === 'compact_96') {
+  if (layoutId === 'macbook_pro_no_touchbar') {
+    // MacBook Pro (no Touch Bar) physical keyboard: has a full function row and a Touch ID / power key.
+    // Note: arrow keys are represented as a 3u placeholder cell; the heatmap view renders them as a half-height inverted-T cluster.
+    const functionRow: KeySpec[] = [
+      { code: 'Escape', label: 'esc', width: 1.25 },
+      { code: 'F1', label: 'F1' },
+      { code: 'F2', label: 'F2' },
+      { code: 'F3', label: 'F3' },
+      { code: 'F4', label: 'F4' },
+      { code: 'F5', label: 'F5' },
+      { code: 'F6', label: 'F6' },
+      { code: 'F7', label: 'F7' },
+      { code: 'F8', label: 'F8' },
+      { code: 'F9', label: 'F9' },
+      { code: 'F10', label: 'F10' },
+      { code: 'F11', label: 'F11' },
+      { code: 'F12', label: 'F12' },
+      { code: 'Power', label: 'Power', width: 1.75 },
+    ]
+
+    const macNumberRow: KeySpec[] = [
+      { code: 'Backquote', label: '`', shiftLabel: '~' },
+      { code: 'Digit1', label: '1', shiftLabel: '!' },
+      { code: 'Digit2', label: '2', shiftLabel: '@' },
+      { code: 'Digit3', label: '3', shiftLabel: '#' },
+      { code: 'Digit4', label: '4', shiftLabel: '$' },
+      { code: 'Digit5', label: '5', shiftLabel: '%' },
+      { code: 'Digit6', label: '6', shiftLabel: '^' },
+      { code: 'Digit7', label: '7', shiftLabel: '&' },
+      { code: 'Digit8', label: '8', shiftLabel: '*' },
+      { code: 'Digit9', label: '9', shiftLabel: '(' },
+      { code: 'Digit0', label: '0', shiftLabel: ')' },
+      { code: 'Minus', label: '-', shiftLabel: '_' },
+      { code: 'Equal', label: '=', shiftLabel: '+' },
+      { code: 'Backspace', label: 'delete', width: 2 },
+    ]
+
+    const macZRow: KeySpec[] = [
+      { code: 'ShiftLeft', label: 'shift', width: 2.25 },
+      { code: 'KeyZ', label: 'z', shiftLabel: 'Z' },
+      { code: 'KeyX', label: 'x', shiftLabel: 'X' },
+      { code: 'KeyC', label: 'c', shiftLabel: 'C' },
+      { code: 'KeyV', label: 'v', shiftLabel: 'V' },
+      { code: 'KeyB', label: 'b', shiftLabel: 'B' },
+      { code: 'KeyN', label: 'n', shiftLabel: 'N' },
+      { code: 'KeyM', label: 'm', shiftLabel: 'M' },
+      { code: 'Comma', label: ',', shiftLabel: '<' },
+      { code: 'Period', label: '.', shiftLabel: '>' },
+      { code: 'Slash', label: '/', shiftLabel: '?' },
+      { code: 'ShiftRight', label: 'shift', width: 2.75 },
+    ]
+
+    const macBottomRow: KeySpec[] = [
+      { code: 'Fn', label: 'fn', width: 1 },
+      { code: 'ControlLeft', label: 'Ctrl', width: 1 },
+      { code: 'AltLeft', label: 'Alt', width: 1 },
+      { code: 'MetaLeft', label: 'Meta', width: 1.25 },
+      { code: 'Space', label: 'Space', width: 5.5 },
+      { code: 'MetaRight', label: 'Meta', width: 1.25 },
+      { code: 'AltRight', label: 'Alt', width: 1 },
+      { code: MBP_NO_TOUCHBAR_ARROW_CLUSTER_CODE, label: '', width: 3 },
+    ]
+
+    const layout: KeySpec[][] = [functionRow, macNumberRow, qRow, aRow, macZRow, macBottomRow]
+    return withMods(layout)
+  }
+
+  if (layoutId === 'compact_75') {
+    const zRow75: KeySpec[] = [
+      { code: 'ShiftLeft', label: 'Shift', width: 2.25 },
+      { code: 'KeyZ', label: 'z', shiftLabel: 'Z' },
+      { code: 'KeyX', label: 'x', shiftLabel: 'X' },
+      { code: 'KeyC', label: 'c', shiftLabel: 'C' },
+      { code: 'KeyV', label: 'v', shiftLabel: 'V' },
+      { code: 'KeyB', label: 'b', shiftLabel: 'B' },
+      { code: 'KeyN', label: 'n', shiftLabel: 'N' },
+      { code: 'KeyM', label: 'm', shiftLabel: 'M' },
+      { code: 'Comma', label: ',', shiftLabel: '<' },
+      { code: 'Period', label: '.', shiftLabel: '>' },
+      { code: 'Slash', label: '/', shiftLabel: '?' },
+      { code: 'ShiftRight', label: 'Shift', width: 1.75 },
+      { code: 'ArrowUp', label: '↑' },
+      { code: 'End', label: 'End' },
+    ]
+
+    const bottomRow75: KeySpec[] = [
+      { code: 'ControlLeft', label: 'Ctrl', width: 1.25 },
+      { code: 'MetaLeft', label: 'Meta', width: 1.25 },
+      { code: 'AltLeft', label: 'Alt', width: 1.25 },
+      { code: 'Space', label: 'Space', width: 5.75 },
+      { code: 'AltRight', label: 'Alt', width: 1.25 },
+      { code: 'Fn', label: 'Fn', width: 1 },
+      { code: 'ControlRight', label: 'Ctrl', width: 1.25 },
+      ...arrowBottomRow,
+    ]
+
     const layout: KeySpec[][] = [
       [
-        { code: 'Escape', label: 'Esc' },
+        { code: 'Escape', label: 'ESC' },
         { code: 'F1', label: 'F1' },
         { code: 'F2', label: 'F2' },
         { code: 'F3', label: 'F3' },
@@ -586,51 +687,70 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
         { code: 'F11', label: 'F11' },
         { code: 'F12', label: 'F12' },
         { code: 'PrintScreen', label: 'PrtSc' },
-        { code: 'ScrollLock', label: 'ScrLk' },
         { code: 'Pause', label: 'Pause' },
+        { code: 'Delete', label: 'Del' },
       ],
-      [...numberRow, { code: 'Delete', label: 'Del' }, ...numpadTopRow],
-      [...qRow, { code: 'PageUp', label: 'PgUp' }, ...numpadRow7],
-      [...aRow, { code: 'PageDown', label: 'PgDn' }, ...numpadRow4],
-      [...zRow, { code: 'ArrowUp', label: '↑' }, ...numpadRow1],
-      [...bottomRow, ...arrowBottomRow, ...numpadRow0],
-    ]
-    return withMods(layout)
-  }
-
-  if (layoutId === 'compact_75') {
-    const layout: KeySpec[][] = [
-      [
-        { code: 'Escape', label: 'Esc' },
-        { code: 'F1', label: 'F1' },
-        { code: 'F2', label: 'F2' },
-        { code: 'F3', label: 'F3' },
-        { code: 'F4', label: 'F4' },
-        { code: 'F5', label: 'F5' },
-        { code: 'F6', label: 'F6' },
-        { code: 'F7', label: 'F7' },
-        { code: 'F8', label: 'F8' },
-        { code: 'F9', label: 'F9' },
-        { code: 'F10', label: 'F10' },
-        { code: 'F11', label: 'F11' },
-        { code: 'F12', label: 'F12' },
-      ],
-      [...numberRow, { code: 'Delete', label: 'Del' }],
+      [...numberRow, { code: 'Home', label: 'Home' }],
       [...qRow, { code: 'PageUp', label: 'PgUp' }],
       [...aRow, { code: 'PageDown', label: 'PgDn' }],
-      [...zRow, { code: 'ArrowUp', label: '↑' }],
-      [...bottomRow, { code: 'ArrowLeft', label: '←' }, { code: 'ArrowDown', label: '↓' }, { code: 'ArrowRight', label: '→' }],
+      [...zRow75],
+      [...bottomRow75],
     ]
     return withMods(layout)
   }
 
   if (layoutId === 'compact_65') {
+    const numberRow65: KeySpec[] = [
+      { code: 'Digit1', label: '1', shiftLabel: '!' },
+      { code: 'Digit2', label: '2', shiftLabel: '@' },
+      { code: 'Digit3', label: '3', shiftLabel: '#' },
+      { code: 'Digit4', label: '4', shiftLabel: '$' },
+      { code: 'Digit5', label: '5', shiftLabel: '%' },
+      { code: 'Digit6', label: '6', shiftLabel: '^' },
+      { code: 'Digit7', label: '7', shiftLabel: '&' },
+      { code: 'Digit8', label: '8', shiftLabel: '*' },
+      { code: 'Digit9', label: '9', shiftLabel: '(' },
+      { code: 'Digit0', label: '0', shiftLabel: ')' },
+      { code: 'Minus', label: '-', shiftLabel: '_' },
+      { code: 'Equal', label: '=', shiftLabel: '+' },
+      { code: 'Backspace', label: '⌫', width: 2 },
+      { code: 'Backquote', label: '`', shiftLabel: '~' },
+    ]
+
+    const zRow65: KeySpec[] = [
+      { code: 'ShiftLeft', label: 'Shift', width: 2.25 },
+      { code: 'KeyZ', label: 'z', shiftLabel: 'Z' },
+      { code: 'KeyX', label: 'x', shiftLabel: 'X' },
+      { code: 'KeyC', label: 'c', shiftLabel: 'C' },
+      { code: 'KeyV', label: 'v', shiftLabel: 'V' },
+      { code: 'KeyB', label: 'b', shiftLabel: 'B' },
+      { code: 'KeyN', label: 'n', shiftLabel: 'N' },
+      { code: 'KeyM', label: 'm', shiftLabel: 'M' },
+      { code: 'Comma', label: ',', shiftLabel: '<' },
+      { code: 'Period', label: '.', shiftLabel: '>' },
+      { code: 'Slash', label: '/', shiftLabel: '?' },
+      { code: 'ShiftRight', label: 'Shift', width: 1.75 },
+      { code: 'ArrowUp', label: '↑' },
+      { code: 'PageDown', label: 'PgDn', width: 1.25 },
+    ]
+
+    const bottomRow65: KeySpec[] = [
+      { code: 'ControlLeft', label: 'Ctrl', width: 1.25 },
+      { code: 'MetaLeft', label: 'Meta', width: 1.25 },
+      { code: 'AltLeft', label: 'Alt', width: 1.25 },
+      { code: 'Space', label: 'Space', width: 5.75 },
+      { code: 'AltRight', label: 'Alt', width: 1.25 },
+      { code: 'Fn', label: 'Fn', width: 1.25 },
+      { code: 'ControlRight', label: 'Ctrl', width: 1.25 },
+      ...arrowBottomRow,
+    ]
+
     const layout: KeySpec[][] = [
-      [{ code: 'Escape', label: 'Esc', width: 1.25 }, ...numberRow, { code: 'Delete', label: 'Del', width: 1.25 }],
-      [...qRow, { code: 'PageUp', label: 'PgUp', width: 1.25 }],
-      [...aRow, { code: 'PageDown', label: 'PgDn', width: 1.25 }],
-      [...zRow, { code: 'ArrowUp', label: '↑' }],
-      [...bottomRow, ...arrowBottomRow],
+      [{ code: 'Escape', label: 'ESC', width: 1.25 }, ...numberRow65],
+      [...qRow, { code: 'Delete', label: 'Del', width: 1.25 }],
+      [...aRow, { code: 'PageUp', label: 'PgUp', width: 1.25 }],
+      [...zRow65],
+      [...bottomRow65],
     ]
     return withMods(layout)
   }
@@ -638,8 +758,9 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
   // compact_60
   const layout: KeySpec[][] = [
     [
-      { code: 'Escape', label: 'Esc', width: 1.25 },
-      { code: 'Backquote', label: '`', shiftLabel: '~' },
+      // Match common 60% physical row width (avoid last key "sticking out"):
+      // represent the top-left key as Esc (no dedicated `~ key in this preset).
+      { code: 'Escape', label: 'ESC', width: 1 },
       { code: 'Digit1', label: '1', shiftLabel: '!' },
       { code: 'Digit2', label: '2', shiftLabel: '@' },
       { code: 'Digit3', label: '3', shiftLabel: '#' },
@@ -663,8 +784,9 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
       { code: 'AltLeft', label: 'Alt', width: 1.25 },
       { code: 'Space', label: 'Space', width: 6.25 },
       { code: 'AltRight', label: 'Alt', width: 1.25 },
-      { code: 'MetaRight', label: 'Meta', width: 1.25 },
+      { code: 'ContextMenu', label: 'Menu', width: 1.25 },
       { code: 'ControlRight', label: 'Ctrl', width: 1.25 },
+      { code: 'Fn', label: 'Fn', width: 1.25 },
     ],
   ]
   return withMods(layout)
@@ -747,4 +869,41 @@ export function shortcutDisplay(
   const keyLabel = spec ? (hasShift ? spec.shiftLabel ?? spec.label : spec.label) : code
 
   return [...parts.slice(0, -1).map(modLabel), keyLabel].join(platform === 'mac' ? '' : '+')
+}
+
+export type ShortcutDisplayPart = { type: 'key' | 'sep'; label: string }
+
+export function shortcutDisplayParts(
+  id: ShortcutId,
+  platform: KeyboardPlatform,
+  keyIndex: Record<string, KeySpec>
+): ShortcutDisplayPart[] {
+  const parts = id.split('+').filter(Boolean)
+  const code = parts[parts.length - 1] ?? id
+  const hasShift = parts.includes('Shift')
+
+  const modLabel = (token: string) => {
+    if (token === 'Meta') {
+      if (platform === 'mac') return '⌘'
+      if (platform === 'windows') return 'Win'
+      return 'Super'
+    }
+    if (token === 'Alt') return platform === 'mac' ? '⌥' : 'Alt'
+    if (token === 'Ctrl') return 'Ctrl'
+    if (token === 'Shift') return platform === 'mac' ? '⇧' : 'Shift'
+    return token
+  }
+
+  const spec = keyIndex[code]
+  const keyLabel = spec ? (hasShift ? spec.shiftLabel ?? spec.label : spec.label) : code
+  const keyTokens = [...parts.slice(0, -1).map(modLabel), keyLabel]
+
+  if (platform === 'mac') return keyTokens.map((label) => ({ type: 'key', label }))
+
+  const out: ShortcutDisplayPart[] = []
+  for (const [index, label] of keyTokens.entries()) {
+    if (index > 0) out.push({ type: 'sep', label: '+' })
+    out.push({ type: 'key', label })
+  }
+  return out
 }

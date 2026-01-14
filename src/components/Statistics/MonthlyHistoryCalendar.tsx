@@ -6,8 +6,10 @@ import { Card } from '../ui/card'
 import { cn } from '@/lib/utils'
 import { sumKeyCounts, type KeyCounts } from '@/lib/keyboard'
 import { KeyboardHeatmap } from './KeyboardHeatmap'
+import { KeyboardHeatmapShareDialog } from './KeyboardHeatmapShareDialog'
 import { MouseButtonsHeatmap } from './MouseButtonsHeatmap'
 import { ShortcutList } from './ShortcutList'
+import { KeyRanking } from './KeyRanking'
 import { HourlyDistribution } from './HourlyDistribution'
 import { DayComparison } from './DayComparison'
 import {
@@ -199,6 +201,22 @@ export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount, keyboar
     }
     return selectedDay?.key_counts_shifted ?? {}
   }, [days, keyHeatMode, selectedDay?.key_counts_shifted])
+
+  const keyCountsAll: KeyCounts = useMemo(() => {
+    if (keyHeatMode === 'total') {
+      return sumKeyCounts(days.map((d) => d.key_counts))
+    }
+    return selectedDay?.key_counts ?? {}
+  }, [days, keyHeatMode, selectedDay?.key_counts])
+
+  const shareMeritValue = useMemo(() => {
+    if (keyHeatMode === 'total') {
+      const sum = days.reduce((acc, d) => acc + (d.total ?? 0), 0)
+      return sum > 0 ? sum : null
+    }
+    const v = selectedDay?.total ?? 0
+    return v > 0 ? v : null
+  }, [days, keyHeatMode, selectedDay?.total])
 
   const shortcutCounts: Record<string, number> = useMemo(() => {
     if (keyHeatMode === 'total') {
@@ -451,9 +469,28 @@ export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount, keyboar
 
         <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-slate-500">键盘热力图</div>
-            <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
-          </div>
+	            <div className="text-xs text-slate-500">键盘热力图</div>
+	            <div className="flex items-center gap-2" data-no-drag>
+	              <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
+	              <KeyboardHeatmapShareDialog
+	                unshiftedCounts={keyCountsUnshifted}
+	                shiftedCounts={keyCountsShifted}
+	                heatLevelCount={heatLevelsCount}
+	                layoutId={keyboardLayoutId}
+	                platform={platform}
+	                dateKey={selectedKey ?? todayKey ?? null}
+	                modeLabel={keyHeatMode === 'day' ? '当日' : '累计'}
+	                meritValue={shareMeritValue}
+	                meritLabel={
+	                  keyHeatMode === 'total'
+	                    ? '累计功德'
+	                    : selectedKey && todayKey && selectedKey === todayKey
+	                      ? '今日功德'
+	                      : '当日功德'
+	                }
+	              />
+	            </div>
+	          </div>
           <div className="mt-3">
             <KeyboardHeatmap
               unshiftedCounts={keyCountsUnshifted}
@@ -461,6 +498,16 @@ export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount, keyboar
               heatLevelCount={heatLevelsCount}
               layoutId={keyboardLayoutId}
             />
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-slate-500">按键排行</div>
+            <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
+          </div>
+          <div className="mt-3">
+            <KeyRanking counts={keyCountsAll} platform={platform} keyboardLayoutId={keyboardLayoutId} />
           </div>
         </div>
 
