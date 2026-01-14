@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
   buildKeySpecIndex,
@@ -20,6 +20,7 @@ import {
 } from './heatScale'
 
 const GRID_UNIT_SCALE = 4 // 0.25u resolution
+const KEY_GAP_RATIO = 0.26
 
 type Placement = {
   key: KeySpec
@@ -28,6 +29,8 @@ type Placement = {
   w: number
   h: number
 }
+
+type KeyContentMode = 'heatmap' | 'keys' | 'keysAndCounts'
 
 function toGridUnits(width: number): number {
   const units = Math.round(width * GRID_UNIT_SCALE)
@@ -88,9 +91,10 @@ function KeyboardView({
 
   const grid = useMemo(() => computePlacements(layout), [layout])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = hostRef.current
     if (!el) return
+    setHostWidth(el.getBoundingClientRect().width)
     const ro = new ResizeObserver((entries) => {
       const next = entries[0]?.contentRect?.width ?? 0
       setHostWidth(next)
@@ -105,11 +109,18 @@ function KeyboardView({
     return Math.max(4, (hostWidth - 1) / grid.cols)
   }, [grid.cols, hostWidth])
 
-  const keyGapPx = useMemo(() => Math.max(1, Math.round(unitPx * 0.45)), [unitPx])
+  const keyGapPx = useMemo(() => Math.max(1, Math.round(unitPx * KEY_GAP_RATIO)), [unitPx])
   const keyHeightPx = useMemo(() => Math.max(18, Math.round(unitPx * GRID_UNIT_SCALE * 1.12)), [unitPx])
   const keyboardHeight = useMemo(() => grid.rows * keyHeightPx, [grid.rows, keyHeightPx])
   const labelFontPx = useMemo(() => Math.max(9, Math.min(13, Math.round(keyHeightPx * 0.28))), [keyHeightPx])
   const countFontPx = useMemo(() => Math.max(8, Math.min(12, Math.round(keyHeightPx * 0.25))), [keyHeightPx])
+  const keyRadiusPx = useMemo(() => Math.max(3, Math.round(keyHeightPx * 0.14)), [keyHeightPx])
+
+  const keyContentMode: KeyContentMode = useMemo(() => {
+    if (unitPx < 6 || keyHeightPx < 22) return 'heatmap'
+    if (unitPx < 8 || keyHeightPx < 28) return 'keys'
+    return 'keysAndCounts'
+  }, [keyHeightPx, unitPx])
 
   return (
     <div className="space-y-2">
@@ -130,6 +141,8 @@ function KeyboardView({
               const level = heatLevelForValue(count, max, thresholds, heatLevelCount)
               const label = showShiftedLabel ? key.shiftLabel ?? key.label : key.label
               const rawLabel = keyIndex[key.code]?.label ?? key.label
+              const keyPaddingPx =
+                keyContentMode === 'heatmap' ? Math.max(1, Math.round(keyHeightPx * 0.08)) : Math.max(2, Math.round(keyHeightPx * 0.14))
 
               const left = col * unitPx + keyGapPx
               const top = row * keyHeightPx + keyGapPx
@@ -140,8 +153,10 @@ function KeyboardView({
                 <div
                   key={`${key.code}:${row}:${col}`}
                   className={cn(
-                    'absolute rounded-lg border select-none',
-                    'flex flex-col justify-between',
+                    'absolute border select-none',
+                    keyContentMode === 'keysAndCounts' && 'flex flex-col justify-between',
+                    keyContentMode === 'keys' && 'flex items-center justify-center',
+                    keyContentMode === 'heatmap' && 'flex items-center justify-center',
                     heatClass(level, heatLevelCount)
                   )}
                   style={{
@@ -149,26 +164,37 @@ function KeyboardView({
                     top,
                     width: Math.max(1, width),
                     height: Math.max(1, height),
-                    padding: Math.max(2, Math.round(keyHeightPx * 0.14)),
+                    padding: keyPaddingPx,
+                    borderRadius: keyRadiusPx,
                   }}
                   title={`${key.code} (${rawLabel}${key.shiftLabel ? `/${key.shiftLabel}` : ''})  ${count.toLocaleString()}`}
                   data-no-drag
                 >
-                  <div
-                    className={cn('font-medium truncate', isHeatDark(level, heatLevelCount) ? 'text-white' : 'text-slate-800')}
-                    style={{ fontSize: labelFontPx, lineHeight: 1.1 }}
-                  >
-                    {label}
-                  </div>
-                  <div
-                    className={cn(
-                      'tabular-nums truncate',
-                      isHeatDark(level, heatLevelCount) ? 'text-white/90' : 'text-slate-500'
-                    )}
-                    style={{ fontSize: countFontPx, lineHeight: 1.1 }}
-                  >
-                    {count > 0 ? count.toLocaleString() : ''}
-                  </div>
+                  {keyContentMode === 'heatmap' ? (
+                    <span className="sr-only">{label}</span>
+                  ) : (
+                    <div
+                      className={cn(
+                        'font-medium truncate',
+                        keyContentMode === 'keysAndCounts' ? '' : 'text-center',
+                        isHeatDark(level, heatLevelCount) ? 'text-white' : 'text-slate-800'
+                      )}
+                      style={{ fontSize: labelFontPx, lineHeight: 1.1 }}
+                    >
+                      {label}
+                    </div>
+                  )}
+                  {keyContentMode === 'keysAndCounts' && (
+                    <div
+                      className={cn(
+                        'tabular-nums truncate',
+                        isHeatDark(level, heatLevelCount) ? 'text-white/90' : 'text-slate-500'
+                      )}
+                      style={{ fontSize: countFontPx, lineHeight: 1.1 }}
+                    >
+                      {count > 0 ? count.toLocaleString() : ''}
+                    </div>
+                  )}
                 </div>
               )
             })}

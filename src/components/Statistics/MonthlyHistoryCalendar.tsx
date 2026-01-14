@@ -233,7 +233,7 @@ export function MonthlyHistoryCalendar({ days, todayKey, heatLevelCount, keyboar
   }, [days, keyHeatMode, selectedDay?.mouse_button_counts])
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_1fr] gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <Card className="p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">

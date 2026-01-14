@@ -32,6 +32,8 @@
         "title": "设置 - 赛博木鱼",
         "width": 760,
         "height": 560,
+        "minWidth": 640,
+        "minHeight": 520,
         "resizable": true,
         "transparent": false,
         "decorations": true,

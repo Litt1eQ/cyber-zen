@@ -616,7 +616,7 @@ export function Settings() {
             {activeTab === 'statistics' && (
               <div className="space-y-8">
                 <SettingsSection title="今日概览">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-4">
                       <StatTile
                         title="今日总计"

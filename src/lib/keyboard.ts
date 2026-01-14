@@ -474,11 +474,13 @@ export function getKeyboardLayout(layoutId: KeyboardLayoutId, platform: Keyboard
         { code: 'Fn', label: 'Fn', width: 1 },
       ],
       [
+        spacer('__hhkb_bottom_l', 1.5),
         { code: 'AltLeft', label: 'Alt', width: 1.5 },
         { code: 'MetaLeft', label: 'Meta', width: 1.5 },
-        { code: 'Space', label: 'Space', width: 9 },
+        { code: 'Space', label: 'Space', width: 6 },
         { code: 'MetaRight', label: 'Meta', width: 1.5 },
         { code: 'AltRight', label: 'Alt', width: 1.5 },
+        spacer('__hhkb_bottom_r', 1.5),
       ],
     ]
     return withMods(layout)
