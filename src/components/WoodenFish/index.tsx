@@ -17,6 +17,8 @@ export function WoodenFish({
   windowScale,
   skin = ROSEWOOD_SKIN,
   interactive = true,
+  dragEnabled = true,
+  dragHoldMs = 0,
 }: {
   isAnimating: boolean
   animationSpeed: number
@@ -24,6 +26,8 @@ export function WoodenFish({
   windowScale: number
   skin?: WoodenFishSkin
   interactive?: boolean
+  dragEnabled?: boolean
+  dragHoldMs?: number
 }) {
   const duration = getWoodenFishHitDurationSeconds(animationSpeed)
 
@@ -45,7 +49,11 @@ export function WoodenFish({
   const bodyHeight = Math.max(1, Math.round(bodyWidth / Math.max(bodyAspectRatio, 0.01)))
   const hammerWidth = Math.max(1, Math.round(size * hammerWidthRatio))
 
-  const dragGesture = useWindowDragGesture({ thresholdPx: DRAG_THRESHOLD_PX })
+  const dragGesture = useWindowDragGesture({
+    thresholdPx: DRAG_THRESHOLD_PX,
+    enabled: interactive && dragEnabled,
+    holdMs: dragHoldMs,
+  })
 
   const hitCooldownRef = useRef(false)
 

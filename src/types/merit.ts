@@ -41,6 +41,13 @@ export interface Settings {
   animation_speed: number
   window_scale: number
   heatmap_levels?: number
+  lock_window_position?: boolean
+  dock_margin_px?: number
+  auto_fade_enabled?: boolean
+  auto_fade_idle_opacity?: number
+  auto_fade_delay_ms?: number
+  auto_fade_duration_ms?: number
+  drag_hold_ms?: number
   shortcut_toggle_main?: string | null
   shortcut_toggle_settings?: string | null
   shortcut_toggle_listening?: string | null

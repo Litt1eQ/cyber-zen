@@ -35,6 +35,33 @@ export async function showMainQuickMenu() {
     }),
     PredefinedMenuItem.new({ item: 'Separator' }),
     CheckMenuItem.new({
+      text: '锁定位置',
+      checked: settings.lock_window_position ?? false,
+      action: () => void updateSettings({ lock_window_position: !(settings.lock_window_position ?? false) }),
+    }),
+    CheckMenuItem.new({
+      text: '自动淡出',
+      checked: settings.auto_fade_enabled ?? false,
+      action: () => void updateSettings({ auto_fade_enabled: !(settings.auto_fade_enabled ?? false) }),
+    }),
+    Submenu.new({
+      text: '停靠到',
+      items: await Promise.all(
+        [
+          { text: '左上', corner: 'top_left' },
+          { text: '右上', corner: 'top_right' },
+          { text: '左下', corner: 'bottom_left' },
+          { text: '右下', corner: 'bottom_right' },
+        ].map((opt) =>
+          MenuItem.new({
+            text: opt.text,
+            action: () => void invoke(COMMANDS.DOCK_MAIN_WINDOW, { corner: opt.corner }),
+          })
+        )
+      ),
+    }),
+    PredefinedMenuItem.new({ item: 'Separator' }),
+    CheckMenuItem.new({
       text: '开启全局监听',
       checked: isListening,
       action: () => {

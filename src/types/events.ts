@@ -33,6 +33,7 @@ export const COMMANDS = {
   SHOW_SETTINGS_WINDOW: 'show_settings_window',
   HIDE_SETTINGS_WINDOW: 'hide_settings_window',
   TOGGLE_SETTINGS_WINDOW: 'toggle_settings_window',
+  DOCK_MAIN_WINDOW: 'dock_main_window',
   QUIT_APP: 'quit_app',
   AUTOSTART_IS_ENABLED: 'autostart_is_enabled',
   AUTOSTART_ENABLE: 'autostart_enable',

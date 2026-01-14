@@ -426,6 +426,18 @@ export function Settings() {
 
                 <SettingsSection title="窗口设置">
                   <SettingRow
+                    title="锁定木鱼位置"
+                    description="启用后，禁止拖动主窗口（防误触）"
+                    control={
+                      <Switch
+                        checked={settings.lock_window_position ?? false}
+                        onCheckedChange={(v) => updateSettings({ lock_window_position: v })}
+                        data-no-drag
+                      />
+                    }
+                  />
+
+                  <SettingRow
                     title="窗口穿透"
                     description="启用后，窗口不影响对其他应用程序的操作"
                     control={
@@ -442,6 +454,22 @@ export function Settings() {
                     description="窗口始终显示在最前面"
                     control={
                       <Switch checked={settings.always_on_top} onCheckedChange={(v) => updateSettings({ always_on_top: v })} data-no-drag />
+                    }
+                  />
+
+                  <SettingRow
+                    title="停靠边距"
+                    description={`${Math.round(settings.dock_margin_px ?? 0)} px`}
+                    control={
+                      <Slider
+                        min={0}
+                        max={48}
+                        step={1}
+                        value={[settings.dock_margin_px ?? 0]}
+                        onValueChange={([v]) => updateSettings({ dock_margin_px: Math.round(v) })}
+                        className="w-56"
+                        data-no-drag
+                      />
                     }
                   />
 
@@ -474,6 +502,84 @@ export function Settings() {
                         step={0.05}
                         value={[settings.opacity]}
                         onValueChange={([v]) => updateSettings({ opacity: v })}
+                        className="w-56"
+                        data-no-drag
+                      />
+                    }
+                  />
+
+                  <SettingRow
+                    title="自动淡出"
+                    description="鼠标离开后自动降低透明度，靠近时恢复"
+                    control={
+                      <Switch
+                        checked={settings.auto_fade_enabled ?? false}
+                        onCheckedChange={(v) => updateSettings({ auto_fade_enabled: v })}
+                        data-no-drag
+                      />
+                    }
+                  />
+
+                  {(settings.auto_fade_enabled ?? false) && (
+                    <>
+                      <SettingRow
+                        title="淡出透明度"
+                        description={`${Math.round(((settings.auto_fade_idle_opacity ?? 0.35) as number) * 100)}%`}
+                        control={
+                          <Slider
+                            min={0.05}
+                            max={1}
+                            step={0.05}
+                            value={[settings.auto_fade_idle_opacity ?? 0.35]}
+                            onValueChange={([v]) => updateSettings({ auto_fade_idle_opacity: v })}
+                            className="w-56"
+                            data-no-drag
+                          />
+                        }
+                      />
+                      <SettingRow
+                        title="淡出延迟"
+                        description={`${Math.round(settings.auto_fade_delay_ms ?? 800)} ms`}
+                        control={
+                          <Slider
+                            min={0}
+                            max={3000}
+                            step={100}
+                            value={[settings.auto_fade_delay_ms ?? 800]}
+                            onValueChange={([v]) => updateSettings({ auto_fade_delay_ms: Math.round(v) })}
+                            className="w-56"
+                            data-no-drag
+                          />
+                        }
+                      />
+                      <SettingRow
+                        title="淡出动画"
+                        description={`${Math.round(settings.auto_fade_duration_ms ?? 180)} ms`}
+                        control={
+                          <Slider
+                            min={0}
+                            max={800}
+                            step={20}
+                            value={[settings.auto_fade_duration_ms ?? 180]}
+                            onValueChange={([v]) => updateSettings({ auto_fade_duration_ms: Math.round(v) })}
+                            className="w-56"
+                            data-no-drag
+                          />
+                        }
+                      />
+                    </>
+                  )}
+
+                  <SettingRow
+                    title="防误拖（按住再拖）"
+                    description={`${Math.round(settings.drag_hold_ms ?? 0)} ms（0 表示关闭）`}
+                    control={
+                      <Slider
+                        min={0}
+                        max={400}
+                        step={20}
+                        value={[settings.drag_hold_ms ?? 0]}
+                        onValueChange={([v]) => updateSettings({ drag_hold_ms: Math.round(v) })}
                         className="w-56"
                         data-no-drag
                       />

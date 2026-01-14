@@ -65,6 +65,30 @@ fn normalize_heatmap_levels(levels: u8) -> u8 {
     levels.clamp(5, 15)
 }
 
+fn normalize_dock_margin_px(px: u32) -> u32 {
+    px.clamp(0, 64)
+}
+
+fn normalize_opacity(opacity: f64) -> f64 {
+    opacity.clamp(0.30, 1.0)
+}
+
+fn normalize_auto_fade_idle_opacity(idle: f64, active: f64) -> f64 {
+    idle.clamp(0.05, 1.0).min(active)
+}
+
+fn normalize_auto_fade_delay_ms(ms: u32) -> u32 {
+    ms.min(10_000)
+}
+
+fn normalize_auto_fade_duration_ms(ms: u32) -> u32 {
+    ms.min(5_000)
+}
+
+fn normalize_drag_hold_ms(ms: u32) -> u32 {
+    ms.min(2_000)
+}
+
 #[tauri::command]
 pub async fn get_settings() -> Result<Settings, String> {
     let storage = MeritStorage::instance();
@@ -79,6 +103,13 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     settings.wooden_fish_skin = normalize_skin_id(&app_handle, settings.wooden_fish_skin);
     settings.keyboard_layout = normalize_keyboard_layout(settings.keyboard_layout);
     settings.heatmap_levels = normalize_heatmap_levels(settings.heatmap_levels);
+    settings.opacity = normalize_opacity(settings.opacity);
+    settings.dock_margin_px = normalize_dock_margin_px(settings.dock_margin_px);
+    settings.auto_fade_delay_ms = normalize_auto_fade_delay_ms(settings.auto_fade_delay_ms);
+    settings.auto_fade_duration_ms = normalize_auto_fade_duration_ms(settings.auto_fade_duration_ms);
+    settings.drag_hold_ms = normalize_drag_hold_ms(settings.drag_hold_ms);
+    settings.auto_fade_idle_opacity =
+        normalize_auto_fade_idle_opacity(settings.auto_fade_idle_opacity, settings.opacity);
 
     let storage = MeritStorage::instance();
     let mut storage = storage.write();

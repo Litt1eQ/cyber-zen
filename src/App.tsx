@@ -12,6 +12,7 @@ import { useMeritPopQueue } from './hooks/useMeritPopQueue'
 import { useCustomWoodenFishSkins } from './hooks/useCustomWoodenFishSkins'
 import { useSettingsSync } from './hooks/useSettingsSync'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
+import { useAutoFade } from './hooks/useAutoFade'
 import { useMeritStore } from './stores/useMeritStore'
 import { useSettingsStore } from './stores/useSettingsStore'
 import { showMainQuickMenu } from './utils/quickMenu'
@@ -110,14 +111,25 @@ function App() {
     await invoke(COMMANDS.ADD_MERIT, { source: 'mouse_single', count: 1 })
   }
 
+  const activeOpacity = settings?.opacity ?? 0.95
+  const autoFadeEnabled = settings?.auto_fade_enabled ?? false
+  const autoFade = useAutoFade({
+    enabled: autoFadeEnabled,
+    activeOpacity,
+    idleOpacity: settings?.auto_fade_idle_opacity ?? 0.35,
+    delayMs: settings?.auto_fade_delay_ms ?? 800,
+    durationMs: settings?.auto_fade_duration_ms ?? 180,
+  })
+
   return (
     <div
       className="w-full h-full relative overflow-hidden bg-transparent"
-      style={{ opacity: (settings?.opacity ?? 0.95) }}
+      style={autoFadeEnabled ? autoFade.style : { opacity: activeOpacity }}
       onContextMenu={(e) => {
         e.preventDefault()
         void showMainQuickMenu()
       }}
+      {...(autoFadeEnabled ? autoFade.bind : {})}
     >
       <div className="absolute inset-0 pointer-events-none" />
 
@@ -127,6 +139,8 @@ function App() {
         windowScale={windowScale}
         onHit={handleHit}
         skin={skin}
+        dragEnabled={!(settings?.lock_window_position ?? false)}
+        dragHoldMs={settings?.drag_hold_ms ?? 0}
       />
 
       <div

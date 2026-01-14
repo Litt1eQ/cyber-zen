@@ -27,6 +27,13 @@ const defaultSettings: Settings = {
   animation_speed: 1.0,
   window_scale: 100,
   heatmap_levels: 10,
+  lock_window_position: false,
+  dock_margin_px: 0,
+  auto_fade_enabled: false,
+  auto_fade_idle_opacity: 0.35,
+  auto_fade_delay_ms: 800,
+  auto_fade_duration_ms: 180,
+  drag_hold_ms: 0,
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

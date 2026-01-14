@@ -67,6 +67,11 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
     .build(app)?;
     let settings_item = MenuItemBuilder::with_id("settings", "打开设置").build(app)?;
 
+    let lock_window_position =
+        CheckMenuItemBuilder::with_id("lock_window_position", "锁定位置")
+            .checked(settings.lock_window_position)
+            .build(app)?;
+
     let listening = CheckMenuItemBuilder::with_id("listening", "开启全局监听")
         .checked(listening_enabled)
         .build(app)?;
@@ -79,6 +84,17 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
         .checked(settings.window_pass_through)
         .build(app)?;
 
+    let auto_fade = CheckMenuItemBuilder::with_id("auto_fade", "自动淡出")
+        .checked(settings.auto_fade_enabled)
+        .build(app)?;
+
+    let dock = SubmenuBuilder::with_id(app, "dock", "停靠到")
+        .item(&MenuItemBuilder::with_id("dock:top_left", "左上").build(app)?)
+        .item(&MenuItemBuilder::with_id("dock:top_right", "右上").build(app)?)
+        .item(&MenuItemBuilder::with_id("dock:bottom_left", "左下").build(app)?)
+        .item(&MenuItemBuilder::with_id("dock:bottom_right", "右下").build(app)?)
+        .build()?;
+
     let window_scale = build_window_scale_submenu(app, &settings)?;
     let opacity = build_opacity_submenu(app, &settings)?;
 
@@ -87,6 +103,10 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
     MenuBuilder::new(app)
         .item(&toggle_main)
         .item(&settings_item)
+        .separator()
+        .item(&lock_window_position)
+        .item(&dock)
+        .item(&auto_fade)
         .separator()
         .item(&listening)
         .separator()
@@ -141,6 +161,15 @@ pub fn handle_menu_event(app: &AppHandle<Wry>, event: tauri::menu::MenuEvent) {
                 let _ = refresh_tray_menu(&app);
             });
         }
+        "lock_window_position" => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut settings = current_settings();
+                settings.lock_window_position = !settings.lock_window_position;
+                let _ = commands::settings::update_settings(app.clone(), settings).await;
+                let _ = refresh_tray_menu(&app);
+            });
+        }
         "listening" => {
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
@@ -170,8 +199,27 @@ pub fn handle_menu_event(app: &AppHandle<Wry>, event: tauri::menu::MenuEvent) {
                 let _ = refresh_tray_menu(&app);
             });
         }
+        "auto_fade" => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut settings = current_settings();
+                settings.auto_fade_enabled = !settings.auto_fade_enabled;
+                let _ = commands::settings::update_settings(app.clone(), settings).await;
+                let _ = refresh_tray_menu(&app);
+            });
+        }
         "quit" => app.exit(0),
         _ => {
+            if let Some(corner) = id.strip_prefix("dock:") {
+                let app = app.clone();
+                let corner = corner.to_string();
+                tauri::async_runtime::spawn(async move {
+                    let _ = commands::window::dock_main_window(app.clone(), corner).await;
+                    let _ = refresh_tray_menu(&app);
+                });
+                return;
+            }
+
             if let Some(scale) = id.strip_prefix("window_scale:") {
                 if let Ok(scale) = scale.parse::<u32>() {
                     let app = app.clone();

@@ -97,6 +97,7 @@ pub fn run() {
             commands::window::show_main_window,
             commands::window::hide_main_window,
             commands::window::toggle_main_window,
+            commands::window::dock_main_window,
             commands::window::show_settings_window,
             commands::window::hide_settings_window,
             commands::window::toggle_settings_window,
