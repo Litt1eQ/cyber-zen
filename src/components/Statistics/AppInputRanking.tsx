@@ -44,7 +44,7 @@ export function AppInputRanking({
       if (requestedRef.current.has(id)) continue
       requestedRef.current.add(id)
 
-      void invoke<string | null>(COMMANDS.GET_APP_ICON, { app_id: id })
+      void invoke<string | null>(COMMANDS.GET_APP_ICON, { appId: id })
         .then((pngBase64) => {
           setIcons((prev) => (id in prev ? prev : { ...prev, [id]: pngBase64 }))
         })
