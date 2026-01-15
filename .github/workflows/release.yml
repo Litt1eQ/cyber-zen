@@ -170,7 +170,8 @@ jobs:
             fi
           fi
 
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          # Allow `codesign` to access the private key non-interactively on CI.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
@@ -200,18 +201,16 @@ jobs:
             exit 1
           fi
 
-          IDENTITY="${MACOS_CODESIGN_IDENTITY:-}"
-          if [ -z "$IDENTITY" ]; then
-            # Prefer the SHA-1 hash (stable + avoids name mismatches/quoting).
-            IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk '/\\) /{print $2; exit}')"
-          fi
-          if [ -z "$IDENTITY" ]; then
-            echo "No codesigning identity found in $KEYCHAIN_PATH"
+          # Prefer an explicit identity if provided; otherwise default to the expected common name.
+          # Note: `security find-identity` only prints *valid* identities; self-signed certs may show as 0.
+          IDENTITY="${MACOS_CODESIGN_IDENTITY:-CyberZen Code Signing}"
+
+          if ! codesign --force --deep --timestamp=none --keychain "$KEYCHAIN_PATH" --sign "$IDENTITY" "$APP_DIR"; then
+            echo "codesign failed; printing keychain diagnostics"
             security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+            security find-certificate -a -c "$IDENTITY" -Z "$KEYCHAIN_PATH" || true
             exit 1
           fi
-
-          codesign --force --deep --timestamp=none --keychain "$KEYCHAIN_PATH" --sign "$IDENTITY" "$APP_DIR"
 
           codesign -dv --verbose=4 "$APP_DIR"
           codesign -dr - "$APP_DIR"
