@@ -103,6 +103,9 @@ pub fn run() {
             commands::window::show_settings_window,
             commands::window::hide_settings_window,
             commands::window::toggle_settings_window,
+            commands::window::show_custom_statistics_window,
+            commands::window::hide_custom_statistics_window,
+            commands::window::toggle_custom_statistics_window,
             commands::window::quit_app,
             commands::updater::check_update,
             commands::updater::download_and_install_update,
@@ -117,14 +120,17 @@ pub fn run() {
             }
             if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
                 let label = window.label();
-                if label == "main" || label == "settings" {
+                if label == "main" || label == "settings" || label == "custom_statistics" {
                     if let Some(webview_window) = window.app_handle().get_webview_window(label) {
                         core::window_placement::schedule_capture(webview_window);
                     }
                 }
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" || window.label() == "settings" {
+                if window.label() == "main"
+                    || window.label() == "settings"
+                    || window.label() == "custom_statistics"
+                {
                     if let Some(webview_window) =
                         window.app_handle().get_webview_window(window.label())
                     {

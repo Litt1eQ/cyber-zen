@@ -5,6 +5,8 @@ use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size};
 
 const BASE_WINDOW_SIZE: f64 = 320.0;
 const DEFAULT_MERIT_POP_LABEL: &str = "功德";
+const DEFAULT_CUSTOM_STATISTICS_WIDGETS: [&str; 2] = ["trend", "calendar"];
+const MAX_CUSTOM_STATISTICS_WIDGETS: usize = 24;
 
 fn current_settings() -> Settings {
     let storage = MeritStorage::instance();
@@ -85,6 +87,50 @@ fn normalize_merit_pop_label(label: String) -> String {
     }
 }
 
+fn normalize_custom_statistics_widgets(widgets: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for raw in widgets {
+        if out.len() >= MAX_CUSTOM_STATISTICS_WIDGETS {
+            break;
+        }
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if out.iter().any(|s| s == trimmed) {
+            continue;
+        }
+        out.push(trimmed.to_string());
+    }
+
+    if out.is_empty() {
+        DEFAULT_CUSTOM_STATISTICS_WIDGETS
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+    } else {
+        out
+    }
+}
+
+fn normalize_custom_statistics_range(range: String) -> String {
+    match range.as_str() {
+        "today" | "all" => range,
+        _ => "today".to_string(),
+    }
+}
+
+fn normalize_shortcut(value: Option<String>) -> Option<String> {
+    value.and_then(|s| {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
 fn normalize_auto_fade_idle_opacity(idle: f64, active: f64) -> f64 {
     idle.clamp(0.05, 1.0).min(active)
 }
@@ -126,6 +172,19 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
         normalize_auto_fade_idle_opacity(settings.auto_fade_idle_opacity, settings.opacity);
     settings.merit_pop_opacity = normalize_merit_pop_opacity(settings.merit_pop_opacity);
     settings.merit_pop_label = normalize_merit_pop_label(settings.merit_pop_label);
+    settings.custom_statistics_widgets =
+        normalize_custom_statistics_widgets(settings.custom_statistics_widgets);
+    settings.custom_statistics_range =
+        normalize_custom_statistics_range(settings.custom_statistics_range);
+    settings.shortcut_toggle_main = normalize_shortcut(settings.shortcut_toggle_main);
+    settings.shortcut_toggle_settings = normalize_shortcut(settings.shortcut_toggle_settings);
+    settings.shortcut_toggle_listening = normalize_shortcut(settings.shortcut_toggle_listening);
+    settings.shortcut_toggle_window_pass_through =
+        normalize_shortcut(settings.shortcut_toggle_window_pass_through);
+    settings.shortcut_toggle_always_on_top =
+        normalize_shortcut(settings.shortcut_toggle_always_on_top);
+    settings.shortcut_open_custom_statistics =
+        normalize_shortcut(settings.shortcut_open_custom_statistics);
 
     let storage = MeritStorage::instance();
     let mut storage = storage.write();

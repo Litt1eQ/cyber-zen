@@ -37,6 +37,8 @@ const defaultSettings: Settings = {
   drag_hold_ms: 0,
   merit_pop_opacity: 0.82,
   merit_pop_label: '功德',
+  custom_statistics_widgets: ['trend', 'calendar'],
+  custom_statistics_range: 'today',
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

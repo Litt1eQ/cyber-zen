@@ -51,11 +51,14 @@ export interface Settings {
   drag_hold_ms?: number
   merit_pop_opacity: number
   merit_pop_label: string
+  custom_statistics_widgets?: string[]
+  custom_statistics_range?: 'today' | 'all'
   shortcut_toggle_main?: string | null
   shortcut_toggle_settings?: string | null
   shortcut_toggle_listening?: string | null
   shortcut_toggle_window_pass_through?: string | null
   shortcut_toggle_always_on_top?: string | null
+  shortcut_open_custom_statistics?: string | null
 }
 
 export interface InputEvent {

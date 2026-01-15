@@ -100,7 +100,7 @@ pub fn restore_all(app_handle: &AppHandle) {
 fn should_restore_size(label: &str) -> bool {
     // The main window size is controlled by app settings (window scale).
     // Resizable windows (like settings) should restore their last user size.
-    label == "settings"
+    label == "settings" || label == "custom_statistics"
 }
 
 async fn restore_window(window: WebviewWindow, placement: WindowPlacement) {

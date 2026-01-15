@@ -76,6 +76,8 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
     )
     .build(app)?;
     let settings_item = MenuItemBuilder::with_id("settings", "打开设置").build(app)?;
+    let custom_statistics_item =
+        MenuItemBuilder::with_id("custom_statistics", "自定义统计").build(app)?;
 
     let lock_window_position = CheckMenuItemBuilder::with_id("lock_window_position", "锁定位置")
         .checked(settings.lock_window_position)
@@ -112,6 +114,7 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
     MenuBuilder::new(app)
         .item(&toggle_main)
         .item(&settings_item)
+        .item(&custom_statistics_item)
         .separator()
         .item(&lock_window_position)
         .item(&dock)
@@ -167,6 +170,13 @@ pub fn handle_menu_event(app: &AppHandle<Wry>, event: tauri::menu::MenuEvent) {
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
                 let _ = commands::window::show_settings_window(app.clone()).await;
+                let _ = refresh_tray_menu(&app);
+            });
+        }
+        "custom_statistics" => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = commands::window::show_custom_statistics_window(app.clone()).await;
                 let _ = refresh_tray_menu(&app);
             });
         }

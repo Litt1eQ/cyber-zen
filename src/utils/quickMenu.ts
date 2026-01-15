@@ -30,6 +30,10 @@ export async function showMainQuickMenu() {
       action: () => void invoke(COMMANDS.SHOW_SETTINGS_WINDOW),
     }),
     MenuItem.new({
+      text: '自定义统计',
+      action: () => void invoke(COMMANDS.SHOW_CUSTOM_STATISTICS_WINDOW),
+    }),
+    MenuItem.new({
       text: '隐藏木鱼',
       action: () => void invoke(COMMANDS.HIDE_MAIN_WINDOW),
     }),

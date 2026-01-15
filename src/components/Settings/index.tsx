@@ -773,6 +773,12 @@ export function Settings() {
                   onChange={(next) => updateSettings({ shortcut_toggle_settings: next ? next : null })}
                 />
                 <ShortcutRecorder
+                  title="打开自定义统计"
+                  description="快速打开自定义统计窗口"
+                  value={settings.shortcut_open_custom_statistics}
+                  onChange={(next) => updateSettings({ shortcut_open_custom_statistics: next ? next : null })}
+                />
+                <ShortcutRecorder
                   title="切换输入监听"
                   description="启动/停止全局输入监听"
                   value={settings.shortcut_toggle_listening}
@@ -836,6 +842,22 @@ export function Settings() {
 
                 <SettingsSection title="历史统计">
                   <Statistics />
+                </SettingsSection>
+
+                <SettingsSection title="自定义统计展示" description="可单独打开一个窗口，自由选择要展示的统计模块">
+                  <SettingCard>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-900">自定义统计窗口</div>
+                        <div className="text-sm text-slate-500 mt-1">支持在窗口内勾选/排序统计模块，并从托盘/右键菜单/快捷键快速打开。</div>
+                      </div>
+                      <div className="flex items-center gap-2" data-no-drag>
+                        <Button onClick={() => void invoke(COMMANDS.SHOW_CUSTOM_STATISTICS_WINDOW)} data-no-drag>
+                          打开
+                        </Button>
+                      </div>
+                    </div>
+                  </SettingCard>
                 </SettingsSection>
               </div>
             )}

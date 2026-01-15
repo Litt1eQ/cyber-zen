@@ -25,11 +25,14 @@ pub struct Settings {
     pub drag_hold_ms: u32,
     pub merit_pop_opacity: f64,
     pub merit_pop_label: String,
+    pub custom_statistics_widgets: Vec<String>,
+    pub custom_statistics_range: String,
     pub shortcut_toggle_main: Option<String>,
     pub shortcut_toggle_settings: Option<String>,
     pub shortcut_toggle_listening: Option<String>,
     pub shortcut_toggle_window_pass_through: Option<String>,
     pub shortcut_toggle_always_on_top: Option<String>,
+    pub shortcut_open_custom_statistics: Option<String>,
 }
 
 impl Default for Settings {
@@ -57,11 +60,14 @@ impl Default for Settings {
             drag_hold_ms: 0,
             merit_pop_opacity: 0.82,
             merit_pop_label: "功德".to_string(),
+            custom_statistics_widgets: vec!["trend".to_string(), "calendar".to_string()],
+            custom_statistics_range: "today".to_string(),
             shortcut_toggle_main: None,
             shortcut_toggle_settings: None,
             shortcut_toggle_listening: None,
             shortcut_toggle_window_pass_through: None,
             shortcut_toggle_always_on_top: None,
+            shortcut_open_custom_statistics: None,
         }
     }
 }
