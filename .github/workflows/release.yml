@@ -199,31 +199,30 @@ jobs:
           UPLOAD_ASSET="false"
           ARCH_LABEL=""
           MAC_ASSET_ARCH=""
+          PATTERNS=""
           case "${{ matrix.target }}" in
             aarch64-apple-darwin)
               JSON_TARGET="darwin-aarch64"
               ARCH_LABEL="aarch64"
               MAC_ASSET_ARCH="aarch64"
-              PATTERNS=()
               ;;
             x86_64-apple-darwin)
               JSON_TARGET="darwin-x86_64"
               ARCH_LABEL="x86_64"
               MAC_ASSET_ARCH="x64"
-              PATTERNS=()
               ;;
             x86_64-pc-windows-msvc)
               JSON_TARGET="windows-x86_64"
               ARCH_LABEL="x86_64"
               # On Windows, the updater can download either a zip or the raw installer (.exe/.msi).
               # Prefer NSIS `*-setup.exe` to match common Tauri updater usage (see BongoCat latest.json).
-              PATTERNS=("*-setup.exe.zip" "*-setup.exe" "*.msi.zip" "*.msi")
+              PATTERNS="*-setup.exe.zip *-setup.exe *.msi.zip *.msi"
               ;;
             x86_64-unknown-linux-gnu)
               JSON_TARGET="linux-x86_64"
               ARCH_LABEL="x86_64"
               # On Linux, the updater can download a raw AppImage.
-              PATTERNS=("*.AppImage.tar.gz" "*.appimage.tar.gz" "*.AppImage" "*.appimage")
+              PATTERNS="*.AppImage.tar.gz *.appimage.tar.gz *.AppImage *.appimage"
               ;;
             *)
               echo "Unsupported target for updater manifest: ${{ matrix.target }}"
@@ -232,7 +231,7 @@ jobs:
           esac
 
           ARCHIVE=""
-          if [ "${{ matrix.target }}" == *apple-darwin ]; then
+          if [[ "${{ matrix.target }}" == *apple-darwin ]]; then
             APP_DIR="$(find "$BUNDLE_DIR" -type d -name '*.app' -print -quit || true)"
             if [ -n "$APP_DIR" ]; then
               mkdir -p updater-payloads
@@ -241,7 +240,7 @@ jobs:
               UPLOAD_ASSET="true"
             fi
           else
-            for pattern in "${PATTERNS[@]}"; do
+            for pattern in $PATTERNS; do
               found="$(find "$BUNDLE_DIR" -type f -name "$pattern" -print -quit || true)"
               if [ -n "$found" ]; then
                 ARCHIVE="$found"
