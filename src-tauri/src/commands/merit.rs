@@ -20,13 +20,25 @@ pub async fn get_recent_days(days: usize) -> Result<Vec<DailyStats>, String> {
 }
 
 #[tauri::command]
-pub async fn add_merit(app_handle: AppHandle, source: InputSource, count: u64) -> Result<(), String> {
+pub async fn add_merit(
+    app_handle: AppHandle,
+    source: InputSource,
+    count: u64,
+) -> Result<(), String> {
     // Avoid double counting when the user clicks inside the app while global mouse listening is on.
     if matches!(source, InputSource::MouseSingle) {
         suppress_mouse_for(180);
     }
 
-    enqueue_merit_trigger(app_handle, InputOrigin::App, source, count, None, None, None);
+    enqueue_merit_trigger(
+        app_handle,
+        InputOrigin::App,
+        source,
+        count,
+        None,
+        None,
+        None,
+    );
     Ok(())
 }
 

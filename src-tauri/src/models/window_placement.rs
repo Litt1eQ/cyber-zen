@@ -12,4 +12,3 @@ pub struct WindowPlacement {
     pub rel_x: i32,
     pub rel_y: i32,
 }
-

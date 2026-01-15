@@ -141,10 +141,7 @@ fn containing_monitor(
     monitors.into_iter().find(|m| {
         let pos = m.position();
         let s = m.size();
-        cx >= pos.x
-            && cy >= pos.y
-            && cx < pos.x + s.width as i32
-            && cy < pos.y + s.height as i32
+        cx >= pos.x && cy >= pos.y && cx < pos.x + s.width as i32 && cy < pos.y + s.height as i32
     })
 }
 
@@ -235,6 +232,8 @@ pub async fn toggle_settings_window(app_handle: AppHandle) -> Result<(), String>
 
 #[tauri::command]
 pub async fn quit_app(app_handle: AppHandle) -> Result<(), String> {
+    crate::core::window_placement::capture_all_now(&app_handle);
+    crate::core::persistence::flush_now();
     app_handle.exit(0);
     Ok(())
 }

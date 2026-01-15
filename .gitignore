@@ -26,3 +26,4 @@ src-tauri/icons/*.iconset/
 
 # Tauri signing keys
 tauri-signing.*
+*.p12

@@ -13,6 +13,12 @@ use super::MeritStorage;
 
 const CURRENT_STATE_VERSION: u32 = 3;
 
+#[derive(Clone)]
+struct PersistContext {
+    storage: std::sync::Arc<parking_lot::RwLock<MeritStorage>>,
+    path: PathBuf,
+}
+
 fn default_state_version() -> u32 {
     1
 }
@@ -28,8 +34,15 @@ struct PersistedState {
 }
 
 static SAVE_TX: Lazy<Mutex<Option<Sender<()>>>> = Lazy::new(|| Mutex::new(None));
+static PERSIST_CONTEXT: Lazy<Mutex<Option<PersistContext>>> = Lazy::new(|| Mutex::new(None));
+static WRITE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 pub fn init(storage: std::sync::Arc<parking_lot::RwLock<MeritStorage>>, path: PathBuf) {
+    *PERSIST_CONTEXT.lock() = Some(PersistContext {
+        storage: std::sync::Arc::clone(&storage),
+        path: path.clone(),
+    });
+
     let (tx, rx) = mpsc::channel::<()>();
     *SAVE_TX.lock() = Some(tx);
 
@@ -57,6 +70,17 @@ pub fn init(storage: std::sync::Arc<parking_lot::RwLock<MeritStorage>>, path: Pa
 pub fn request_save() {
     if let Some(tx) = SAVE_TX.lock().as_ref() {
         let _ = tx.send(());
+    }
+}
+
+pub fn flush_now() {
+    let ctx = PERSIST_CONTEXT.lock().clone();
+    let Some(ctx) = ctx else {
+        return;
+    };
+
+    if let Err(e) = write_snapshot(&ctx.storage, &ctx.path) {
+        eprintln!("Failed to persist state: {}", e);
     }
 }
 
@@ -104,6 +128,7 @@ fn write_snapshot(
     storage: &std::sync::Arc<parking_lot::RwLock<MeritStorage>>,
     path: &Path,
 ) -> io::Result<()> {
+    let _guard = WRITE_LOCK.lock();
     let (stats, settings, window_placements) = {
         let storage = storage.read();
         (

@@ -3,7 +3,9 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::time::Duration;
-use tauri::{AppHandle, Manager, Monitor, PhysicalPosition, Position, WebviewWindow};
+use tauri::{
+    AppHandle, Manager, Monitor, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow,
+};
 
 static CAPTURE_TOKENS: Lazy<Mutex<HashMap<String, u64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -31,11 +33,11 @@ pub fn schedule_capture(window: WebviewWindow) {
         if !token_matches(&label, token) {
             return;
         }
-        capture_now(window).await;
+        capture_immediately(&window);
     });
 }
 
-async fn capture_now(window: WebviewWindow) {
+pub fn capture_immediately(window: &WebviewWindow) {
     let Ok(position) = window.outer_position() else {
         return;
     };
@@ -47,7 +49,11 @@ async fn capture_now(window: WebviewWindow) {
     let (display_name, rel_x, rel_y) = match monitor.as_ref() {
         Some(m) => {
             let origin = m.position();
-            (m.name().cloned(), position.x - origin.x, position.y - origin.y)
+            (
+                m.name().cloned(),
+                position.x - origin.x,
+                position.y - origin.y,
+            )
         }
         None => (None, 0, 0),
     };
@@ -67,6 +73,13 @@ async fn capture_now(window: WebviewWindow) {
     storage.update_window_placement(window.label().to_string(), placement);
 }
 
+pub fn capture_all_now(app_handle: &AppHandle) {
+    let windows = app_handle.webview_windows();
+    for window in windows.values() {
+        capture_immediately(window);
+    }
+}
+
 pub fn restore_all(app_handle: &AppHandle) {
     let placements = {
         let storage = MeritStorage::instance();
@@ -84,8 +97,24 @@ pub fn restore_all(app_handle: &AppHandle) {
     }
 }
 
+fn should_restore_size(label: &str) -> bool {
+    // The main window size is controlled by app settings (window scale).
+    // Resizable windows (like settings) should restore their last user size.
+    label == "settings"
+}
+
 async fn restore_window(window: WebviewWindow, placement: WindowPlacement) {
+    let label = window.label().to_string();
+    let target_size = should_restore_size(&label)
+        .then_some((placement.width, placement.height))
+        .filter(|(w, h)| *w > 0 && *h > 0);
+
+    if let Some((width, height)) = target_size {
+        let _ = window.set_size(Size::Physical(PhysicalSize { width, height }));
+    }
+
     let (mut x, mut y) = (placement.x, placement.y);
+    let clamp_size = target_size.or_else(|| window.outer_size().ok().map(|s| (s.width, s.height)));
 
     let monitors = window.available_monitors().ok();
     if let Some(monitors) = monitors.as_ref() {
@@ -101,7 +130,7 @@ async fn restore_window(window: WebviewWindow, placement: WindowPlacement) {
                     monitor,
                     x,
                     y,
-                    window.outer_size().ok().map(|s| (s.width, s.height)),
+                    clamp_size,
                     Some((placement.width, placement.height)),
                 );
                 x = cx;
@@ -114,7 +143,7 @@ async fn restore_window(window: WebviewWindow, placement: WindowPlacement) {
                 monitor,
                 x,
                 y,
-                window.outer_size().ok().map(|s| (s.width, s.height)),
+                clamp_size,
                 Some((placement.width, placement.height)),
             );
             x = cx;
@@ -129,10 +158,7 @@ fn monitor_containing_point(monitors: &[Monitor], x: i32, y: i32) -> Option<&Mon
     monitors.iter().find(|m| {
         let pos = m.position();
         let size = m.size();
-        x >= pos.x
-            && y >= pos.y
-            && x < pos.x + size.width as i32
-            && y < pos.y + size.height as i32
+        x >= pos.x && y >= pos.y && x < pos.x + size.width as i32 && y < pos.y + size.height as i32
     })
 }
 

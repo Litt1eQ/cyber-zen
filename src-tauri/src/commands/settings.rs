@@ -1,5 +1,5 @@
-use crate::core::MeritStorage;
 use crate::core::wooden_fish_skins;
+use crate::core::MeritStorage;
 use crate::models::Settings;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size};
 
@@ -48,15 +48,8 @@ fn normalize_skin_id(app_handle: &AppHandle, id: String) -> String {
 fn normalize_keyboard_layout(id: String) -> String {
     match id.as_str() {
         "full_100" | "full_104" => "full_104".to_string(),
-        "full_108"
-        | "compact_98"
-        | "compact_96"
-        | "tkl_80"
-        | "compact_75"
-        | "compact_65"
-        | "compact_60"
-        | "hhkb"
-        | "macbook_pro" => id,
+        "full_108" | "compact_98" | "compact_96" | "tkl_80" | "compact_75" | "compact_65"
+        | "compact_60" | "hhkb" | "macbook_pro" => id,
         _ => "tkl_80".to_string(),
     }
 }
@@ -106,7 +99,8 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     settings.opacity = normalize_opacity(settings.opacity);
     settings.dock_margin_px = normalize_dock_margin_px(settings.dock_margin_px);
     settings.auto_fade_delay_ms = normalize_auto_fade_delay_ms(settings.auto_fade_delay_ms);
-    settings.auto_fade_duration_ms = normalize_auto_fade_duration_ms(settings.auto_fade_duration_ms);
+    settings.auto_fade_duration_ms =
+        normalize_auto_fade_duration_ms(settings.auto_fade_duration_ms);
     settings.drag_hold_ms = normalize_drag_hold_ms(settings.drag_hold_ms);
     settings.auto_fade_idle_opacity =
         normalize_auto_fade_idle_opacity(settings.auto_fade_idle_opacity, settings.opacity);

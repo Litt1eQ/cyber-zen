@@ -1,8 +1,8 @@
-pub mod merit;
+pub mod autostart;
 pub mod input;
+pub mod merit;
 pub mod permissions;
 pub mod settings;
-pub mod window;
-pub mod autostart;
-pub mod updater;
 pub mod skins;
+pub mod updater;
+pub mod window;

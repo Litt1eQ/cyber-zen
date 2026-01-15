@@ -5,7 +5,9 @@ use tauri::{AppHandle, Emitter};
 const EVENT_WOODEN_FISH_SKINS_UPDATED: &str = "wooden-fish-skins-updated";
 
 #[tauri::command]
-pub async fn get_custom_wooden_fish_skins(app_handle: AppHandle) -> Result<Vec<CustomWoodenFishSkin>, String> {
+pub async fn get_custom_wooden_fish_skins(
+    app_handle: AppHandle,
+) -> Result<Vec<CustomWoodenFishSkin>, String> {
     wooden_fish_skins::list_custom_skins(&app_handle)
         .map_err(|e| format!("Failed to list custom skins: {e}"))
 }
@@ -23,7 +25,10 @@ pub async fn import_custom_wooden_fish_skin_zip(
 }
 
 #[tauri::command]
-pub async fn delete_custom_wooden_fish_skin(app_handle: AppHandle, id: String) -> Result<(), String> {
+pub async fn delete_custom_wooden_fish_skin(
+    app_handle: AppHandle,
+    id: String,
+) -> Result<(), String> {
     wooden_fish_skins::delete_custom_skin(&app_handle, &id).map_err(|e| format!("{e}"))?;
     let _ = app_handle.emit(EVENT_WOODEN_FISH_SKINS_UPDATED, ());
     Ok(())

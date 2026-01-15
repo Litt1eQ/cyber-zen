@@ -59,10 +59,13 @@ pub fn custom_skin_exists(app: &AppHandle, id: &str) -> bool {
 
 pub fn list_custom_skins(app: &AppHandle) -> Result<Vec<CustomWoodenFishSkin>> {
     let root = skins_root(app)?;
-    fs::create_dir_all(&root).with_context(|| format!("Failed to create skins dir: {}", root.display()))?;
+    fs::create_dir_all(&root)
+        .with_context(|| format!("Failed to create skins dir: {}", root.display()))?;
 
     let mut skins = Vec::new();
-    for entry in fs::read_dir(&root).with_context(|| format!("Failed to read skins dir: {}", root.display()))? {
+    for entry in fs::read_dir(&root)
+        .with_context(|| format!("Failed to read skins dir: {}", root.display()))?
+    {
         let entry = match entry {
             Ok(v) => v,
             Err(_) => continue,
@@ -107,7 +110,11 @@ pub fn list_custom_skins(app: &AppHandle) -> Result<Vec<CustomWoodenFishSkin>> {
     Ok(skins)
 }
 
-pub fn import_custom_skin_zip_base64(app: &AppHandle, zip_base64: &str, name: Option<String>) -> Result<CustomWoodenFishSkin> {
+pub fn import_custom_skin_zip_base64(
+    app: &AppHandle,
+    zip_base64: &str,
+    name: Option<String>,
+) -> Result<CustomWoodenFishSkin> {
     let zip_base64 = zip_base64.trim();
     if zip_base64.is_empty() {
         return Err(anyhow!("Zip 内容为空"));
@@ -118,12 +125,19 @@ pub fn import_custom_skin_zip_base64(app: &AppHandle, zip_base64: &str, name: Op
     import_custom_skin_zip_bytes(app, &zip_bytes, name)
 }
 
-pub fn import_custom_skin_zip_bytes(app: &AppHandle, zip_bytes: &[u8], name: Option<String>) -> Result<CustomWoodenFishSkin> {
+pub fn import_custom_skin_zip_bytes(
+    app: &AppHandle,
+    zip_bytes: &[u8],
+    name: Option<String>,
+) -> Result<CustomWoodenFishSkin> {
     if zip_bytes.is_empty() {
         return Err(anyhow!("Zip 内容为空"));
     }
     if zip_bytes.len() > MAX_ZIP_BYTES {
-        return Err(anyhow!("Zip 过大（最大 {}MB）", MAX_ZIP_BYTES / 1024 / 1024));
+        return Err(anyhow!(
+            "Zip 过大（最大 {}MB）",
+            MAX_ZIP_BYTES / 1024 / 1024
+        ));
     }
 
     let (muyu_png, hammer_png) = extract_required_pngs(zip_bytes)?;
@@ -151,7 +165,8 @@ pub fn import_custom_skin_zip_bytes(app: &AppHandle, zip_bytes: &[u8], name: Opt
     }
 
     let root = skins_root(app)?;
-    fs::create_dir_all(&root).with_context(|| format!("Failed to create skins dir: {}", root.display()))?;
+    fs::create_dir_all(&root)
+        .with_context(|| format!("Failed to create skins dir: {}", root.display()))?;
 
     let raw_id = generate_id();
     let id_dir = root.join(&raw_id);
@@ -160,7 +175,8 @@ pub fn import_custom_skin_zip_bytes(app: &AppHandle, zip_bytes: &[u8], name: Opt
         let _ = fs::remove_dir_all(&tmp_dir);
     }
 
-    fs::create_dir_all(&tmp_dir).with_context(|| format!("Failed to create temp dir: {}", tmp_dir.display()))?;
+    fs::create_dir_all(&tmp_dir)
+        .with_context(|| format!("Failed to create temp dir: {}", tmp_dir.display()))?;
 
     let created_at_ms = chrono::Utc::now().timestamp_millis();
     let name = normalize_name(name).unwrap_or_else(|| "自定义皮肤".to_string());
@@ -210,7 +226,11 @@ pub fn delete_custom_skin(app: &AppHandle, settings_id: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn export_skin_zip_to_app_data(app: &AppHandle, settings_id: &str, file_name: &str) -> Result<String> {
+pub fn export_skin_zip_to_app_data(
+    app: &AppHandle,
+    settings_id: &str,
+    file_name: &str,
+) -> Result<String> {
     let file_name = sanitize_zip_file_name(file_name);
     let zip_bytes = export_skin_zip_bytes(app, settings_id)?;
 
@@ -219,10 +239,12 @@ pub fn export_skin_zip_to_app_data(app: &AppHandle, settings_id: &str, file_name
         .app_data_dir()
         .context("获取 App 数据目录失败")?
         .join("exports");
-    fs::create_dir_all(&export_dir).with_context(|| format!("创建导出目录失败：{}", export_dir.display()))?;
+    fs::create_dir_all(&export_dir)
+        .with_context(|| format!("创建导出目录失败：{}", export_dir.display()))?;
 
     let path = export_dir.join(file_name);
-    fs::write(&path, &zip_bytes).with_context(|| format!("写入导出文件失败：{}", path.display()))?;
+    fs::write(&path, &zip_bytes)
+        .with_context(|| format!("写入导出文件失败：{}", path.display()))?;
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -237,7 +259,11 @@ fn generate_id() -> String {
         .take(8)
         .map(char::from)
         .collect();
-    format!("skin_{}_{}", chrono::Utc::now().timestamp_millis(), random.to_lowercase())
+    format!(
+        "skin_{}_{}",
+        chrono::Utc::now().timestamp_millis(),
+        random.to_lowercase()
+    )
 }
 
 fn normalize_name(name: Option<String>) -> Option<String> {
@@ -246,7 +272,10 @@ fn normalize_name(name: Option<String>) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
-    let normalized = trimmed.strip_suffix(".zip").or_else(|| trimmed.strip_suffix(".ZIP")).unwrap_or(trimmed);
+    let normalized = trimmed
+        .strip_suffix(".zip")
+        .or_else(|| trimmed.strip_suffix(".ZIP"))
+        .unwrap_or(trimmed);
     let clipped: String = normalized.chars().take(32).collect();
     Some(clipped)
 }
@@ -260,8 +289,8 @@ fn is_safe_id(id: &str) -> bool {
 }
 
 fn extract_required_pngs(zip_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
-    let mut archive =
-        ZipArchive::new(Cursor::new(zip_bytes)).context("Zip 解析失败（可能不是有效的 zip 文件）")?;
+    let mut archive = ZipArchive::new(Cursor::new(zip_bytes))
+        .context("Zip 解析失败（可能不是有效的 zip 文件）")?;
 
     let mut muyu: Option<Vec<u8>> = None;
     let mut hammer: Option<Vec<u8>> = None;
@@ -283,9 +312,14 @@ fn extract_required_pngs(zip_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
 
         let mut buf = Vec::new();
         let mut limited = file.take((MAX_IMAGE_BYTES + 1) as u64);
-        limited.read_to_end(&mut buf).context("读取 zip 文件内容失败")?;
+        limited
+            .read_to_end(&mut buf)
+            .context("读取 zip 文件内容失败")?;
         if buf.len() > MAX_IMAGE_BYTES {
-            return Err(anyhow!("图片过大（最大 {}MB）", MAX_IMAGE_BYTES / 1024 / 1024));
+            return Err(anyhow!(
+                "图片过大（最大 {}MB）",
+                MAX_IMAGE_BYTES / 1024 / 1024
+            ));
         }
 
         if filename == MUYU_FILE_NAME {
@@ -327,7 +361,10 @@ fn build_skin_zip(muyu_png: &[u8], hammer_png: &[u8]) -> Result<Vec<u8>> {
     writer.finish().context("完成 zip 写入失败")?;
     let bytes = out.into_inner();
     if bytes.len() > MAX_ZIP_BYTES {
-        return Err(anyhow!("Zip 过大（最大 {}MB）", MAX_ZIP_BYTES / 1024 / 1024));
+        return Err(anyhow!(
+            "Zip 过大（最大 {}MB）",
+            MAX_ZIP_BYTES / 1024 / 1024
+        ));
     }
     Ok(bytes)
 }
@@ -379,9 +416,13 @@ fn load_skin_pngs(app: &AppHandle, settings_id: &str) -> Result<(Vec<u8>, Vec<u8
             let root = skins_root(app)?;
             let dir = root.join(raw_id);
             let muyu_png = fs::read(dir.join(MUYU_FILE_NAME)).context("读取 muyu.png 失败")?;
-            let hammer_png = fs::read(dir.join(HAMMER_FILE_NAME)).context("读取 hammer.png 失败")?;
+            let hammer_png =
+                fs::read(dir.join(HAMMER_FILE_NAME)).context("读取 hammer.png 失败")?;
             if muyu_png.len() > MAX_IMAGE_BYTES || hammer_png.len() > MAX_IMAGE_BYTES {
-                return Err(anyhow!("图片过大（最大 {}MB）", MAX_IMAGE_BYTES / 1024 / 1024));
+                return Err(anyhow!(
+                    "图片过大（最大 {}MB）",
+                    MAX_IMAGE_BYTES / 1024 / 1024
+                ));
             }
             Ok((muyu_png, hammer_png))
         }

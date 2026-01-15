@@ -21,8 +21,7 @@ mod imp {
         ptr,
         sync::{
             atomic::{AtomicPtr, Ordering},
-            mpsc,
-            Mutex,
+            mpsc, Mutex,
         },
     };
 
@@ -74,7 +73,12 @@ mod imp {
             place: CGEventTapPlacement,
             options: CGEventTapOptions,
             events_of_interest: CGEventMask,
-            callback: extern "C" fn(CGEventTapProxy, CGEventType, CGEventRef, *mut c_void) -> CGEventRef,
+            callback: extern "C" fn(
+                CGEventTapProxy,
+                CGEventType,
+                CGEventRef,
+                *mut c_void,
+            ) -> CGEventRef,
             user_info: *mut c_void,
         ) -> CFMachPortRef;
 
@@ -133,7 +137,8 @@ mod imp {
 
             let ev = match event_type {
                 K_CG_EVENT_KEY_DOWN => {
-                    let code = unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
+                    let code =
+                        unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
                     let flags = unsafe { CGEventGetFlags(event) };
                     RawInputEvent::KeyDown {
                         keycode: code as u16,
@@ -142,7 +147,8 @@ mod imp {
                 }
                 // Modifier keys on macOS are reported via `flagsChanged`, not `keyDown`.
                 K_CG_EVENT_FLAGS_CHANGED => {
-                    let code = unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
+                    let code =
+                        unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
                     let code_u16 = code as u16;
                     let idx = code_u16 as usize;
                     if idx >= 256 {
@@ -154,11 +160,11 @@ mod imp {
                     // release, so we track per-key state and only emit on transitions to "down".
                     let flags = unsafe { CGEventGetFlags(event) };
                     let group_mask = match code_u16 {
-                        56 | 60 => Some(K_CG_EVENT_FLAG_MASK_SHIFT),     // Shift L/R
-                        59 | 62 => Some(K_CG_EVENT_FLAG_MASK_CONTROL),   // Control L/R
+                        56 | 60 => Some(K_CG_EVENT_FLAG_MASK_SHIFT), // Shift L/R
+                        59 | 62 => Some(K_CG_EVENT_FLAG_MASK_CONTROL), // Control L/R
                         58 | 61 => Some(K_CG_EVENT_FLAG_MASK_ALTERNATE), // Option L/R
-                        54 | 55 => Some(K_CG_EVENT_FLAG_MASK_COMMAND),   // Command L/R
-                        57 => Some(K_CG_EVENT_FLAG_MASK_ALPHA_SHIFT),    // CapsLock
+                        54 | 55 => Some(K_CG_EVENT_FLAG_MASK_COMMAND), // Command L/R
+                        57 => Some(K_CG_EVENT_FLAG_MASK_ALPHA_SHIFT), // CapsLock
                         _ => None,
                     };
 
@@ -193,8 +199,12 @@ mod imp {
                     }
                 }
                 K_CG_EVENT_LEFT_MOUSE_DOWN => RawInputEvent::MouseDown(super::RawMouseButton::Left),
-                K_CG_EVENT_RIGHT_MOUSE_DOWN => RawInputEvent::MouseDown(super::RawMouseButton::Right),
-                K_CG_EVENT_OTHER_MOUSE_DOWN => RawInputEvent::MouseDown(super::RawMouseButton::Other),
+                K_CG_EVENT_RIGHT_MOUSE_DOWN => {
+                    RawInputEvent::MouseDown(super::RawMouseButton::Right)
+                }
+                K_CG_EVENT_OTHER_MOUSE_DOWN => {
+                    RawInputEvent::MouseDown(super::RawMouseButton::Other)
+                }
                 _ => return,
             };
 
@@ -244,7 +254,10 @@ mod imp {
         };
 
         if tap.is_null() {
-            return Err("CGEventTapCreate returned null (permission missing or event tap unavailable)".to_string());
+            return Err(
+                "CGEventTapCreate returned null (permission missing or event tap unavailable)"
+                    .to_string(),
+            );
         }
 
         unsafe {

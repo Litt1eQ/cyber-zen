@@ -7,9 +7,7 @@ pub async fn start_input_listening(app_handle: AppHandle) -> Result<(), String> 
     #[cfg(target_os = "macos")]
     {
         if !core::macos_permissions::has_input_monitoring_permission() {
-            return Err(
-                "需要开启 macOS「输入监控」权限后才能监听全局键盘/鼠标事件。".to_string(),
-            );
+            return Err("需要开启 macOS「输入监控」权限后才能监听全局键盘/鼠标事件。".to_string());
         }
     }
 

@@ -43,7 +43,13 @@ fn build_opacity_submenu(
     settings: &Settings,
 ) -> tauri::Result<tauri::menu::Submenu<Wry>> {
     // Keep this short for tray usage (match common options).
-    let options = [(30u32, 0.30f64), (50, 0.50), (75, 0.75), (95, 0.95), (100, 1.0)];
+    let options = [
+        (30u32, 0.30f64),
+        (50, 0.50),
+        (75, 0.75),
+        (95, 0.95),
+        (100, 1.0),
+    ];
     let mut builder = SubmenuBuilder::with_id(app, "opacity", "透明度");
     for (pct, value) in options {
         let id = format!("opacity:{}", pct);
@@ -62,15 +68,18 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
 
     let toggle_main = MenuItemBuilder::with_id(
         "toggle_main",
-        if visible { "隐藏木鱼" } else { "显示木鱼" },
+        if visible {
+            "隐藏木鱼"
+        } else {
+            "显示木鱼"
+        },
     )
     .build(app)?;
     let settings_item = MenuItemBuilder::with_id("settings", "打开设置").build(app)?;
 
-    let lock_window_position =
-        CheckMenuItemBuilder::with_id("lock_window_position", "锁定位置")
-            .checked(settings.lock_window_position)
-            .build(app)?;
+    let lock_window_position = CheckMenuItemBuilder::with_id("lock_window_position", "锁定位置")
+        .checked(settings.lock_window_position)
+        .build(app)?;
 
     let listening = CheckMenuItemBuilder::with_id("listening", "开启全局监听")
         .checked(listening_enabled)
@@ -208,7 +217,11 @@ pub fn handle_menu_event(app: &AppHandle<Wry>, event: tauri::menu::MenuEvent) {
                 let _ = refresh_tray_menu(&app);
             });
         }
-        "quit" => app.exit(0),
+        "quit" => {
+            crate::core::window_placement::capture_all_now(app);
+            crate::core::persistence::flush_now();
+            app.exit(0);
+        }
         _ => {
             if let Some(corner) = id.strip_prefix("dock:") {
                 let app = app.clone();

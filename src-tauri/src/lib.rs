@@ -42,7 +42,9 @@ pub fn run() {
                 .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?
                 .join("state.json");
 
-            if let Ok(Some((stats, settings, window_placements))) = core::persistence::load(&state_path) {
+            if let Ok(Some((stats, settings, window_placements))) =
+                core::persistence::load(&state_path)
+            {
                 let storage = MeritStorage::instance();
                 let mut storage = storage.write();
                 storage.set_stats(stats);
@@ -116,15 +118,18 @@ pub fn run() {
             if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
                 let label = window.label();
                 if label == "main" || label == "settings" {
-                    if let Some(webview_window) =
-                        window.app_handle().get_webview_window(label)
-                    {
+                    if let Some(webview_window) = window.app_handle().get_webview_window(label) {
                         core::window_placement::schedule_capture(webview_window);
                     }
                 }
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" || window.label() == "settings" {
+                    if let Some(webview_window) =
+                        window.app_handle().get_webview_window(window.label())
+                    {
+                        core::window_placement::capture_immediately(&webview_window);
+                    }
                     let _ = window.hide();
                     let _ = tray_menu::refresh_tray_menu(window.app_handle());
                     api.prevent_close();

@@ -1,8 +1,8 @@
 use crate::models::InputSource;
 use once_cell::sync::Lazy;
-use parking_lot::RwLock;
 #[cfg(not(target_os = "macos"))]
 use parking_lot::Mutex;
+use parking_lot::RwLock;
 #[cfg(not(target_os = "macos"))]
 use rdev::{listen, Event, EventType};
 use serde::{Deserialize, Serialize};
@@ -12,8 +12,8 @@ use std::sync::mpsc;
 use std::thread;
 use tauri::{AppHandle, Emitter};
 
-use crate::core::merit_batcher::enqueue_merit_trigger;
 use crate::core::key_codes;
+use crate::core::merit_batcher::enqueue_merit_trigger;
 use crate::models::InputOrigin;
 
 static THREAD_STARTED: AtomicBool = AtomicBool::new(false);
@@ -216,16 +216,16 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             }
 
                             let code = match button {
-                                crate::core::macos_event_tap::RawMouseButton::Left => Some("MouseLeft".to_string()),
-                                crate::core::macos_event_tap::RawMouseButton::Right => Some("MouseRight".to_string()),
+                                crate::core::macos_event_tap::RawMouseButton::Left => {
+                                    Some("MouseLeft".to_string())
+                                }
+                                crate::core::macos_event_tap::RawMouseButton::Right => {
+                                    Some("MouseRight".to_string())
+                                }
                                 crate::core::macos_event_tap::RawMouseButton::Other => None,
                             };
 
-                            (
-                                InputSource::MouseSingle,
-                                1u64,
-                                code,
-                            )
+                            (InputSource::MouseSingle, 1u64, code)
                         }
                     };
 
@@ -282,19 +282,21 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
 
                         let (is_shifted, shortcut) = if let Some(code) = code.as_deref() {
                             let shift_down = snapshot.shift();
-                            let is_shifted = effective_shifted(code, shift_down, snapshot.caps_lock);
-                            let shortcut =
-                                if (snapshot.ctrl() || snapshot.alt() || snapshot.meta()) && !is_modifier_code(code) {
-                                    Some(shortcut_id(
-                                        snapshot.meta(),
-                                        snapshot.ctrl(),
-                                        snapshot.alt(),
-                                        shift_down,
-                                        code,
-                                    ))
-                                } else {
-                                    None
-                                };
+                            let is_shifted =
+                                effective_shifted(code, shift_down, snapshot.caps_lock);
+                            let shortcut = if (snapshot.ctrl() || snapshot.alt() || snapshot.meta())
+                                && !is_modifier_code(code)
+                            {
+                                Some(shortcut_id(
+                                    snapshot.meta(),
+                                    snapshot.ctrl(),
+                                    snapshot.alt(),
+                                    shift_down,
+                                    code,
+                                ))
+                            } else {
+                                None
+                            };
                             (Some(is_shifted), shortcut)
                         } else {
                             (None, None)
@@ -332,13 +334,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             _ => None,
                         };
 
-                        (
-                            InputSource::MouseSingle,
-                            1u64,
-                            code,
-                            None,
-                            None,
-                        )
+                        (InputSource::MouseSingle, 1u64, code, None, None)
                     }
                     _ => return,
                 };

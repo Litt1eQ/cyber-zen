@@ -50,4 +50,3 @@ pub async fn download_and_install_update(app_handle: AppHandle) -> Result<(), St
     app_handle.request_restart();
     Ok(())
 }
-

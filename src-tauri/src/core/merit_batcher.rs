@@ -131,7 +131,9 @@ pub fn enqueue_merit_trigger(
     is_shifted: Option<bool>,
     shortcut: Option<String>,
 ) {
-    BATCHER.enqueue(app_handle, origin, source, count, key_code, is_shifted, shortcut);
+    BATCHER.enqueue(
+        app_handle, origin, source, count, key_code, is_shifted, shortcut,
+    );
 }
 
 fn process_triggers(
@@ -143,8 +145,10 @@ fn process_triggers(
 ) {
     let mut by_key: HashMap<Key, (u64, AppHandle)> = HashMap::new();
     let mut keyboard_key_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
-    let mut keyboard_key_counts_unshifted: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
-    let mut keyboard_key_counts_shifted: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
+    let mut keyboard_key_counts_unshifted: HashMap<InputOrigin, HashMap<String, u64>> =
+        HashMap::new();
+    let mut keyboard_key_counts_shifted: HashMap<InputOrigin, HashMap<String, u64>> =
+        HashMap::new();
     let mut shortcut_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
     let mut mouse_button_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
 

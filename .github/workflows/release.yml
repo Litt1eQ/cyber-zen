@@ -50,6 +50,15 @@ jobs:
       # Keep the new names too in case future tooling expects them.
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.TAURI_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || secrets.TAURI_PRIVATE_KEY_PASSWORD }}
+      # Optional: macOS self-signed code signing (stabilizes TCC identity across updates).
+      # Store your `.p12` as base64 in a secret, e.g.:
+      #   base64 -i cyberzen-codesign.p12 | pbcopy
+      # If `security import` fails on GitHub macOS runners, re-export a legacy-compatible p12:
+      #   openssl pkcs12 -export -legacy -inkey cyberzen-codesign.key -in cyberzen-codesign.crt -certfile cyberzen-root.crt -out cyberzen-codesign.p12
+      MACOS_CODESIGN_P12_BASE64: ${{ secrets.MACOS_CODESIGN_P12_BASE64 }}
+      MACOS_CODESIGN_P12_PASSWORD: ${{ secrets.MACOS_CODESIGN_P12_PASSWORD }}
+      MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+      MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -109,6 +118,64 @@ jobs:
           prerelease: false
           args: --target ${{ matrix.target }}
 
+      - name: Import macOS code signing certificate (self-signed)
+        if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MACOS_CODESIGN_P12_BASE64:-}" ] || [ -z "${MACOS_CODESIGN_P12_PASSWORD:-}" ] || [ -z "${MACOS_KEYCHAIN_PASSWORD:-}" ]; then
+            echo "Missing macOS code signing secrets. Configure MACOS_CODESIGN_P12_BASE64, MACOS_CODESIGN_P12_PASSWORD, MACOS_KEYCHAIN_PASSWORD (and optionally MACOS_CODESIGN_IDENTITY)."
+            exit 1
+          fi
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          P12_PATH="$RUNNER_TEMP/macos-codesign.p12"
+
+          if base64 --help 2>&1 | grep -q -- '--decode'; then
+            printf '%s' "$MACOS_CODESIGN_P12_BASE64" | base64 --decode > "$P12_PATH"
+          else
+            printf '%s' "$MACOS_CODESIGN_P12_BASE64" | base64 -D > "$P12_PATH"
+          fi
+
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$P12_PATH" -k "$KEYCHAIN_PATH" -P "$MACOS_CODESIGN_P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Codesign macOS app bundle (for updater payload)
+        if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            echo "Bundle dir not found: $BUNDLE_DIR"
+            exit 1
+          fi
+
+          APP_DIR="$(find "$BUNDLE_DIR" -type d -name '*.app' -print -quit || true)"
+          if [ -z "$APP_DIR" ]; then
+            echo "Could not find .app under: $BUNDLE_DIR"
+            find "$BUNDLE_DIR" -maxdepth 4 -print | sed -n '1,200p'
+            exit 1
+          fi
+
+          IDENTITY="${MACOS_CODESIGN_IDENTITY:-CyberZen Code Signing}"
+          codesign --force --deep --timestamp=none --keychain "$KEYCHAIN_PATH" --sign "$IDENTITY" "$APP_DIR"
+
+          codesign -dv --verbose=4 "$APP_DIR"
+          codesign -dr - "$APP_DIR"
+
       - name: Generate updater entry (for latest.json)
         id: updater_entry
         env:
@@ -137,14 +204,13 @@ jobs:
               JSON_TARGET="darwin-aarch64"
               ARCH_LABEL="aarch64"
               MAC_ASSET_ARCH="aarch64"
-              # Prefer the expected updater asset name if present.
-              PATTERNS=("CyberZen_${MAC_ASSET_ARCH}.app.tar.gz")
+              PATTERNS=()
               ;;
             x86_64-apple-darwin)
               JSON_TARGET="darwin-x86_64"
               ARCH_LABEL="x86_64"
               MAC_ASSET_ARCH="x64"
-              PATTERNS=("CyberZen_${MAC_ASSET_ARCH}.app.tar.gz")
+              PATTERNS=()
               ;;
             x86_64-pc-windows-msvc)
               JSON_TARGET="windows-x86_64"
@@ -166,23 +232,22 @@ jobs:
           esac
 
           ARCHIVE=""
-          for pattern in "${PATTERNS[@]}"; do
-            found="$(find "$BUNDLE_DIR" -type f -name "$pattern" -print -quit || true)"
-            if [ -n "$found" ]; then
-              ARCHIVE="$found"
-              break
-            fi
-          done
-
-          # macOS: if the `.app.tar.gz` isn't present, create one from the `.app` bundle and upload it.
-          if [ -z "$ARCHIVE" ] && [[ "${{ matrix.target }}" == *apple-darwin ]]; then
+          if [ "${{ matrix.target }}" == *apple-darwin ]; then
             APP_DIR="$(find "$BUNDLE_DIR" -type d -name '*.app' -print -quit || true)"
             if [ -n "$APP_DIR" ]; then
               mkdir -p updater-payloads
-              ARCHIVE="updater-payloads/CyberZen_${MAC_ASSET_ARCH}.app.tar.gz"
+              ARCHIVE="updater-payloads/CyberZen_${MAC_ASSET_ARCH}.selfsigned.app.tar.gz"
               tar -czf "$ARCHIVE" -C "$(dirname "$APP_DIR")" "$(basename "$APP_DIR")"
               UPLOAD_ASSET="true"
             fi
+          else
+            for pattern in "${PATTERNS[@]}"; do
+              found="$(find "$BUNDLE_DIR" -type f -name "$pattern" -print -quit || true)"
+              if [ -n "$found" ]; then
+                ARCHIVE="$found"
+                break
+              fi
+            done
           fi
 
           if [ -z "$ARCHIVE" ]; then
