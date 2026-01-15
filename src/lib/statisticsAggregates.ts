@@ -20,6 +20,22 @@ export type StatisticsAggregates = {
   appInputCounts: Record<string, AppInputStats>
 }
 
+export function appInputCountsForDay(day: DailyStats | undefined | null): Record<string, AppInputStats> {
+  const raw = day?.app_input_counts ?? {}
+  const out: Record<string, AppInputStats> = {}
+  for (const [id, v] of Object.entries(raw)) {
+    if (!id) continue
+    if (!v) continue
+    out[id] = {
+      name: v.name ?? null,
+      keyboard: v.keyboard ?? 0,
+      mouse_single: v.mouse_single ?? 0,
+      total: v.total ?? (v.keyboard ?? 0) + (v.mouse_single ?? 0),
+    }
+  }
+  return out
+}
+
 function mergeCounts<T extends Record<string, number>>(maps: Array<T | undefined | null>): Record<string, number> {
   const out: Record<string, number> = {}
   for (const map of maps) {
@@ -79,4 +95,3 @@ export function buildStatisticsAggregates(days: DailyStats[]): StatisticsAggrega
     appInputCounts: mergeAppInputCounts(days),
   }
 }
-

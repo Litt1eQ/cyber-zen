@@ -22,10 +22,12 @@ export function AppInputRanking({
   counts,
   limit = 20,
   modeLabel,
+  title = '应用输入排行',
 }: {
   counts: Record<string, AppInputStats>
   limit?: number
   modeLabel?: string
+  title?: string
 }) {
   const requestedRef = useRef<Set<string>>(new Set())
   const [icons, setIcons] = useState<Record<string, string | null>>({})
@@ -86,7 +88,7 @@ export function AppInputRanking({
 
   return (
     <RankingPanel
-      title="应用输入排行"
+      title={title}
       subtitle={`覆盖 ${entries.length.toLocaleString()} 个应用（>0）`}
       entries={panelEntries}
       limit={limit}
