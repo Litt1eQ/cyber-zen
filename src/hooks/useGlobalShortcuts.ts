@@ -11,6 +11,7 @@ type ShortcutKey =
   | 'toggle_window_pass_through'
   | 'toggle_always_on_top'
   | 'open_custom_statistics'
+  | 'close_custom_statistics'
 
 type ShortcutState = Record<ShortcutKey, string | null>
 
@@ -21,6 +22,7 @@ const emptyState: ShortcutState = {
   toggle_window_pass_through: null,
   toggle_always_on_top: null,
   open_custom_statistics: null,
+  close_custom_statistics: null,
 }
 
 function normalizeShortcut(value: string | null | undefined): string | null {
@@ -60,6 +62,7 @@ export function useGlobalShortcuts(settings: Settings | null) {
       toggle_window_pass_through: normalizeShortcut(settings?.shortcut_toggle_window_pass_through),
       toggle_always_on_top: normalizeShortcut(settings?.shortcut_toggle_always_on_top),
       open_custom_statistics: normalizeShortcut(settings?.shortcut_open_custom_statistics),
+      close_custom_statistics: normalizeShortcut(settings?.shortcut_close_custom_statistics),
     }
 
     const run = async () => {
@@ -91,6 +94,9 @@ export function useGlobalShortcuts(settings: Settings | null) {
       if (next.open_custom_statistics && current.open_custom_statistics !== next.open_custom_statistics) {
         await safeRegister(next.open_custom_statistics, () => void invoke(COMMANDS.SHOW_CUSTOM_STATISTICS_WINDOW))
       }
+      if (next.close_custom_statistics && current.close_custom_statistics !== next.close_custom_statistics) {
+        await safeRegister(next.close_custom_statistics, () => void invoke(COMMANDS.HIDE_CUSTOM_STATISTICS_WINDOW))
+      }
 
       if (cancelled) return
       prev.current = next
@@ -108,6 +114,7 @@ export function useGlobalShortcuts(settings: Settings | null) {
     settings?.shortcut_toggle_window_pass_through,
     settings?.shortcut_toggle_always_on_top,
     settings?.shortcut_open_custom_statistics,
+    settings?.shortcut_close_custom_statistics,
   ])
 
   useEffect(() => {
@@ -121,6 +128,7 @@ export function useGlobalShortcuts(settings: Settings | null) {
         if (current.toggle_window_pass_through) await safeUnregister(current.toggle_window_pass_through)
         if (current.toggle_always_on_top) await safeUnregister(current.toggle_always_on_top)
         if (current.open_custom_statistics) await safeUnregister(current.open_custom_statistics)
+        if (current.close_custom_statistics) await safeUnregister(current.close_custom_statistics)
       })()
     }
   }, [])

@@ -779,6 +779,12 @@ export function Settings() {
                   onChange={(next) => updateSettings({ shortcut_open_custom_statistics: next ? next : null })}
                 />
                 <ShortcutRecorder
+                  title="关闭自定义统计"
+                  description="快速关闭自定义统计窗口"
+                  value={settings.shortcut_close_custom_statistics}
+                  onChange={(next) => updateSettings({ shortcut_close_custom_statistics: next ? next : null })}
+                />
+                <ShortcutRecorder
                   title="切换输入监听"
                   description="启动/停止全局输入监听"
                   value={settings.shortcut_toggle_listening}

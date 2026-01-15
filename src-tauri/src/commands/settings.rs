@@ -185,6 +185,8 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
         normalize_shortcut(settings.shortcut_toggle_always_on_top);
     settings.shortcut_open_custom_statistics =
         normalize_shortcut(settings.shortcut_open_custom_statistics);
+    settings.shortcut_close_custom_statistics =
+        normalize_shortcut(settings.shortcut_close_custom_statistics);
 
     let storage = MeritStorage::instance();
     let mut storage = storage.write();

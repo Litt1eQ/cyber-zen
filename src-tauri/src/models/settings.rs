@@ -33,6 +33,7 @@ pub struct Settings {
     pub shortcut_toggle_window_pass_through: Option<String>,
     pub shortcut_toggle_always_on_top: Option<String>,
     pub shortcut_open_custom_statistics: Option<String>,
+    pub shortcut_close_custom_statistics: Option<String>,
 }
 
 impl Default for Settings {
@@ -68,6 +69,7 @@ impl Default for Settings {
             shortcut_toggle_window_pass_through: None,
             shortcut_toggle_always_on_top: None,
             shortcut_open_custom_statistics: None,
+            shortcut_close_custom_statistics: None,
         }
     }
 }

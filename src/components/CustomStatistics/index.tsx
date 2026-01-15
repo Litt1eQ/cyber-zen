@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { MeritStats } from '@/types/merit'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useMeritStore } from '@/stores/useMeritStore'
@@ -69,6 +70,39 @@ export function CustomStatistics() {
       unsubscribe.then((fn) => fn())
     }
   }, [updateStats])
+
+  useEffect(() => {
+    const appWindow = getCurrentWebviewWindow()
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+
+      if (
+        event.key === 'Escape' &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.shiftKey
+      ) {
+        if (customizeOpen) return
+        event.preventDefault()
+        void appWindow.close()
+        return
+      }
+
+      const isCloseCombo =
+        (isMac() ? event.metaKey : event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'w'
+      if (isCloseCombo) {
+        event.preventDefault()
+        void appWindow.close()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [customizeOpen])
 
   const allDays = useMemo(() => (stats ? [stats.today, ...stats.history] : []), [stats])
 
