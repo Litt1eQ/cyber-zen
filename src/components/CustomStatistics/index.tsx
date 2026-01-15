@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { EVENTS } from '@/types/events'
-import { buildStatisticsAggregates } from './aggregates'
+import { buildStatisticsAggregates } from '@/lib/statisticsAggregates'
 import {
   CUSTOM_STATISTICS_WIDGETS,
   DEFAULT_CUSTOM_STATISTICS_WIDGETS,

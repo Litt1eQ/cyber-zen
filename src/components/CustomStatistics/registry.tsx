@@ -8,8 +8,9 @@ import { MouseButtonsHeatmap } from '@/components/Statistics/MouseButtonsHeatmap
 import { KeyRanking } from '@/components/Statistics/KeyRanking'
 import { ShortcutList } from '@/components/Statistics/ShortcutList'
 import { HourlyDistribution } from '@/components/Statistics/HourlyDistribution'
+import { AppInputRanking } from '@/components/Statistics/AppInputRanking'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
-import type { StatisticsAggregates } from './aggregates'
+import type { StatisticsAggregates } from '@/lib/statisticsAggregates'
 
 export type CustomStatisticsWidgetId =
   | 'trend'
@@ -19,6 +20,7 @@ export type CustomStatisticsWidgetId =
   | 'mouse_buttons_total'
   | 'shortcut_list_total'
   | 'hourly_total'
+  | 'app_ranking_total'
 
 export const DEFAULT_CUSTOM_STATISTICS_WIDGETS: CustomStatisticsWidgetId[] = ['trend', 'calendar']
 
@@ -124,6 +126,20 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
     render: ({ aggregates }) => (
       <Card className="p-4">
         <HourlyDistribution hourly={aggregates.hourly} />
+      </Card>
+    ),
+  },
+  {
+    id: 'app_ranking_total',
+    title: '应用输入排行',
+    description: '按前台应用归因（Top 20）',
+    render: ({ settings, aggregates }) => (
+      <Card className="p-4">
+        <AppInputRanking
+          counts={aggregates.appInputCounts}
+          limit={20}
+          modeLabel={settings.custom_statistics_range === 'all' ? '累计' : '当日'}
+        />
       </Card>
     ),
   },

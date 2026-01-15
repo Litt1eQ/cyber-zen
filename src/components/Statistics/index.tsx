@@ -4,6 +4,8 @@ import { MonthlyHistoryCalendar } from './MonthlyHistoryCalendar'
 import { useMemo } from 'react'
 import { Card } from '../ui/card'
 import { TrendPanel } from './TrendPanel'
+import { AppInputRanking } from './AppInputRanking'
+import { mergeAppInputCounts } from '@/lib/statisticsAggregates'
 
 export function Statistics() {
   const stats = useMeritStore((state) => state.stats)
@@ -11,6 +13,7 @@ export function Statistics() {
   const keyboardLayoutId = useSettingsStore((state) => state.settings?.keyboard_layout)
   const allDays = stats ? [stats.today, ...stats.history] : []
   const trendDays = useMemo(() => allDays, [allDays])
+  const appCounts = useMemo(() => mergeAppInputCounts(allDays), [allDays])
 
   return (
     <div className="space-y-2">
@@ -19,6 +22,10 @@ export function Statistics() {
         <div className="space-y-4">
           <Card className="p-4">
             <TrendPanel days={trendDays} defaultRange={7} />
+          </Card>
+
+          <Card className="p-4">
+            <AppInputRanking counts={appCounts} limit={20} modeLabel="累计" />
           </Card>
 
           <MonthlyHistoryCalendar

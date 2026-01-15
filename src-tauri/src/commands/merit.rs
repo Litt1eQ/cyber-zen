@@ -30,6 +30,7 @@ pub async fn add_merit(
         suppress_mouse_for(180);
     }
 
+    let app = crate::core::active_app::AppContext::for_self(&app_handle);
     enqueue_merit_trigger(
         app_handle,
         InputOrigin::App,
@@ -38,6 +39,7 @@ pub async fn add_merit(
         None,
         None,
         None,
+        Some(app),
     );
     Ok(())
 }

@@ -7,6 +7,8 @@ fn default_hourly_stats() -> Vec<HourlyStats> {
     vec![HourlyStats::default(); 24]
 }
 
+const MAX_APP_ENTRIES_PER_DAY: usize = 200;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HourlyStats {
     #[serde(default)]
@@ -88,6 +90,38 @@ pub struct DailyStats {
     pub shortcut_counts: HashMap<String, u64>,
     #[serde(default)]
     pub mouse_button_counts: HashMap<String, u64>,
+    #[serde(default)]
+    pub app_input_counts: HashMap<String, AppInputStats>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AppInputStats {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub total: u64,
+    #[serde(default)]
+    pub keyboard: u64,
+    #[serde(default)]
+    pub mouse_single: u64,
+}
+
+impl AppInputStats {
+    pub fn add(&mut self, name: Option<&str>, source: InputSource, count: u64) {
+        if count == 0 {
+            return;
+        }
+
+        if self.name.is_none() {
+            self.name = name.map(|v| v.to_string());
+        }
+
+        self.total = self.total.saturating_add(count);
+        match source {
+            InputSource::Keyboard => self.keyboard = self.keyboard.saturating_add(count),
+            InputSource::MouseSingle => self.mouse_single = self.mouse_single.saturating_add(count),
+        }
+    }
 }
 
 impl DailyStats {
@@ -103,6 +137,7 @@ impl DailyStats {
             key_counts_shifted: HashMap::new(),
             shortcut_counts: HashMap::new(),
             mouse_button_counts: HashMap::new(),
+            app_input_counts: HashMap::new(),
         }
     }
 
@@ -156,6 +191,45 @@ impl DailyStats {
         // Current best practice is to persist only aggregated counters to keep state compact.
         self.normalize_hourly();
         self.total = self.keyboard.saturating_add(self.mouse_single);
+
+        for v in self.app_input_counts.values_mut() {
+            v.total = v.keyboard.saturating_add(v.mouse_single);
+        }
+    }
+
+    pub fn add_app_merit(&mut self, app_id: &str, app_name: Option<&str>, source: InputSource, count: u64) {
+        if count == 0 {
+            return;
+        }
+
+        let entry = self
+            .app_input_counts
+            .entry(app_id.to_string())
+            .or_default();
+        entry.add(app_name, source, count);
+
+        if self.app_input_counts.len() > MAX_APP_ENTRIES_PER_DAY {
+            self.prune_app_input_counts(app_id);
+        }
+    }
+
+    fn prune_app_input_counts(&mut self, keep_id: &str) {
+        if self.app_input_counts.len() <= MAX_APP_ENTRIES_PER_DAY {
+            return;
+        }
+
+        let mut entries: Vec<(String, u64)> = self
+            .app_input_counts
+            .iter()
+            .map(|(k, v)| (k.clone(), v.total))
+            .collect();
+        entries.sort_by(|a, b| b.1.cmp(&a.1));
+
+        let mut keep: std::collections::HashSet<String> =
+            entries.into_iter().take(MAX_APP_ENTRIES_PER_DAY).map(|(k, _)| k).collect();
+        keep.insert(keep_id.to_string());
+
+        self.app_input_counts.retain(|k, _| keep.contains(k));
     }
 
     pub fn add_key_counts(&mut self, counts: &HashMap<String, u64>) {
@@ -281,6 +355,20 @@ impl MeritStats {
         self.total_merit = self.total_merit.saturating_add(count);
         self.today.add_merit(source, count);
         self.today.add_hourly_merit(hour, source, count);
+    }
+
+    pub fn add_app_merit(
+        &mut self,
+        app_id: &str,
+        app_name: Option<&str>,
+        source: InputSource,
+        count: u64,
+    ) {
+        if count == 0 {
+            return;
+        }
+        self.normalize_today();
+        self.today.add_app_merit(app_id, app_name, source, count);
     }
 
     pub fn add_keyboard_key_counts(&mut self, counts: &HashMap<String, u64>) {

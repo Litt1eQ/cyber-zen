@@ -113,6 +113,7 @@ pub fn run() {
             commands::skins::import_custom_wooden_fish_skin_zip,
             commands::skins::delete_custom_wooden_fish_skin,
             commands::skins::export_wooden_fish_skin_zip,
+            commands::app_icons::get_app_icon,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Focused(focused) = event {

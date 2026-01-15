@@ -1,4 +1,5 @@
 pub mod autostart;
+pub mod app_icons;
 pub mod input;
 pub mod merit;
 pub mod permissions;

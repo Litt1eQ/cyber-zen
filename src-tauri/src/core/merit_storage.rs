@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
+use super::active_app::AppContext;
+
 static STORAGE: Lazy<Arc<RwLock<MeritStorage>>> =
     Lazy::new(|| Arc::new(RwLock::new(MeritStorage::new())));
 
@@ -76,16 +78,7 @@ impl MeritStorage {
         keyboard: Option<KeyboardCounts<'_>>,
         mouse: Option<MouseCounts<'_>>,
     ) -> bool {
-        let should_count = match origin {
-            // Explicit in-app action should always count, independent of global input listening toggles.
-            InputOrigin::App => true,
-            InputOrigin::Global => match source {
-                InputSource::Keyboard => self.settings.enable_keyboard,
-                InputSource::MouseSingle => self.settings.enable_mouse_single,
-            },
-        };
-
-        if !should_count || count == 0 {
+        if !self.should_count(origin, source) || count == 0 {
             return false;
         }
 
@@ -118,6 +111,26 @@ impl MeritStorage {
         true
     }
 
+    pub fn add_app_merit_silent(
+        &mut self,
+        origin: InputOrigin,
+        source: InputSource,
+        count: u64,
+        app: Option<&AppContext>,
+    ) -> bool {
+        if !self.should_count(origin, source) || count == 0 {
+            return false;
+        }
+
+        let Some(app) = app else {
+            return false;
+        };
+
+        self.stats
+            .add_app_merit(&app.id, app.name.as_deref(), source, count);
+        true
+    }
+
     pub fn clear_history(&mut self, app_handle: &AppHandle) {
         self.stats.clear_history();
         let _ = app_handle.emit("merit-updated", self.stats.clone());
@@ -133,5 +146,16 @@ impl MeritStorage {
     pub fn update_settings(&mut self, settings: Settings) {
         self.settings = settings;
         crate::core::persistence::request_save();
+    }
+
+    fn should_count(&self, origin: InputOrigin, source: InputSource) -> bool {
+        match origin {
+            // Explicit in-app action should always count, independent of global input listening toggles.
+            InputOrigin::App => true,
+            InputOrigin::Global => match source {
+                InputSource::Keyboard => self.settings.enable_keyboard,
+                InputSource::MouseSingle => self.settings.enable_mouse_single,
+            },
+        }
     }
 }

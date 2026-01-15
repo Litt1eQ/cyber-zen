@@ -6,8 +6,11 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Sender};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
+
+use super::active_app::AppContext;
 
 const MAX_DIGIT: u64 = 9;
 const ANIM_EMIT_INTERVAL: Duration = Duration::from_millis(120);
@@ -27,6 +30,7 @@ struct Trigger {
     key_code: Option<String>,
     is_shifted: Option<bool>,
     shortcut: Option<String>,
+    app: Option<AppContext>,
     app_handle: AppHandle,
 }
 
@@ -104,6 +108,7 @@ impl MeritBatcher {
         key_code: Option<String>,
         is_shifted: Option<bool>,
         shortcut: Option<String>,
+        app: Option<AppContext>,
     ) {
         if count == 0 {
             return;
@@ -115,6 +120,7 @@ impl MeritBatcher {
             key_code,
             is_shifted,
             shortcut,
+            app,
             app_handle,
         });
     }
@@ -130,9 +136,10 @@ pub fn enqueue_merit_trigger(
     key_code: Option<String>,
     is_shifted: Option<bool>,
     shortcut: Option<String>,
+    app: Option<AppContext>,
 ) {
     BATCHER.enqueue(
-        app_handle, origin, source, count, key_code, is_shifted, shortcut,
+        app_handle, origin, source, count, key_code, is_shifted, shortcut, app,
     );
 }
 
@@ -144,6 +151,8 @@ fn process_triggers(
     stats_handle: &mut Option<AppHandle>,
 ) {
     let mut by_key: HashMap<Key, (u64, AppHandle)> = HashMap::new();
+    let mut by_app: HashMap<(InputOrigin, InputSource, Arc<str>), (u64, Option<Arc<str>>)> =
+        HashMap::new();
     let mut keyboard_key_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
     let mut keyboard_key_counts_unshifted: HashMap<InputOrigin, HashMap<String, u64>> =
         HashMap::new();
@@ -155,6 +164,22 @@ fn process_triggers(
     for trigger in triggers {
         if trigger.count == 0 {
             continue;
+        }
+
+        if let Some(app) = trigger.app.as_ref() {
+            by_app
+                .entry((
+                    trigger.key.origin,
+                    trigger.key.source,
+                    Arc::clone(&app.id),
+                ))
+                .and_modify(|(c, name)| {
+                    *c = c.saturating_add(trigger.count);
+                    if name.is_none() {
+                        *name = app.name.as_ref().map(Arc::clone);
+                    }
+                })
+                .or_insert((trigger.count, app.name.as_ref().map(Arc::clone)));
         }
 
         if let Some(code) = trigger.key_code.as_ref() {
@@ -245,6 +270,16 @@ fn process_triggers(
             let added = storage.add_merit_silent(key.origin, key.source, *count, keyboard, mouse);
             allowed.insert(*key, added);
             if added {
+                *stats_dirty = true;
+            }
+        }
+
+        for ((origin, source, app_id), (count, name)) in &by_app {
+            let app = AppContext {
+                id: Arc::clone(app_id),
+                name: name.as_ref().map(Arc::clone),
+            };
+            if storage.add_app_merit_silent(*origin, *source, *count, Some(&app)) {
                 *stats_dirty = true;
             }
         }

@@ -15,6 +15,7 @@ use tauri::{AppHandle, Emitter};
 use crate::core::key_codes;
 use crate::core::merit_batcher::enqueue_merit_trigger;
 use crate::models::InputOrigin;
+use crate::core::active_app;
 
 static THREAD_STARTED: AtomicBool = AtomicBool::new(false);
 static IS_ENABLED: AtomicBool = AtomicBool::new(true);
@@ -162,6 +163,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
             let worker_handle = app_handle.clone();
 
             thread::spawn(move || {
+                let _self_app = active_app::AppContext::for_self(&worker_handle);
                 for raw in rx {
                     if !IS_ENABLED.load(Ordering::SeqCst) {
                         continue;
@@ -204,6 +206,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                                 code,
                                 is_shifted,
                                 shortcut,
+                                Some(active_app::current_or_unknown()),
                             );
                             continue;
                         }
@@ -237,6 +240,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         detail_code,
                         None,
                         None,
+                        Some(active_app::current_or_unknown()),
                     );
                 }
             });
@@ -255,6 +259,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
         #[cfg(not(target_os = "macos"))]
         {
             let callback_handle = app_handle.clone();
+            let _self_app = active_app::AppContext::for_self(&callback_handle);
             let callback = move |event: Event| {
                 if !IS_ENABLED.load(Ordering::SeqCst) {
                     return;
@@ -347,6 +352,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                     detail_code,
                     is_shifted,
                     shortcut,
+                    Some(active_app::current_or_unknown()),
                 );
             };
 

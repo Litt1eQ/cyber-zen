@@ -45,4 +45,5 @@ export const COMMANDS = {
   IMPORT_CUSTOM_WOODEN_FISH_SKIN_ZIP: 'import_custom_wooden_fish_skin_zip',
   DELETE_CUSTOM_WOODEN_FISH_SKIN: 'delete_custom_wooden_fish_skin',
   EXPORT_WOODEN_FISH_SKIN_ZIP: 'export_wooden_fish_skin_zip',
+  GET_APP_ICON: 'get_app_icon',
 } as const

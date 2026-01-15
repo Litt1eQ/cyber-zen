@@ -20,6 +20,15 @@ export interface DailyStats {
   key_counts_shifted?: Record<string, number>
   shortcut_counts?: Record<string, number>
   mouse_button_counts: Record<string, number>
+  app_input_counts?: Record<
+    string,
+    {
+      name?: string | null
+      total: number
+      keyboard: number
+      mouse_single: number
+    }
+  >
 }
 
 export interface MeritStats {
