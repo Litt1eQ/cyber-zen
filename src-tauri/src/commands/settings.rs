@@ -4,6 +4,7 @@ use crate::models::Settings;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size};
 
 const BASE_WINDOW_SIZE: f64 = 320.0;
+const DEFAULT_MERIT_POP_LABEL: &str = "功德";
 
 fn current_settings() -> Settings {
     let storage = MeritStorage::instance();
@@ -66,6 +67,24 @@ fn normalize_opacity(opacity: f64) -> f64 {
     opacity.clamp(0.30, 1.0)
 }
 
+fn normalize_wooden_fish_opacity(opacity: f64) -> f64 {
+    opacity.clamp(0.0, 1.0)
+}
+
+fn normalize_merit_pop_opacity(opacity: f64) -> f64 {
+    opacity.clamp(0.0, 1.0)
+}
+
+fn normalize_merit_pop_label(label: String) -> String {
+    let trimmed = label.trim();
+    let out: String = trimmed.chars().take(4).collect();
+    if out.is_empty() {
+        DEFAULT_MERIT_POP_LABEL.to_string()
+    } else {
+        out
+    }
+}
+
 fn normalize_auto_fade_idle_opacity(idle: f64, active: f64) -> f64 {
     idle.clamp(0.05, 1.0).min(active)
 }
@@ -97,6 +116,7 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     settings.keyboard_layout = normalize_keyboard_layout(settings.keyboard_layout);
     settings.heatmap_levels = normalize_heatmap_levels(settings.heatmap_levels);
     settings.opacity = normalize_opacity(settings.opacity);
+    settings.wooden_fish_opacity = normalize_wooden_fish_opacity(settings.wooden_fish_opacity);
     settings.dock_margin_px = normalize_dock_margin_px(settings.dock_margin_px);
     settings.auto_fade_delay_ms = normalize_auto_fade_delay_ms(settings.auto_fade_delay_ms);
     settings.auto_fade_duration_ms =
@@ -104,6 +124,8 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     settings.drag_hold_ms = normalize_drag_hold_ms(settings.drag_hold_ms);
     settings.auto_fade_idle_opacity =
         normalize_auto_fade_idle_opacity(settings.auto_fade_idle_opacity, settings.opacity);
+    settings.merit_pop_opacity = normalize_merit_pop_opacity(settings.merit_pop_opacity);
+    settings.merit_pop_label = normalize_merit_pop_label(settings.merit_pop_label);
 
     let storage = MeritStorage::instance();
     let mut storage = storage.write();

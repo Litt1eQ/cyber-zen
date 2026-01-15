@@ -38,6 +38,7 @@ export interface Settings {
   wooden_fish_skin: string
   keyboard_layout?: string
   opacity: number
+  wooden_fish_opacity: number
   animation_speed: number
   window_scale: number
   heatmap_levels?: number
@@ -48,6 +49,8 @@ export interface Settings {
   auto_fade_delay_ms?: number
   auto_fade_duration_ms?: number
   drag_hold_ms?: number
+  merit_pop_opacity: number
+  merit_pop_label: string
   shortcut_toggle_main?: string | null
   shortcut_toggle_settings?: string | null
   shortcut_toggle_listening?: string | null

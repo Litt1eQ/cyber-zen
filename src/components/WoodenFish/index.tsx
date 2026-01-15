@@ -19,6 +19,7 @@ export function WoodenFish({
   interactive = true,
   dragEnabled = true,
   dragHoldMs = 0,
+  opacity = 1,
 }: {
   isAnimating: boolean
   animationSpeed: number
@@ -28,6 +29,7 @@ export function WoodenFish({
   interactive?: boolean
   dragEnabled?: boolean
   dragHoldMs?: number
+  opacity?: number
 }) {
   const duration = getWoodenFishHitDurationSeconds(animationSpeed)
 
@@ -68,7 +70,7 @@ export function WoodenFish({
           'relative select-none flex items-center justify-center',
           interactive ? 'cursor-pointer' : 'cursor-default pointer-events-none',
         ].join(' ')}
-        style={{ width: size, height: size }}
+        style={{ width: size, height: size, opacity }}
         onPointerDown={interactive ? dragGesture.onPointerDown : undefined}
         onPointerMove={interactive ? dragGesture.onPointerMove : undefined}
         onPointerUp={

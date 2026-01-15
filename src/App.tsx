@@ -139,6 +139,7 @@ function App() {
         windowScale={windowScale}
         onHit={handleHit}
         skin={skin}
+        opacity={settings?.wooden_fish_opacity ?? 1.0}
         dragEnabled={!(settings?.lock_window_position ?? false)}
         dragHoldMs={settings?.drag_hold_ms ?? 0}
       />
@@ -149,7 +150,16 @@ function App() {
       >
         <AnimatePresence>
           {floating.map((item) => (
-            <MeritPop key={item.id} x={item.x} y={item.y} value={item.value} source={item.source} scale={popScale} />
+            <MeritPop
+              key={item.id}
+              x={item.x}
+              y={item.y}
+              value={item.value}
+              source={item.source}
+              scale={popScale}
+              labelText={settings?.merit_pop_label ?? '功德'}
+              opacity={settings?.merit_pop_opacity ?? 0.82}
+            />
           ))}
         </AnimatePresence>
       </div>

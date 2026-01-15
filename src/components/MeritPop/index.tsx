@@ -2,6 +2,10 @@ import { motion } from 'framer-motion'
 import type { InputEvent } from '../../types/merit'
 
 const LIFTOFF_PX = 92
+const DEFAULT_MERIT_LABEL = '功德'
+const DEFAULT_MERIT_ALPHA = 0.82
+const STROKE_ALPHA_RATIO = 0.26 / DEFAULT_MERIT_ALPHA
+const GLOW_ALPHA_RATIO = 0.28 / DEFAULT_MERIT_ALPHA
 
 export function MeritPop({
   x,
@@ -9,21 +13,36 @@ export function MeritPop({
   value,
   source,
   scale = 1,
+  labelText = DEFAULT_MERIT_LABEL,
+  opacity = DEFAULT_MERIT_ALPHA,
 }: {
   x: number
   y: number
   value: number
   source?: InputEvent['source']
   scale?: number
+  labelText?: string
+  opacity?: number
 }) {
-  const label = `功德+${value}`
+  const baseLabel = (() => {
+    const trimmed = labelText.trim()
+    const truncated = Array.from(trimmed).slice(0, 4).join('')
+    return truncated.length > 0 ? truncated : DEFAULT_MERIT_LABEL
+  })()
+  const label = `${baseLabel}+${value}`
+  const a = clamp01(opacity)
+  const fillColor = `rgba(255, 222, 160, ${a})`
+  const strokeColor = `rgba(255, 236, 180, ${a * STROKE_ALPHA_RATIO})`
+  const glowHighlight = `rgba(255, 214, 102, ${a * GLOW_ALPHA_RATIO})`
+  const glowTransparent = `rgba(255, 214, 102, 0)`
+  const textGlowShadow = `rgba(255, 214, 102, ${a * GLOW_ALPHA_RATIO})`
   const driftX = 0
   const driftY = LIFTOFF_PX * scale
   const popScale = 1.0
-  const glow =
+  const sourceAccentGlow =
     source === 'keyboard'
-      ? 'rgba(120,255,214,0.22)'
-      : 'rgba(255,214,102,0.22)'
+      ? 'rgba(120,255,214,0.14)'
+      : 'rgba(255,214,102,0.10)'
 
   return (
     <div
@@ -45,7 +64,7 @@ export function MeritPop({
           transition={{ duration: 1.05, ease: 'easeOut' }}
           style={{
             background:
-              `radial-gradient(circle at center, ${glow}, rgba(255,214,102,0.0) 65%)`,
+              `radial-gradient(circle at center, ${glowHighlight}, ${sourceAccentGlow} 32%, ${glowTransparent} 65%)`,
             filter: 'blur(1px)',
           }}
         />
@@ -55,11 +74,11 @@ export function MeritPop({
           style={{
             fontFamily:
               '"SF Pro Rounded","PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",system-ui,-apple-system,Segoe UI,Roboto,sans-serif',
-            color: 'rgba(255, 222, 160, 0.82)',
+            color: fillColor,
             fontSize: `${Math.round(36 * scale)}px`,
-            WebkitTextStroke: `${Math.max(0.5, 1 * scale)}px rgba(255,236,180,0.26)`,
+            WebkitTextStroke: `${Math.max(0.5, 1 * scale)}px ${strokeColor}`,
             textShadow:
-              '0 0 30px rgba(255,214,102,0.28), 0 18px 40px rgba(0,0,0,0.18)',
+              `0 0 30px ${textGlowShadow}, 0 18px 40px rgba(0,0,0,0.18)`,
             whiteSpace: 'nowrap',
           }}
         >
@@ -68,4 +87,9 @@ export function MeritPop({
       </motion.div>
     </div>
   )
+}
+
+function clamp01(value: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(1, value))
 }

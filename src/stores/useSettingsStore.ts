@@ -24,6 +24,7 @@ const defaultSettings: Settings = {
   wooden_fish_skin: 'rosewood',
   keyboard_layout: DEFAULT_KEYBOARD_LAYOUT_ID,
   opacity: 0.95,
+  wooden_fish_opacity: 1.0,
   animation_speed: 1.0,
   window_scale: 100,
   heatmap_levels: 10,
@@ -34,6 +35,8 @@ const defaultSettings: Settings = {
   auto_fade_delay_ms: 800,
   auto_fade_duration_ms: 180,
   drag_hold_ms: 0,
+  merit_pop_opacity: 0.82,
+  merit_pop_label: '功德',
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
