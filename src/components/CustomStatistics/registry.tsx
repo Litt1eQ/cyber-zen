@@ -11,6 +11,15 @@ import { HourlyDistribution } from '@/components/Statistics/HourlyDistribution'
 import { AppInputRanking } from '@/components/Statistics/AppInputRanking'
 import { InsightsPanel } from '@/components/Statistics/InsightsPanel'
 import { WeekdayDistribution } from '@/components/Statistics/WeekdayDistribution'
+import { InputSourceShare } from '@/components/Statistics/InputSourceShare'
+import { DailySourceBars } from '@/components/Statistics/DailySourceBars'
+import { HourlyWeekdayHeatmap } from '@/components/Statistics/HourlyWeekdayHeatmap'
+import { KeyDiversityBars } from '@/components/Statistics/KeyDiversityBars'
+import { ShortcutUsageTrend } from '@/components/Statistics/ShortcutUsageTrend'
+import { AppConcentration } from '@/components/Statistics/AppConcentration'
+import { ShiftUsage } from '@/components/Statistics/ShiftUsage'
+import { KeyPareto } from '@/components/Statistics/KeyPareto'
+import { MouseButtonStructure } from '@/components/Statistics/MouseButtonStructure'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 import type { StatisticsAggregates } from '@/lib/statisticsAggregates'
 
@@ -18,6 +27,15 @@ export type CustomStatisticsWidgetId =
   | 'insights'
   | 'trend'
   | 'weekday_distribution'
+  | 'source_share'
+  | 'daily_source_bars'
+  | 'hourly_weekday_heatmap'
+  | 'key_diversity'
+  | 'shortcut_trend'
+  | 'app_concentration'
+  | 'shift_usage'
+  | 'key_pareto'
+  | 'mouse_button_structure'
   | 'calendar'
   | 'keyboard_heatmap_total'
   | 'key_ranking_total'
@@ -83,6 +101,118 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
           days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]}
           endKey={stats.today.date}
           defaultRangeDays={30}
+        />
+      </Card>
+    ),
+  },
+  {
+    id: 'source_share',
+    title: '输入来源占比',
+    description: '键盘 vs 单击 · 当日/7天/30天/累计',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <InputSourceShare days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]} endKey={stats.today.date} defaultRange="30" />
+      </Card>
+    ),
+  },
+  {
+    id: 'daily_source_bars',
+    title: '按天堆叠（键盘/单击）',
+    description: '7/30 天 · 直观看构成与峰值',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <DailySourceBars days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]} endKey={stats.today.date} defaultRangeDays={30} />
+      </Card>
+    ),
+  },
+  {
+    id: 'hourly_weekday_heatmap',
+    title: '周几 × 小时热力',
+    description: '平均/天（总计/键盘/单击）· 7/30/1年',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <HourlyWeekdayHeatmap
+          days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]}
+          endKey={stats.today.date}
+          heatLevelCount={settings.heatmap_levels}
+          defaultRangeDays={30}
+        />
+      </Card>
+    ),
+  },
+  {
+    id: 'key_diversity',
+    title: '按键多样性',
+    description: '每天不同按键数（>0）· 7/30 天',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <KeyDiversityBars days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]} endKey={stats.today.date} defaultRangeDays={30} />
+      </Card>
+    ),
+  },
+  {
+    id: 'shortcut_trend',
+    title: '快捷键使用趋势',
+    description: '按天快捷键次数 + Top 占比（7/30 天）',
+    render: ({ stats, allDays }) => (
+      <Card className="p-4">
+        <ShortcutUsageTrend days={allDays} endKey={stats.today.date} defaultRangeDays={30} />
+      </Card>
+    ),
+  },
+  {
+    id: 'app_concentration',
+    title: '应用集中度',
+    description: 'Top1/3/5 占比 + HHI',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <AppConcentration
+          days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]}
+          endKey={stats.today.date}
+          defaultRange={settings.custom_statistics_range === 'all' ? '30' : 'day'}
+        />
+      </Card>
+    ),
+  },
+  {
+    id: 'shift_usage',
+    title: 'Shift 使用率',
+    description: 'Shifted vs Unshifted（支持趋势）',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <ShiftUsage
+          days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]}
+          endKey={stats.today.date}
+          defaultRange={settings.custom_statistics_range === 'all' ? '30' : 'day'}
+        />
+      </Card>
+    ),
+  },
+  {
+    id: 'key_pareto',
+    title: '按键集中度（Pareto）',
+    description: 'Top10 占比 + 长尾占比',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <KeyPareto
+          days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]}
+          endKey={stats.today.date}
+          keyboardLayoutId={settings.keyboard_layout}
+          defaultRange={settings.custom_statistics_range === 'all' ? '30' : 'day'}
+        />
+      </Card>
+    ),
+  },
+  {
+    id: 'mouse_button_structure',
+    title: '鼠标按键结构',
+    description: '左/右/其他占比 + 趋势',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <MouseButtonStructure
+          days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]}
+          endKey={stats.today.date}
+          defaultRange={settings.custom_statistics_range === 'all' ? '30' : 'day'}
         />
       </Card>
     ),

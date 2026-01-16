@@ -10,6 +10,15 @@ import { Button } from '@/components/ui/button'
 import { InsightsPanel } from './InsightsPanel'
 import { WeekdayDistribution } from './WeekdayDistribution'
 import { addDaysToNaiveDateKey } from '@/lib/date'
+import { InputSourceShare } from './InputSourceShare'
+import { DailySourceBars } from './DailySourceBars'
+import { HourlyWeekdayHeatmap } from './HourlyWeekdayHeatmap'
+import { KeyDiversityBars } from './KeyDiversityBars'
+import { ShortcutUsageTrend } from './ShortcutUsageTrend'
+import { AppConcentration } from './AppConcentration'
+import { ShiftUsage } from './ShiftUsage'
+import { KeyPareto } from './KeyPareto'
+import { MouseButtonStructure } from './MouseButtonStructure'
 
 export function Statistics() {
   const stats = useMeritStore((state) => state.stats)
@@ -83,7 +92,48 @@ export function Statistics() {
           </Card>
 
           <Card className="p-4">
+            <HourlyWeekdayHeatmap
+              days={allDays}
+              endKey={anchorKey ?? stats.today.date}
+              heatLevelCount={heatLevelCount}
+              defaultRangeDays={30}
+            />
+          </Card>
+
+          <Card className="p-4">
+            <InputSourceShare days={allDays} endKey={anchorKey ?? stats.today.date} defaultRange="30" />
+          </Card>
+
+          <Card className="p-4">
             <TrendPanel days={trendDays} defaultRange={7} />
+          </Card>
+
+          <Card className="p-4">
+            <DailySourceBars days={allDays} endKey={anchorKey ?? stats.today.date} defaultRangeDays={30} />
+          </Card>
+
+          <Card className="p-4">
+            <ShortcutUsageTrend days={allDays} endKey={anchorKey ?? stats.today.date} defaultRangeDays={30} />
+          </Card>
+
+          <Card className="p-4">
+            <KeyDiversityBars days={allDays} endKey={anchorKey ?? stats.today.date} defaultRangeDays={30} />
+          </Card>
+
+          <Card className="p-4">
+            <ShiftUsage days={allDays} endKey={anchorKey ?? stats.today.date} defaultRange="30" />
+          </Card>
+
+          <Card className="p-4">
+            <KeyPareto days={allDays} endKey={anchorKey ?? stats.today.date} keyboardLayoutId={keyboardLayoutId} defaultRange="30" />
+          </Card>
+
+          <Card className="p-4">
+            <MouseButtonStructure days={allDays} endKey={anchorKey ?? stats.today.date} defaultRange="30" />
+          </Card>
+
+          <Card className="p-4">
+            <AppConcentration days={allDays} endKey={anchorKey ?? stats.today.date} defaultRange="30" />
           </Card>
 
           <Card className="p-4">
