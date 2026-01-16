@@ -165,7 +165,7 @@ export function KeyboardHeatmapShareDialog({
           分享
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden">
+      <DialogContent className="max-w-4xl p-0">
         <div className="p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
