@@ -7,6 +7,9 @@ import { TrendPanel } from './TrendPanel'
 import { AppInputRanking } from './AppInputRanking'
 import { appInputCountsForDay, mergeAppInputCounts } from '@/lib/statisticsAggregates'
 import { Button } from '@/components/ui/button'
+import { InsightsPanel } from './InsightsPanel'
+import { WeekdayDistribution } from './WeekdayDistribution'
+import { addDaysToNaiveDateKey } from '@/lib/date'
 
 export function Statistics() {
   const stats = useMeritStore((state) => state.stats)
@@ -14,7 +17,6 @@ export function Statistics() {
   const keyboardLayoutId = useSettingsStore((state) => state.settings?.keyboard_layout)
   const allDays = stats ? [stats.today, ...stats.history] : []
   const trendDays = useMemo(() => allDays, [allDays])
-  const appCounts = useMemo(() => mergeAppInputCounts(allDays), [allDays])
 
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null)
   useEffect(() => {
@@ -34,24 +36,52 @@ export function Statistics() {
     return map
   }, [allDays])
 
+  const anchorKey = selectedDayKey ?? stats?.today?.date ?? null
+
   const selectedDay = useMemo(() => {
     if (selectedDayKey) return byDateKey.get(selectedDayKey)
     return stats?.today
   }, [byDateKey, selectedDayKey, stats?.today])
 
   const appCountsDay = useMemo(() => appInputCountsForDay(selectedDay), [selectedDay])
-  const [appRankingMode, setAppRankingMode] = useState<'day' | 'total'>('day')
-  const appRankingModeLabel = useMemo(() => {
-    if (appRankingMode === 'total') return '累计'
-    return selectedDayKey ? `当日 ${selectedDayKey}` : '当日'
-  }, [appRankingMode, selectedDayKey])
-  const appRankingCounts = appRankingMode === 'total' ? appCounts : appCountsDay
+
+  const [appRankingRange, setAppRankingRange] = useState<'day' | '7' | '30' | 'all'>('day')
+  const appRankingRangeLabel = useMemo(() => {
+    if (appRankingRange === 'day') return anchorKey ? `当日 ${anchorKey}` : '当日'
+    if (appRankingRange === '7') return anchorKey ? `近7天（截止 ${anchorKey}）` : '近7天'
+    if (appRankingRange === '30') return anchorKey ? `近30天（截止 ${anchorKey}）` : '近30天'
+    return '累计'
+  }, [anchorKey, appRankingRange])
+
+  const appRankingCounts = useMemo(() => {
+    if (!anchorKey) return {}
+    if (appRankingRange === 'day') return appCountsDay
+    if (appRankingRange === 'all') return mergeAppInputCounts(allDays)
+
+    const daysWindow = appRankingRange === '7' ? 7 : 30
+    const out: Array<(typeof allDays)[number]> = []
+    for (let i = 0; i < daysWindow; i++) {
+      const key = addDaysToNaiveDateKey(anchorKey, -i)
+      if (!key) break
+      const day = byDateKey.get(key)
+      if (day) out.push(day)
+    }
+    return mergeAppInputCounts(out)
+  }, [allDays, anchorKey, appCountsDay, appRankingRange, byDateKey])
 
   return (
     <div className="space-y-2">
       <h3 className="text-slate-600 text-sm mb-2">统计增强</h3>
       {stats ? (
         <div className="space-y-4">
+          <Card className="p-4">
+            <InsightsPanel days={allDays} endKey={anchorKey ?? stats.today.date} />
+          </Card>
+
+          <Card className="p-4">
+            <WeekdayDistribution days={allDays} endKey={anchorKey ?? stats.today.date} defaultRangeDays={30} />
+          </Card>
+
           <Card className="p-4">
             <TrendPanel days={trendDays} defaultRange={7} />
           </Card>
@@ -61,24 +91,43 @@ export function Statistics() {
               counts={appRankingCounts}
               limit={20}
               title="应用输入排行"
+              interactive
               headerRight={
                 <div className="flex items-center gap-2" data-no-drag>
-                  <div className="text-[11px] text-slate-500 tabular-nums">{appRankingModeLabel}</div>
+                  <div className="text-[11px] text-slate-500 tabular-nums">{appRankingRangeLabel}</div>
                   <div className="flex items-center gap-1">
                     <Button
                       type="button"
-                      variant={appRankingMode === 'day' ? 'secondary' : 'outline'}
+                      variant={appRankingRange === 'day' ? 'secondary' : 'outline'}
                       size="sm"
-                      onClick={() => setAppRankingMode('day')}
+                      onClick={() => setAppRankingRange('day')}
                       data-no-drag
                     >
                       当日
                     </Button>
                     <Button
                       type="button"
-                      variant={appRankingMode === 'total' ? 'secondary' : 'outline'}
+                      variant={appRankingRange === '7' ? 'secondary' : 'outline'}
                       size="sm"
-                      onClick={() => setAppRankingMode('total')}
+                      onClick={() => setAppRankingRange('7')}
+                      data-no-drag
+                    >
+                      7天
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={appRankingRange === '30' ? 'secondary' : 'outline'}
+                      size="sm"
+                      onClick={() => setAppRankingRange('30')}
+                      data-no-drag
+                    >
+                      30天
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={appRankingRange === 'all' ? 'secondary' : 'outline'}
+                      size="sm"
+                      onClick={() => setAppRankingRange('all')}
                       data-no-drag
                     >
                       累计

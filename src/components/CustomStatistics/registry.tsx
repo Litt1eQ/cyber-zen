@@ -9,11 +9,15 @@ import { KeyRanking } from '@/components/Statistics/KeyRanking'
 import { ShortcutList } from '@/components/Statistics/ShortcutList'
 import { HourlyDistribution } from '@/components/Statistics/HourlyDistribution'
 import { AppInputRanking } from '@/components/Statistics/AppInputRanking'
+import { InsightsPanel } from '@/components/Statistics/InsightsPanel'
+import { WeekdayDistribution } from '@/components/Statistics/WeekdayDistribution'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 import type { StatisticsAggregates } from '@/lib/statisticsAggregates'
 
 export type CustomStatisticsWidgetId =
+  | 'insights'
   | 'trend'
+  | 'weekday_distribution'
   | 'calendar'
   | 'keyboard_heatmap_total'
   | 'key_ranking_total'
@@ -47,12 +51,39 @@ function platformForKeyboard() {
 
 export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   {
+    id: 'insights',
+    title: '统计摘要',
+    description: '连续/本周本月/环比/高峰',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <InsightsPanel
+          days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]}
+          endKey={stats.today.date}
+        />
+      </Card>
+    ),
+  },
+  {
     id: 'trend',
     title: '7/30 天趋势',
     description: '总计/键盘/单击',
     render: ({ allDays }) => (
       <Card className="p-4">
         <TrendPanel days={allDays} />
+      </Card>
+    ),
+  },
+  {
+    id: 'weekday_distribution',
+    title: '周几分布',
+    description: '平均/天 · 7/30/1年',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <WeekdayDistribution
+          days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]}
+          endKey={stats.today.date}
+          defaultRangeDays={30}
+        />
       </Card>
     ),
   },

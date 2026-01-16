@@ -71,3 +71,25 @@ export function addDaysToNaiveDateKey(dateKey: string, deltaDays: number): strin
   date.setDate(date.getDate() + deltaDays)
   return formatNaiveDateKey({ year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() })
 }
+
+export function startOfWeekFromNaiveDateKey(dateKey: string, weekStart: 0 | 1 = 1): string | null {
+  const parts = parseNaiveDate(dateKey)
+  if (!parts) return null
+  const date = new Date(parts.year, parts.month - 1, parts.day, 12)
+  const delta = (date.getDay() - weekStart + 7) % 7
+  date.setDate(date.getDate() - delta)
+  return formatNaiveDateKey({ year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() })
+}
+
+export function startOfMonthFromNaiveDateKey(dateKey: string): string | null {
+  const parts = parseNaiveDate(dateKey)
+  if (!parts) return null
+  return formatNaiveDateKey({ year: parts.year, month: parts.month, day: 1 })
+}
+
+export function weekdayIndexMon0FromNaiveDateKey(dateKey: string): number | null {
+  const parts = parseNaiveDate(dateKey)
+  if (!parts) return null
+  const date = new Date(parts.year, parts.month - 1, parts.day, 12)
+  return (date.getDay() + 6) % 7
+}

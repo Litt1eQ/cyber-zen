@@ -28,6 +28,7 @@ export function RankingPanel({
   tone,
   emptyLabel = '无记录',
   headerRight,
+  toolbar,
   listContainerClassName,
   className,
 }: {
@@ -39,6 +40,7 @@ export function RankingPanel({
   tone: RankingTone
   emptyLabel?: string
   headerRight?: React.ReactNode
+  toolbar?: React.ReactNode
   listContainerClassName?: string
   className?: string
 }) {
@@ -58,10 +60,19 @@ export function RankingPanel({
           <div className="text-xs font-semibold text-slate-900">{title}</div>
           {subtitle ? <div className="mt-1 text-[11px] text-slate-500">{subtitle}</div> : null}
         </div>
-        <div className="shrink-0 text-[11px] text-slate-500 tabular-nums">
-          {headerRight ?? `${Math.min(entries.length, limit)}/${limit}`}
-        </div>
+        {(() => {
+          const fallback = `${Math.min(entries.length, limit)}/${limit}`
+          const value = headerRight ?? fallback
+          const isText = typeof value === 'string' || typeof value === 'number'
+          return (
+            <div className={cn('shrink-0', isText && 'text-[11px] text-slate-500 tabular-nums')}>
+              {value}
+            </div>
+          )
+        })()}
       </div>
+
+      {toolbar ? <div className="mt-3" data-no-drag>{toolbar}</div> : null}
 
       {entries.length === 0 ? (
         <div
