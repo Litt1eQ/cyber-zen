@@ -19,6 +19,7 @@ import { Switch } from '../ui/switch'
 import { Slider } from '../ui/slider'
 import { Button } from '../ui/button'
 import { Card } from '../ui/card'
+import { TodayOverviewPanel } from '../Statistics/TodayOverviewPanel'
 import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -812,38 +813,7 @@ export function Settings() {
             {activeTab === 'statistics' && (
               <div className="space-y-8">
                 <SettingsSection title="今日概览">
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-4">
-                      <StatTile
-                        title="今日总计"
-                        value={(stats?.today.total ?? 0).toLocaleString()}
-                        subtitle={stats?.today.date ? stats.today.date : ''}
-                      />
-                      <StatTile
-                        title="总功德"
-                        value={(stats?.total_merit ?? 0).toLocaleString()}
-                        subtitle="累计"
-                      />
-                    </div>
-
-                    <div className="rounded-lg border border-slate-200/60 bg-white shadow-sm p-4">
-                      <div className="text-sm text-slate-500">来源分布</div>
-                      <div className="mt-3 grid grid-cols-2 gap-3">
-                        <div className="rounded-lg bg-slate-50 border border-slate-200/60 p-3">
-                          <div className="text-xs text-slate-500">键盘</div>
-                          <div className="text-2xl font-bold text-slate-900 mt-1">
-                            {(stats?.today.keyboard ?? 0).toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="rounded-lg bg-slate-50 border border-slate-200/60 p-3">
-                          <div className="text-xs text-slate-500">单击</div>
-                          <div className="text-2xl font-bold text-slate-900 mt-1">
-                            {(stats?.today.mouse_single ?? 0).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <TodayOverviewPanel stats={stats} />
                 </SettingsSection>
 
                 <SettingsSection title="历史统计">
@@ -1169,16 +1139,6 @@ function SettingRow({
       <div className="shrink-0" data-no-drag>
         {control}
       </div>
-    </div>
-  )
-}
-
-function StatTile({ title, value, subtitle }: { title: string; value: string; subtitle?: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200/60 bg-white shadow-sm p-4">
-      <div className="text-sm text-slate-500">{title}</div>
-      <div className="text-3xl font-bold text-slate-900 mt-1">{value}</div>
-      {subtitle && <div className="text-xs text-slate-500 mt-2">{subtitle}</div>}
     </div>
   )
 }

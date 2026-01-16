@@ -7,6 +7,11 @@ export type RankingEntry = {
   value: number
   label: React.ReactNode
   title?: string
+  segments?: Array<{
+    value: number
+    className: string
+    title?: string
+  }>
 }
 
 function pct(value: number, max: number): number {
@@ -59,7 +64,10 @@ export function RankingPanel({
       </div>
 
       {entries.length === 0 ? (
-        <div className="mt-3 rounded-md border border-slate-200/60 bg-white/70 px-3 py-3 text-center text-xs text-slate-500">
+        <div
+          className="mt-3 rounded-md border border-slate-200/60 bg-white/70 px-3 py-3 text-center text-xs text-slate-500"
+          data-no-drag
+        >
           {emptyLabel}
         </div>
       ) : (
@@ -92,7 +100,36 @@ export function RankingPanel({
                   <div className="shrink-0 tabular-nums text-xs text-slate-500">{(entry.value || 0).toLocaleString()}</div>
                 </div>
                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                  <div className={cn('h-full rounded-full', barClass)} style={{ width: `${pct(entry.value, max).toFixed(2)}%` }} />
+                  {entry.segments?.length ? (
+                    (() => {
+                      const cleanSegments = entry.segments.filter((s) => (s.value ?? 0) > 0)
+                      const segTotal = cleanSegments.reduce((acc, s) => acc + (s.value ?? 0), 0)
+                      const totalPct = pct(entry.value, max)
+                      if (cleanSegments.length === 0 || segTotal <= 0 || totalPct <= 0) {
+                        return <div className={cn('h-full rounded-full', barClass)} style={{ width: `${totalPct.toFixed(2)}%` }} />
+                      }
+                      return (
+                        <div className="h-full overflow-hidden rounded-full" style={{ width: `${totalPct.toFixed(2)}%` }}>
+                          <div className="flex h-full w-full">
+                            {cleanSegments.map((seg, segIndex) => {
+                              const segPct = Math.max(0, Math.min(100, (seg.value / segTotal) * 100))
+                              return (
+                                <div
+                                  key={`${entry.id}-seg-${segIndex}`}
+                                  className={cn('h-full', seg.className)}
+                                  style={{ width: `${segPct.toFixed(2)}%` }}
+                                  title={seg.title}
+                                  aria-hidden="true"
+                                />
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })()
+                  ) : (
+                    <div className={cn('h-full rounded-full', barClass)} style={{ width: `${pct(entry.value, max).toFixed(2)}%` }} />
+                  )}
                 </div>
               </div>
             ))}

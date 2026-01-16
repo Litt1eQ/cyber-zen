@@ -6,6 +6,7 @@ import { Card } from '../ui/card'
 import { TrendPanel } from './TrendPanel'
 import { AppInputRanking } from './AppInputRanking'
 import { appInputCountsForDay, mergeAppInputCounts } from '@/lib/statisticsAggregates'
+import { Button } from '@/components/ui/button'
 
 export function Statistics() {
   const stats = useMeritStore((state) => state.stats)
@@ -39,6 +40,12 @@ export function Statistics() {
   }, [byDateKey, selectedDayKey, stats?.today])
 
   const appCountsDay = useMemo(() => appInputCountsForDay(selectedDay), [selectedDay])
+  const [appRankingMode, setAppRankingMode] = useState<'day' | 'total'>('day')
+  const appRankingModeLabel = useMemo(() => {
+    if (appRankingMode === 'total') return '累计'
+    return selectedDayKey ? `当日 ${selectedDayKey}` : '当日'
+  }, [appRankingMode, selectedDayKey])
+  const appRankingCounts = appRankingMode === 'total' ? appCounts : appCountsDay
 
   return (
     <div className="space-y-2">
@@ -50,11 +57,36 @@ export function Statistics() {
           </Card>
 
           <Card className="p-4">
-            <AppInputRanking counts={appCountsDay} limit={20} modeLabel={selectedDayKey ? `当日 ${selectedDayKey}` : '当日'} title="应用输入排行（按天）" />
-          </Card>
-
-          <Card className="p-4">
-            <AppInputRanking counts={appCounts} limit={20} modeLabel="累计" title="应用输入排行（累计）" />
+            <AppInputRanking
+              counts={appRankingCounts}
+              limit={20}
+              title="应用输入排行"
+              headerRight={
+                <div className="flex items-center gap-2" data-no-drag>
+                  <div className="text-[11px] text-slate-500 tabular-nums">{appRankingModeLabel}</div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant={appRankingMode === 'day' ? 'secondary' : 'outline'}
+                      size="sm"
+                      onClick={() => setAppRankingMode('day')}
+                      data-no-drag
+                    >
+                      当日
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={appRankingMode === 'total' ? 'secondary' : 'outline'}
+                      size="sm"
+                      onClick={() => setAppRankingMode('total')}
+                      data-no-drag
+                    >
+                      累计
+                    </Button>
+                  </div>
+                </div>
+              }
+            />
           </Card>
 
           <MonthlyHistoryCalendar

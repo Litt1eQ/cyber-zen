@@ -23,11 +23,13 @@ export function AppInputRanking({
   limit = 20,
   modeLabel,
   title = '应用输入排行',
+  headerRight,
 }: {
   counts: Record<string, AppInputStats>
   limit?: number
   modeLabel?: string
   title?: string
+  headerRight?: React.ReactNode
 }) {
   const requestedRef = useRef<Set<string>>(new Set())
   const [icons, setIcons] = useState<Record<string, string | null>>({})
@@ -64,6 +66,10 @@ export function AppInputRanking({
       return {
         id: e.id,
         value: e.total,
+        segments: [
+          { value: e.keyboard, className: 'bg-emerald-600', title: `键盘 ${e.keyboard.toLocaleString()}` },
+          { value: e.mouse_single, className: 'bg-emerald-300', title: `单击 ${e.mouse_single.toLocaleString()}` },
+        ],
         title: e.name ? `${e.name} (${e.id})` : e.id,
         label: (
           <div className="inline-flex items-center gap-2.5 min-w-0">
@@ -95,7 +101,7 @@ export function AppInputRanking({
       maxValue={maxValue}
       tone="up"
       emptyLabel="暂无应用归因数据"
-      headerRight={modeLabel ?? null}
+      headerRight={headerRight ?? modeLabel ?? null}
       listContainerClassName="max-h-72 overflow-y-auto pr-2"
       className="p-4"
     />

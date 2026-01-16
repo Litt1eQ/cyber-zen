@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { DailyStats } from '../../types/merit'
 import { Button } from '../ui/button'
@@ -12,6 +12,7 @@ import { ShortcutList } from './ShortcutList'
 import { KeyRanking } from './KeyRanking'
 import { HourlyDistribution } from './HourlyDistribution'
 import { DayComparison } from './DayComparison'
+import { YearlyHistoryHeatmap } from './YearlyHistoryHeatmap'
 import {
   computeHeatThresholds,
   heatClass,
@@ -36,8 +37,10 @@ import {
   yearMonthFromNaiveDateKey,
 } from '@/lib/date'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 const WEEKDAYS_ZH = ['一', '二', '三', '四', '五', '六', '日'] as const
+const YEAR_VIEW_QUERY = '(min-width: 900px)'
 
 type Props = {
   days: DailyStats[]
@@ -58,6 +61,11 @@ function formatDateLabelZh(dateKey: string): string {
   const date = safeLocalDateFromKey(dateKey)
   if (!date) return dateKey
   return `${date.getMonth() + 1}月${date.getDate()}日（${formatWeekdayZh(date)}）`
+}
+
+function yearFromDateKey(dateKey: string): number | null {
+  const parts = parseNaiveDate(dateKey)
+  return parts?.year ?? null
 }
 
 function pickRange(days: DailyStats[], todayKey?: string): { min: YearMonth; max: YearMonth } {
@@ -84,12 +92,19 @@ function pickRange(days: DailyStats[], todayKey?: string): { min: YearMonth; max
   return { min, max }
 }
 
+function clampYearMonth(value: YearMonth, min: YearMonth, max: YearMonth): YearMonth {
+  if (monthCompare(value, min) < 0) return min
+  if (monthCompare(value, max) > 0) return max
+  return value
+}
+
 function MonthlyHistoryCalendarOnly({
   days,
   todayKey,
   heatLevelCount,
   onSelectedKeyChange,
 }: Pick<Props, 'days' | 'todayKey' | 'heatLevelCount' | 'onSelectedKeyChange'>) {
+  const showYearView = useMediaQuery(YEAR_VIEW_QUERY)
   const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const byDateKey = useMemo(() => {
     const map = new Map<string, DailyStats>()
@@ -108,9 +123,15 @@ function MonthlyHistoryCalendarOnly({
     const todayYm = todayKey ? yearMonthFromNaiveDateKey(todayKey) : null
     return todayYm ?? range.max
   }, [range.max, todayKey])
+  const initialCursorYear = useMemo(() => {
+    const y = todayKey ? yearFromDateKey(todayKey) : null
+    return y ?? range.max.year
+  }, [range.max.year, todayKey])
 
   const [cursor, setCursor] = useState<YearMonth>(initialCursor)
+  const [cursorYear, setCursorYear] = useState<number>(initialCursorYear)
   const [selectedKey, setSelectedKey] = useState<string | null>(todayKey ?? null)
+  const prevTodayKeyRef = useRef<string | undefined>(todayKey)
 
   useEffect(() => {
     // Expose selected day to parent (used by custom statistics window).
@@ -119,9 +140,32 @@ function MonthlyHistoryCalendarOnly({
   }, [onSelectedKeyChange, selectedKey])
 
   useEffect(() => {
-    setCursor(initialCursor)
-    setSelectedKey(todayKey ?? null)
-  }, [initialCursor, todayKey])
+    setCursor((current) => clampYearMonth(current, range.min, range.max))
+    setCursorYear((current) => Math.min(range.max.year, Math.max(range.min.year, current)))
+  }, [range.max.year, range.max.month, range.min.year, range.min.month])
+
+  useEffect(() => {
+    const prev = prevTodayKeyRef.current
+    if (todayKey === prev) return
+    prevTodayKeyRef.current = todayKey
+    if (!todayKey) return
+    setSelectedKey((current) => {
+      if (!current || current === prev) return todayKey
+      return current
+    })
+  }, [todayKey])
+
+  useEffect(() => {
+    if (!showYearView) return
+    const y = selectedKey ? yearFromDateKey(selectedKey) : null
+    if (y && y !== cursorYear) setCursorYear(y)
+  }, [cursorYear, selectedKey, showYearView])
+
+  useEffect(() => {
+    if (showYearView) return
+    const ym = selectedKey ? yearMonthFromNaiveDateKey(selectedKey) : null
+    if (ym && !isSameMonth(ym, cursor)) setCursor(ym)
+  }, [cursor, selectedKey, showYearView])
 
   const canGoPrev = monthCompare(addMonths(cursor, -1), range.min) >= 0
   const canGoNext = monthCompare(addMonths(cursor, 1), range.max) <= 0
@@ -153,6 +197,7 @@ function MonthlyHistoryCalendarOnly({
   }, [byDateKey, heatLevelsCount, monthDays])
 
   useEffect(() => {
+    if (showYearView) return
     const todayYm = todayKey ? yearMonthFromNaiveDateKey(todayKey) : null
     const monthHasToday = Boolean(todayYm && isSameMonth(todayYm, cursor))
 
@@ -175,122 +220,160 @@ function MonthlyHistoryCalendarOnly({
       const firstSelectable = monthDays.find((c) => c !== null)?.key ?? null
       setSelectedKey(firstSelectable)
     }
-  }, [cursor, monthDays, selectedKey, todayKey])
+  }, [cursor, monthDays, selectedKey, showYearView, todayKey])
+
+  useEffect(() => {
+    if (!showYearView) return
+    const todayY = todayKey ? yearFromDateKey(todayKey) : null
+    const yearHasToday = Boolean(todayY && todayY === cursorYear)
+
+    if (!selectedKey) {
+      if (yearHasToday && todayKey) {
+        setSelectedKey(todayKey)
+        return
+      }
+      setSelectedKey(formatNaiveDateKey({ year: cursorYear, month: 1, day: 1 }))
+      return
+    }
+
+    const selectedY = yearFromDateKey(selectedKey)
+    if (!selectedY || selectedY !== cursorYear) {
+      if (yearHasToday && todayKey) {
+        setSelectedKey(todayKey)
+        return
+      }
+      setSelectedKey(formatNaiveDateKey({ year: cursorYear, month: 1, day: 1 }))
+    }
+  }, [cursorYear, selectedKey, showYearView, todayKey])
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <Card className="p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-900 tracking-wide">{formatMonthLabel(cursor)}</div>
-            <div className="text-xs text-slate-500">
-              <span className="sr-only">{cursor.year}年</span>
-              点击日期选择
+      {showYearView ? (
+        <YearlyHistoryHeatmap
+          byDateKey={byDateKey}
+          selectedKey={selectedKey}
+          todayKey={todayKey}
+          heatLevelCount={heatLevelsCount}
+          year={cursorYear}
+          minYear={range.min.year}
+          maxYear={range.max.year}
+          onYearChange={setCursorYear}
+          onSelectKey={(key) => setSelectedKey(key)}
+        />
+      ) : (
+        <Card className="p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-900 tracking-wide">{formatMonthLabel(cursor)}</div>
+              <div className="text-[11px] text-slate-500">
+                <span className="sr-only">{cursor.year}年</span>
+                点击日期选择
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2" data-no-drag>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={!canGoPrev}
-              onClick={() => setCursor((c) => addMonths(c, -1))}
-              aria-label="上个月"
-              title={`${cursor.year}年${cursor.month}月 上个月`}
-              data-no-drag
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={!canGoNext}
-              onClick={() => setCursor((c) => addMonths(c, 1))}
-              aria-label="下个月"
-              title={`${cursor.year}年${cursor.month}月 下个月`}
-              data-no-drag
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                const ym = todayKey ? yearMonthFromNaiveDateKey(todayKey) : null
-                if (ym) setCursor(ym)
-                if (todayKey) setSelectedKey(todayKey)
-              }}
-              disabled={!todayKey}
-              data-no-drag
-            >
-              今天
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-7 gap-2">
-          {WEEKDAYS_ZH.map((w) => (
-            <div key={w} className="text-xs text-slate-500 text-center">
-              {w}
-            </div>
-          ))}
-          {monthDays.map((cell, idx) => {
-            if (!cell) {
-              return <div key={`empty-${idx}`} className="aspect-square" aria-hidden="true" />
-            }
-            const total = byDateKey.get(cell.key)?.total ?? 0
-            const level = heatLevelForValue(total, monthTotals.maxTotal, monthTotals.thresholds, heatLevelsCount)
-            const isSelected = selectedKey === cell.key
-            const isToday = todayKey === cell.key
-            return (
-              <button
-                key={cell.key}
+            <div className="flex items-center gap-2" data-no-drag>
+              <Button
                 type="button"
-                onClick={() => setSelectedKey(cell.key)}
-                className={cn(
-                  'aspect-square rounded-lg border text-left px-2 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
-                  heatClass(level, heatLevelsCount),
-                  isSelected && 'ring-2 ring-blue-500 ring-offset-2',
-                  isToday && 'outline outline-1 outline-blue-600/60'
-                )}
-                aria-pressed={isSelected}
-                aria-label={`${formatDateLabelZh(cell.key)}，总计 ${total}`}
-                title={`${cell.key}  总计 ${total}`}
+                variant="outline"
+                size="icon"
+                disabled={!canGoPrev}
+                onClick={() => setCursor((c) => addMonths(c, -1))}
+                aria-label="上个月"
+                title={`${cursor.year}年${cursor.month}月 上个月`}
                 data-no-drag
               >
-                <div className={cn('text-xs font-medium', isHeatDark(level, heatLevelsCount) ? 'text-white' : 'text-slate-700')}>
-                  {cell.day}
-                </div>
-                <div
-                  className={cn(
-                    'mt-1 text-[11px] tabular-nums',
-                    isHeatDark(level, heatLevelsCount) ? 'text-white/90' : 'text-slate-500'
-                  )}
-                >
-                  {total > 0 ? total.toLocaleString() : ''}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={!canGoNext}
+                onClick={() => setCursor((c) => addMonths(c, 1))}
+                aria-label="下个月"
+                title={`${cursor.year}年${cursor.month}月 下个月`}
+                data-no-drag
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const ym = todayKey ? yearMonthFromNaiveDateKey(todayKey) : null
+                  if (ym) setCursor(ym)
+                  if (todayKey) setSelectedKey(todayKey)
+                }}
+                disabled={!todayKey}
+                data-no-drag
+              >
+                今天
+              </Button>
+            </div>
+          </div>
 
-        <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-          <div className="min-w-0 truncate" title={`${cursor.year}年${cursor.month}月`}>
-            <span className="sr-only">{cursor.year}年</span>
-            {cursor.month}月热力
-          </div>
-          <div className="flex items-center gap-2">
-            <span>少</span>
-            {heatLevels(heatLevelsCount).map((lv) => (
-              <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} aria-hidden="true" />
+          <div className="mt-3 grid grid-cols-7 gap-2">
+            {WEEKDAYS_ZH.map((w) => (
+              <div key={w} className="text-[11px] text-slate-500 text-center">
+                {w}
+              </div>
             ))}
-            <span>多</span>
+            {monthDays.map((cell, idx) => {
+              if (!cell) {
+                return <div key={`empty-${idx}`} className="aspect-square" aria-hidden="true" />
+              }
+              const total = byDateKey.get(cell.key)?.total ?? 0
+              const level = heatLevelForValue(total, monthTotals.maxTotal, monthTotals.thresholds, heatLevelsCount)
+              const isSelected = selectedKey === cell.key
+              const isToday = todayKey === cell.key
+              return (
+                <button
+                  key={cell.key}
+                  type="button"
+                  onClick={() => setSelectedKey(cell.key)}
+                  className={cn(
+                    'aspect-square rounded-lg border text-left px-1.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+                    heatClass(level, heatLevelsCount),
+                    isSelected && 'ring-2 ring-blue-500 ring-offset-2',
+                    isToday && 'outline outline-1 outline-blue-600/60'
+                  )}
+                  aria-pressed={isSelected}
+                  aria-label={`${formatDateLabelZh(cell.key)}，总计 ${total}`}
+                  title={`${cell.key}  总计 ${total}`}
+                  data-no-drag
+                >
+                  <div className={cn('text-[11px] font-medium leading-none', isHeatDark(level, heatLevelsCount) ? 'text-white' : 'text-slate-700')}>
+                    {cell.day}
+                  </div>
+                  <div
+                    className={cn(
+                      'mt-1 text-[10px] tabular-nums leading-none',
+                      isHeatDark(level, heatLevelsCount) ? 'text-white/90' : 'text-slate-500'
+                    )}
+                  >
+                    {total > 0 ? total.toLocaleString() : ''}
+                  </div>
+                </button>
+              )
+            })}
           </div>
-        </div>
-      </Card>
+
+          <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+            <div className="min-w-0 truncate" title={`${cursor.year}年${cursor.month}月`}>
+              <span className="sr-only">{cursor.year}年</span>
+              {cursor.month}月热力
+            </div>
+            <div className="flex items-center gap-2">
+              <span>少</span>
+              {heatLevels(heatLevelsCount).map((lv) => (
+                <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} aria-hidden="true" />
+              ))}
+              <span>多</span>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }
@@ -302,6 +385,7 @@ function MonthlyHistoryCalendarFull({
   keyboardLayoutId,
   onSelectedKeyChange,
 }: Pick<Props, 'days' | 'todayKey' | 'heatLevelCount' | 'keyboardLayoutId' | 'onSelectedKeyChange'>) {
+  const showYearView = useMediaQuery(YEAR_VIEW_QUERY)
   const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const byDateKey = useMemo(() => {
     const map = new Map<string, DailyStats>()
@@ -320,11 +404,17 @@ function MonthlyHistoryCalendarFull({
     const todayYm = todayKey ? yearMonthFromNaiveDateKey(todayKey) : null
     return todayYm ?? range.max
   }, [range.max, todayKey])
+  const initialCursorYear = useMemo(() => {
+    const y = todayKey ? yearFromDateKey(todayKey) : null
+    return y ?? range.max.year
+  }, [range.max.year, todayKey])
 
   const [cursor, setCursor] = useState<YearMonth>(initialCursor)
+  const [cursorYear, setCursorYear] = useState<number>(initialCursorYear)
   const [selectedKey, setSelectedKey] = useState<string | null>(todayKey ?? null)
   const [keyHeatMode, setKeyHeatMode] = useState<'day' | 'total'>('day')
   const [compareMode, setCompareMode] = useState<'yesterday' | 'last_week'>('yesterday')
+  const prevTodayKeyRef = useRef<string | undefined>(todayKey)
 
   useEffect(() => {
     // Expose selected day to parent (used by custom statistics window).
@@ -333,9 +423,32 @@ function MonthlyHistoryCalendarFull({
   }, [onSelectedKeyChange, selectedKey])
 
   useEffect(() => {
-    setCursor(initialCursor)
-    setSelectedKey(todayKey ?? null)
-  }, [initialCursor, todayKey])
+    setCursor((current) => clampYearMonth(current, range.min, range.max))
+    setCursorYear((current) => Math.min(range.max.year, Math.max(range.min.year, current)))
+  }, [range.max.year, range.max.month, range.min.year, range.min.month])
+
+  useEffect(() => {
+    const prev = prevTodayKeyRef.current
+    if (todayKey === prev) return
+    prevTodayKeyRef.current = todayKey
+    if (!todayKey) return
+    setSelectedKey((current) => {
+      if (!current || current === prev) return todayKey
+      return current
+    })
+  }, [todayKey])
+
+  useEffect(() => {
+    if (!showYearView) return
+    const y = selectedKey ? yearFromDateKey(selectedKey) : null
+    if (y && y !== cursorYear) setCursorYear(y)
+  }, [cursorYear, selectedKey, showYearView])
+
+  useEffect(() => {
+    if (showYearView) return
+    const ym = selectedKey ? yearMonthFromNaiveDateKey(selectedKey) : null
+    if (ym && !isSameMonth(ym, cursor)) setCursor(ym)
+  }, [cursor, selectedKey, showYearView])
 
   const canGoPrev = monthCompare(addMonths(cursor, -1), range.min) >= 0
   const canGoNext = monthCompare(addMonths(cursor, 1), range.max) <= 0
@@ -367,6 +480,7 @@ function MonthlyHistoryCalendarFull({
   }, [byDateKey, heatLevelsCount, monthDays])
 
   useEffect(() => {
+    if (showYearView) return
     const todayYm = todayKey ? yearMonthFromNaiveDateKey(todayKey) : null
     const monthHasToday = Boolean(todayYm && isSameMonth(todayYm, cursor))
 
@@ -389,7 +503,31 @@ function MonthlyHistoryCalendarFull({
       const firstSelectable = monthDays.find((c) => c !== null)?.key ?? null
       setSelectedKey(firstSelectable)
     }
-  }, [cursor, monthDays, selectedKey, todayKey])
+  }, [cursor, monthDays, selectedKey, showYearView, todayKey])
+
+  useEffect(() => {
+    if (!showYearView) return
+    const todayY = todayKey ? yearFromDateKey(todayKey) : null
+    const yearHasToday = Boolean(todayY && todayY === cursorYear)
+
+    if (!selectedKey) {
+      if (yearHasToday && todayKey) {
+        setSelectedKey(todayKey)
+        return
+      }
+      setSelectedKey(formatNaiveDateKey({ year: cursorYear, month: 1, day: 1 }))
+      return
+    }
+
+    const selectedY = yearFromDateKey(selectedKey)
+    if (!selectedY || selectedY !== cursorYear) {
+      if (yearHasToday && todayKey) {
+        setSelectedKey(todayKey)
+        return
+      }
+      setSelectedKey(formatNaiveDateKey({ year: cursorYear, month: 1, day: 1 }))
+    }
+  }, [cursorYear, selectedKey, showYearView, todayKey])
 
   const selectedDay = selectedKey ? byDateKey.get(selectedKey) : undefined
 
@@ -477,118 +615,132 @@ function MonthlyHistoryCalendarFull({
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <Card className="p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-900 tracking-wide">{formatMonthLabel(cursor)}</div>
-            <div className="text-xs text-slate-500">
-              <span className="sr-only">{cursor.year}年</span>
-              点击日期查看详情
+      {showYearView ? (
+        <YearlyHistoryHeatmap
+          byDateKey={byDateKey}
+          selectedKey={selectedKey}
+          todayKey={todayKey}
+          heatLevelCount={heatLevelsCount}
+          year={cursorYear}
+          minYear={range.min.year}
+          maxYear={range.max.year}
+          onYearChange={setCursorYear}
+          onSelectKey={(key) => setSelectedKey(key)}
+        />
+      ) : (
+        <Card className="p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-900 tracking-wide">{formatMonthLabel(cursor)}</div>
+              <div className="text-[11px] text-slate-500">
+                <span className="sr-only">{cursor.year}年</span>
+                点击日期查看详情
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2" data-no-drag>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={!canGoPrev}
-              onClick={() => setCursor((c) => addMonths(c, -1))}
-              aria-label="上个月"
-              title={`${cursor.year}年${cursor.month}月 上个月`}
-              data-no-drag
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={!canGoNext}
-              onClick={() => setCursor((c) => addMonths(c, 1))}
-              aria-label="下个月"
-              title={`${cursor.year}年${cursor.month}月 下个月`}
-              data-no-drag
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                const ym = todayKey ? yearMonthFromNaiveDateKey(todayKey) : null
-                if (ym) setCursor(ym)
-                if (todayKey) setSelectedKey(todayKey)
-              }}
-              disabled={!todayKey}
-              data-no-drag
-            >
-              今天
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-7 gap-2">
-          {WEEKDAYS_ZH.map((w) => (
-            <div key={w} className="text-xs text-slate-500 text-center">
-              {w}
-            </div>
-          ))}
-          {monthDays.map((cell, idx) => {
-            if (!cell) {
-              return <div key={`empty-${idx}`} className="aspect-square" aria-hidden="true" />
-            }
-            const total = byDateKey.get(cell.key)?.total ?? 0
-            const level = heatLevelForValue(total, monthTotals.maxTotal, monthTotals.thresholds, heatLevelsCount)
-            const isSelected = selectedKey === cell.key
-            const isToday = todayKey === cell.key
-            return (
-              <button
-                key={cell.key}
+            <div className="flex items-center gap-2" data-no-drag>
+              <Button
                 type="button"
-                onClick={() => setSelectedKey(cell.key)}
-                className={cn(
-                  'aspect-square rounded-lg border text-left px-2 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
-                  heatClass(level, heatLevelsCount),
-                  isSelected && 'ring-2 ring-blue-500 ring-offset-2',
-                  isToday && 'outline outline-1 outline-blue-600/60'
-                )}
-                aria-pressed={isSelected}
-                aria-label={`${formatDateLabelZh(cell.key)}，总计 ${total}`}
-                title={`${cell.key}  总计 ${total}`}
+                variant="outline"
+                size="icon"
+                disabled={!canGoPrev}
+                onClick={() => setCursor((c) => addMonths(c, -1))}
+                aria-label="上个月"
+                title={`${cursor.year}年${cursor.month}月 上个月`}
                 data-no-drag
               >
-                <div className={cn('text-xs font-medium', isHeatDark(level, heatLevelsCount) ? 'text-white' : 'text-slate-700')}>
-                  {cell.day}
-                </div>
-                <div
-                  className={cn(
-                    'mt-1 text-[11px] tabular-nums',
-                    isHeatDark(level, heatLevelsCount) ? 'text-white/90' : 'text-slate-500'
-                  )}
-                >
-                  {total > 0 ? total.toLocaleString() : ''}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={!canGoNext}
+                onClick={() => setCursor((c) => addMonths(c, 1))}
+                aria-label="下个月"
+                title={`${cursor.year}年${cursor.month}月 下个月`}
+                data-no-drag
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const ym = todayKey ? yearMonthFromNaiveDateKey(todayKey) : null
+                  if (ym) setCursor(ym)
+                  if (todayKey) setSelectedKey(todayKey)
+                }}
+                disabled={!todayKey}
+                data-no-drag
+              >
+                今天
+              </Button>
+            </div>
+          </div>
 
-        <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-          <div className="min-w-0 truncate" title={`${cursor.year}年${cursor.month}月`}>
-            <span className="sr-only">{cursor.year}年</span>
-            {cursor.month}月热力
-          </div>
-          <div className="flex items-center gap-2">
-            <span>少</span>
-            {heatLevels(heatLevelsCount).map((lv) => (
-              <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} aria-hidden="true" />
+          <div className="mt-3 grid grid-cols-7 gap-2">
+            {WEEKDAYS_ZH.map((w) => (
+              <div key={w} className="text-[11px] text-slate-500 text-center">
+                {w}
+              </div>
             ))}
-            <span>多</span>
+            {monthDays.map((cell, idx) => {
+              if (!cell) {
+                return <div key={`empty-${idx}`} className="aspect-square" aria-hidden="true" />
+              }
+              const total = byDateKey.get(cell.key)?.total ?? 0
+              const level = heatLevelForValue(total, monthTotals.maxTotal, monthTotals.thresholds, heatLevelsCount)
+              const isSelected = selectedKey === cell.key
+              const isToday = todayKey === cell.key
+              return (
+                <button
+                  key={cell.key}
+                  type="button"
+                  onClick={() => setSelectedKey(cell.key)}
+                  className={cn(
+                    'aspect-square rounded-lg border text-left px-1.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+                    heatClass(level, heatLevelsCount),
+                    isSelected && 'ring-2 ring-blue-500 ring-offset-2',
+                    isToday && 'outline outline-1 outline-blue-600/60'
+                  )}
+                  aria-pressed={isSelected}
+                  aria-label={`${formatDateLabelZh(cell.key)}，总计 ${total}`}
+                  title={`${cell.key}  总计 ${total}`}
+                  data-no-drag
+                >
+                  <div className={cn('text-[11px] font-medium leading-none', isHeatDark(level, heatLevelsCount) ? 'text-white' : 'text-slate-700')}>
+                    {cell.day}
+                  </div>
+                  <div
+                    className={cn(
+                      'mt-1 text-[10px] tabular-nums leading-none',
+                      isHeatDark(level, heatLevelsCount) ? 'text-white/90' : 'text-slate-500'
+                    )}
+                  >
+                    {total > 0 ? total.toLocaleString() : ''}
+                  </div>
+                </button>
+              )
+            })}
           </div>
-        </div>
-      </Card>
+
+          <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+            <div className="min-w-0 truncate" title={`${cursor.year}年${cursor.month}月`}>
+              <span className="sr-only">{cursor.year}年</span>
+              {cursor.month}月热力
+            </div>
+            <div className="flex items-center gap-2">
+              <span>少</span>
+              {heatLevels(heatLevelsCount).map((lv) => (
+                <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} aria-hidden="true" />
+              ))}
+              <span>多</span>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card className="p-4">
         <div className="flex items-start justify-between gap-3">
