@@ -48,6 +48,28 @@ fn normalize_skin_id(app_handle: &AppHandle, id: String) -> String {
     }
 }
 
+fn normalize_app_locale(locale: String) -> String {
+    let trimmed = locale.trim();
+    if trimmed.is_empty() || trimmed == "system" {
+        return "system".to_string();
+    }
+    let normalized = trimmed.replace('_', "-");
+    let lower = normalized.to_lowercase();
+    match lower.as_str() {
+        "en" => "en".to_string(),
+        "zh-cn" | "zh-hans" | "zh-sg" => "zh-CN".to_string(),
+        "zh-tw" | "zh-hant" | "zh-hk" | "zh-mo" => "zh-TW".to_string(),
+        _ => {
+            // If it starts with `zh`, default to Simplified.
+            if lower.starts_with("zh") {
+                "zh-CN".to_string()
+            } else {
+                "system".to_string()
+            }
+        }
+    }
+}
+
 fn normalize_keyboard_layout(id: String) -> String {
     match id.as_str() {
         "full_100" | "full_104" => "full_104".to_string(),
@@ -157,6 +179,7 @@ pub async fn get_settings() -> Result<Settings, String> {
 #[tauri::command]
 pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Result<(), String> {
     let mut settings = settings;
+    settings.app_locale = normalize_app_locale(settings.app_locale);
     settings.window_scale = normalize_scale(settings.window_scale);
     settings.wooden_fish_skin = normalize_skin_id(&app_handle, settings.wooden_fish_skin);
     settings.keyboard_layout = normalize_keyboard_layout(settings.keyboard_layout);

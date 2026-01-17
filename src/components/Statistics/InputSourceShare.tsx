@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '@/types/merit'
 import { buildDayIndex, sumPeriod } from '@/lib/statisticsInsights'
 import { cn } from '@/lib/utils'
@@ -27,12 +28,16 @@ function sumAll(index: Map<string, DailyStats>) {
   return { total, keyboard, mouse_single }
 }
 
-function rangeLabel(mode: RangeMode, endKey: string) {
-  if (mode === 'day') return `当日 ${endKey}`
-  if (mode === '7') return `近7天（截止 ${endKey}）`
-  if (mode === '30') return `近30天（截止 ${endKey}）`
-  if (mode === '365') return `近1年（截止 ${endKey}）`
-  return '累计'
+function rangeLabel(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  mode: RangeMode,
+  endKey: string,
+) {
+  if (mode === 'day') return t('statistics.range.dayWithDate', { date: endKey })
+  if (mode === '7') return t('statistics.range.lastDaysWithEnd', { days: 7, date: endKey })
+  if (mode === '30') return t('statistics.range.lastDaysWithEnd', { days: 30, date: endKey })
+  if (mode === '365') return t('statistics.range.lastYearWithEnd', { date: endKey })
+  return t('customStatistics.mode.cumulative')
 }
 
 function modeToDays(mode: RangeMode): number | null {
@@ -52,6 +57,7 @@ export function InputSourceShare({
   endKey: string
   defaultRange?: RangeMode
 }) {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<RangeMode>(defaultRange)
   const index = useMemo(() => buildDayIndex(days), [days])
 
@@ -85,33 +91,38 @@ export function InputSourceShare({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">输入来源占比</div>
-          <div className="mt-1 text-xs text-slate-500 tabular-nums">{rangeLabel(mode, endKey)}</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.source_share.title')}</div>
+          <div className="mt-1 text-xs text-slate-500 tabular-nums">{rangeLabel(t, mode, endKey)}</div>
         </div>
         <div className="flex items-center gap-2" data-no-drag>
           <Button type="button" size="sm" variant={mode === 'day' ? 'secondary' : 'outline'} onClick={() => setMode('day')} data-no-drag>
-            当日
+            {t('statistics.range.day')}
           </Button>
           <Button type="button" size="sm" variant={mode === '7' ? 'secondary' : 'outline'} onClick={() => setMode('7')} data-no-drag>
-            7 天
+            {t('statistics.range.days', { days: 7 })}
           </Button>
           <Button type="button" size="sm" variant={mode === '30' ? 'secondary' : 'outline'} onClick={() => setMode('30')} data-no-drag>
-            30 天
+            {t('statistics.range.days', { days: 30 })}
           </Button>
           <Button type="button" size="sm" variant={mode === 'all' ? 'secondary' : 'outline'} onClick={() => setMode('all')} data-no-drag>
-            累计
+            {t('customStatistics.mode.cumulative')}
           </Button>
         </div>
       </div>
 
       {!hasAny ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无数据
+          {t('statistics.noData')}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-4 items-center">
           <div className="flex items-center justify-center">
-            <svg viewBox={`0 0 ${chart.size} ${chart.size}`} className="h-[120px] w-[120px]" role="img" aria-label="输入来源占比">
+            <svg
+              viewBox={`0 0 ${chart.size} ${chart.size}`}
+              className="h-[120px] w-[120px]"
+              role="img"
+              aria-label={t('statistics.inputSourceShare.ariaLabel')}
+            >
               <g transform={`rotate(-90 ${chart.cx} ${chart.cy})`}>
                 <circle
                   cx={chart.cx}
@@ -148,7 +159,7 @@ export function InputSourceShare({
                 {total.toLocaleString()}
               </text>
               <text x={chart.cx} y={chart.cy + 18} textAnchor="middle" fontSize="10" fill="#64748b">
-                总计
+                {t('customStatistics.total')}
               </text>
             </svg>
           </div>
@@ -159,7 +170,7 @@ export function InputSourceShare({
                 <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-2 text-[11px] text-slate-500">
                     <span className="h-2.5 w-2.5 rounded-sm bg-teal-500" aria-hidden="true" />
-                    键盘
+                    {t('customStatistics.keyboard')}
                   </div>
                   <div className="text-[11px] text-slate-500 tabular-nums">{fmtPct(keyboardShare)}</div>
                 </div>
@@ -173,7 +184,7 @@ export function InputSourceShare({
                 <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-2 text-[11px] text-slate-500">
                     <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" aria-hidden="true" />
-                    单击
+                    {t('customStatistics.click')}
                   </div>
                   <div className="text-[11px] text-slate-500 tabular-nums">{fmtPct(mouseShare)}</div>
                 </div>
@@ -185,7 +196,12 @@ export function InputSourceShare({
             </div>
 
             <div className={cn('text-xs text-slate-500 tabular-nums', total !== keyboard + mouse && 'text-slate-400')}>
-              {total !== keyboard + mouse ? `注：总计 ${total.toLocaleString()} ≠ 键盘+单击（部分旧数据字段可能不齐）` : ' '}
+              {total !== keyboard + mouse
+                ? t('statistics.notes.totalMismatch', {
+                    total: total.toLocaleString(),
+                    sum: (keyboard + mouse).toLocaleString(),
+                  })
+                : ' '}
             </div>
           </div>
         </div>
@@ -193,4 +209,3 @@ export function InputSourceShare({
     </div>
   )
 }
-

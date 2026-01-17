@@ -1,4 +1,5 @@
 import { useId, useMemo, type ComponentType } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Keyboard, Mouse } from 'lucide-react'
 import type { MeritStats } from '@/types/merit'
 import { cn } from '@/lib/utils'
@@ -67,6 +68,7 @@ function StatRing({
 }
 
 function BreakdownTile({ item, total }: { item: BreakdownItem; total: number }) {
+  const { t } = useTranslation()
   const percent = total > 0 ? (item.value / total) * 100 : 0
   return (
     <div className="rounded-2xl border border-amber-200/40 bg-white/70 p-4 shadow-sm">
@@ -76,7 +78,10 @@ function BreakdownTile({ item, total }: { item: BreakdownItem; total: number }) 
             percent={percent}
             accent={item.accent}
             icon={item.icon}
-            ariaLabel={`${item.label} 占比 ${Math.round(clampPercent(percent))}%`}
+            ariaLabel={t('statistics.todayOverview.sourceShareAria', {
+              source: item.label,
+              percent: Math.round(clampPercent(percent)).toLocaleString(),
+            })}
           />
           <div className="min-w-0">
             <div className="text-xs text-slate-500">{item.label}</div>
@@ -91,23 +96,24 @@ function BreakdownTile({ item, total }: { item: BreakdownItem; total: number }) 
 }
 
 export function TodayOverviewPanel({ stats }: { stats: MeritStats | null | undefined }) {
+  const { t } = useTranslation()
   const todayTotal = stats?.today.total ?? 0
   const breakdownItems = useMemo<BreakdownItem[]>(
     () => [
       {
-        label: '键盘',
+        label: t('customStatistics.keyboard'),
         value: stats?.today.keyboard ?? 0,
         icon: Keyboard,
         accent: { from: '#60a5fa', to: '#2563eb' },
       },
       {
-        label: '单击',
+        label: t('customStatistics.click'),
         value: stats?.today.mouse_single ?? 0,
         icon: Mouse,
         accent: { from: '#fbbf24', to: '#d97706' },
       },
     ],
-    [stats?.today.keyboard, stats?.today.mouse_single]
+    [stats?.today.keyboard, stats?.today.mouse_single, t]
   )
 
   return (
@@ -120,9 +126,9 @@ export function TodayOverviewPanel({ stats }: { stats: MeritStats | null | undef
       >
         <div className="flex items-start justify-between gap-6">
           <div className="min-w-0">
-            <div className="text-sm font-medium text-slate-700">今日总计</div>
+            <div className="text-sm font-medium text-slate-700">{t('statistics.todayOverview.todayTotal')}</div>
             <div className="mt-1 text-xs text-slate-500 tabular-nums">{stats?.today.date ?? ''}</div>
-            <div className="mt-4 text-sm text-slate-600">来源分布</div>
+            <div className="mt-4 text-sm text-slate-600">{t('statistics.todayOverview.sourceDistribution')}</div>
           </div>
           <div className="text-5xl font-semibold leading-none tabular-nums bg-gradient-to-r from-amber-700 to-amber-500 bg-clip-text text-transparent">
             {todayTotal.toLocaleString()}
@@ -144,8 +150,8 @@ export function TodayOverviewPanel({ stats }: { stats: MeritStats | null | undef
       >
         <div className="flex items-start justify-between gap-6">
           <div className="min-w-0">
-            <div className="text-sm font-medium text-slate-700">总功德</div>
-            <div className="mt-1 text-xs text-slate-500">累计</div>
+            <div className="text-sm font-medium text-slate-700">{t('statistics.todayOverview.totalMerit')}</div>
+            <div className="mt-1 text-xs text-slate-500">{t('customStatistics.mode.cumulative')}</div>
           </div>
           <div className="text-4xl font-semibold leading-none tabular-nums bg-gradient-to-r from-amber-700 to-amber-500 bg-clip-text text-transparent">
             {(stats?.total_merit ?? 0).toLocaleString()}

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
 import { COMMANDS } from '../types/events'
 import { useSettingsStore } from '../stores/useSettingsStore'
+import i18n from '@/i18n'
 
 const SCALE_OPTIONS = [50, 75, 100, 125, 150] as const
 const OPACITY_OPTIONS: Array<{ label: string; value: number }> = [
@@ -19,6 +20,7 @@ function approxEq(a: number, b: number) {
 export async function showMainQuickMenu() {
   const settings = useSettingsStore.getState().settings
   if (!settings) return
+  const t = (key: string) => i18n.t(key) as string
 
   const isListening = await invoke<boolean>(COMMANDS.IS_INPUT_LISTENING).catch(() => false)
 
@@ -26,36 +28,36 @@ export async function showMainQuickMenu() {
 
   const items = await Promise.all([
     MenuItem.new({
-      text: '打开设置',
+      text: t('quickMenu.openSettings'),
       action: () => void invoke(COMMANDS.SHOW_SETTINGS_WINDOW),
     }),
     MenuItem.new({
-      text: '自定义统计',
+      text: t('quickMenu.customStatistics'),
       action: () => void invoke(COMMANDS.SHOW_CUSTOM_STATISTICS_WINDOW),
     }),
     MenuItem.new({
-      text: '隐藏木鱼',
+      text: t('quickMenu.hideWoodenFish'),
       action: () => void invoke(COMMANDS.HIDE_MAIN_WINDOW),
     }),
     PredefinedMenuItem.new({ item: 'Separator' }),
     CheckMenuItem.new({
-      text: '锁定位置',
+      text: t('quickMenu.lockPosition'),
       checked: settings.lock_window_position ?? false,
       action: () => void updateSettings({ lock_window_position: !(settings.lock_window_position ?? false) }),
     }),
     CheckMenuItem.new({
-      text: '自动淡出',
+      text: t('quickMenu.autoFade'),
       checked: settings.auto_fade_enabled ?? false,
       action: () => void updateSettings({ auto_fade_enabled: !(settings.auto_fade_enabled ?? false) }),
     }),
     Submenu.new({
-      text: '停靠到',
+      text: t('quickMenu.dockTo'),
       items: await Promise.all(
         [
-          { text: '左上', corner: 'top_left' },
-          { text: '右上', corner: 'top_right' },
-          { text: '左下', corner: 'bottom_left' },
-          { text: '右下', corner: 'bottom_right' },
+          { text: t('quickMenu.dockCorners.topLeft'), corner: 'top_left' },
+          { text: t('quickMenu.dockCorners.topRight'), corner: 'top_right' },
+          { text: t('quickMenu.dockCorners.bottomLeft'), corner: 'bottom_left' },
+          { text: t('quickMenu.dockCorners.bottomRight'), corner: 'bottom_right' },
         ].map((opt) =>
           MenuItem.new({
             text: opt.text,
@@ -66,7 +68,7 @@ export async function showMainQuickMenu() {
     }),
     PredefinedMenuItem.new({ item: 'Separator' }),
     CheckMenuItem.new({
-      text: '开启全局监听',
+      text: t('quickMenu.globalListening'),
       checked: isListening,
       action: () => {
         void (isListening
@@ -76,12 +78,12 @@ export async function showMainQuickMenu() {
     }),
     PredefinedMenuItem.new({ item: 'Separator' }),
     CheckMenuItem.new({
-      text: '总在最前',
+      text: t('quickMenu.alwaysOnTop'),
       checked: settings.always_on_top,
       action: () => void updateSettings({ always_on_top: !settings.always_on_top }),
     }),
     Submenu.new({
-      text: '窗口大小',
+      text: t('quickMenu.windowScale'),
       items: await Promise.all(
         SCALE_OPTIONS.map((scale) =>
           CheckMenuItem.new({
@@ -93,7 +95,7 @@ export async function showMainQuickMenu() {
       ),
     }),
     Submenu.new({
-      text: '透明度',
+      text: t('quickMenu.opacity'),
       items: await Promise.all(
         OPACITY_OPTIONS.map((opt) =>
           CheckMenuItem.new({
@@ -106,7 +108,7 @@ export async function showMainQuickMenu() {
     }),
     PredefinedMenuItem.new({ item: 'Separator' }),
     MenuItem.new({
-      text: '退出',
+      text: t('quickMenu.quit'),
       action: () => void invoke(COMMANDS.QUIT_APP),
     }),
   ])

@@ -38,6 +38,7 @@ export interface MeritStats {
 }
 
 export interface Settings {
+  app_locale?: 'system' | 'en' | 'zh-CN' | 'zh-TW'
   enable_keyboard: boolean
   enable_mouse_single: boolean
   always_on_top: boolean

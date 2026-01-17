@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '../../types/merit'
 import { buildKeySpecIndex, getKeyboardLayout, shortcutDisplayParts, type KeyboardPlatform } from '@/lib/keyboard'
 import { cn } from '@/lib/utils'
@@ -49,6 +50,7 @@ export function DayComparison({
   reference?: DailyStats
   platform: KeyboardPlatform
 }) {
+  const { t } = useTranslation()
   const keyIndex = useMemo(() => buildKeySpecIndex(getKeyboardLayout('full_108', platform)), [platform])
 
   const summary = useMemo(() => {
@@ -79,7 +81,7 @@ export function DayComparison({
   if (!base) {
     return (
       <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-        暂无当日数据
+        {t('statistics.dayComparison.noBase')}
       </div>
     )
   }
@@ -87,7 +89,7 @@ export function DayComparison({
   if (!reference) {
     return (
       <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-        {title}：无对比数据
+        {t('statistics.dayComparison.noReference', { title })}
       </div>
     )
   }
@@ -98,19 +100,19 @@ export function DayComparison({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatDelta
-          label="总计"
+          label={t('customStatistics.total')}
           value={summary.total.delta}
           base={summary.total.base}
           reference={summary.total.reference}
         />
         <StatDelta
-          label="键盘"
+          label={t('customStatistics.keyboard')}
           value={summary.keyboard.delta}
           base={summary.keyboard.base}
           reference={summary.keyboard.reference}
         />
         <StatDelta
-          label="单击"
+          label={t('customStatistics.click')}
           value={summary.mouse.delta}
           base={summary.mouse.base}
           reference={summary.mouse.reference}
@@ -119,7 +121,7 @@ export function DayComparison({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <DeltaGroup
-          title="Top 按键变化"
+          title={t('statistics.dayComparison.topKeyChanges')}
           up={keyUp.map((e) => ({
             id: e.id,
             label: <KeyCombo parts={[{ type: 'key', label: keyIndex[e.id]?.label ?? e.id }]} />,
@@ -133,7 +135,7 @@ export function DayComparison({
         />
 
         <DeltaGroup
-          title="Top 快捷键变化"
+          title={t('statistics.dayComparison.topShortcutChanges')}
           up={shortcutUp.map((e) => ({
             id: e.id,
             label: <KeyCombo parts={shortcutDisplayParts(e.id, platform, keyIndex)} wrap />,
@@ -185,11 +187,12 @@ function DeltaGroup({
   up: Array<{ id: string; label: ReactNode; delta: number }>
   down: Array<{ id: string; label: ReactNode; delta: number }>
 }) {
+  const { t } = useTranslation()
   const hasAny = up.length > 0 || down.length > 0
   if (!hasAny) {
     return (
       <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-        {title}：暂无变化
+        {t('statistics.dayComparison.noChange', { title })}
       </div>
     )
   }
@@ -198,8 +201,8 @@ function DeltaGroup({
     <div className="rounded-lg border border-slate-200/60 bg-white p-4">
       <div className="text-xs text-slate-500">{title}</div>
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <DeltaList title="增长" entries={up} tone="up" />
-        <DeltaList title="下降" entries={down} tone="down" />
+        <DeltaList title={t('statistics.dayComparison.increase')} entries={up} tone="up" />
+        <DeltaList title={t('statistics.dayComparison.decrease')} entries={down} tone="down" />
       </div>
     </div>
   )
@@ -214,12 +217,13 @@ function DeltaList({
   entries: Array<{ id: string; label: ReactNode; delta: number }>
   tone: 'up' | 'down'
 }) {
+  const { t } = useTranslation()
   return (
     <div className="min-w-0">
       <div className="text-[11px] text-slate-500">{title}</div>
       {entries.length === 0 ? (
         <div className="mt-2 rounded-md border border-slate-200/60 bg-slate-50 px-3 py-3 text-center text-xs text-slate-500">
-          无
+          {t('statistics.dayComparison.none')}
         </div>
       ) : (
         <div className="mt-2 space-y-1">

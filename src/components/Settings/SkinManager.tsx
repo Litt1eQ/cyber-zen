@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { invoke } from '@tauri-apps/api/core'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { WOODEN_FISH_SKINS, type BuiltinWoodenFishSkinId, type WoodenFishSkin, type WoodenFishSkinId } from '../WoodenFish/skins'
@@ -8,6 +9,7 @@ import { Button } from '../ui/button'
 import { Card } from '../ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { WoodenFish } from '../WoodenFish'
+import i18n from '@/i18n'
 
 const DEFAULT_PREVIEW_WINDOW_SCALE = 100
 
@@ -25,6 +27,7 @@ export function SkinManager({
   selectedId: string
   onSelect: (id: string) => void
 }) {
+  const { t } = useTranslation()
   const { skins: customSkins, mapById: customSkinsById, loading, error, reload } = useCustomWoodenFishSkins()
   const [importBusy, setImportBusy] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
@@ -37,8 +40,8 @@ export function SkinManager({
 
   const options = useMemo<SkinOption[]>(() => {
     const builtin: SkinOption[] = [
-      { id: 'rosewood', title: '紫檀', skin: WOODEN_FISH_SKINS.rosewood, kind: 'builtin' },
-      { id: 'wood', title: '原木', skin: WOODEN_FISH_SKINS.wood, kind: 'builtin' },
+      { id: 'rosewood', title: t('settings.skins.builtin.rosewood'), skin: WOODEN_FISH_SKINS.rosewood, kind: 'builtin' },
+      { id: 'wood', title: t('settings.skins.builtin.wood'), skin: WOODEN_FISH_SKINS.wood, kind: 'builtin' },
     ]
     const custom: SkinOption[] = customSkins.map((s) => ({
       id: s.id,
@@ -47,15 +50,21 @@ export function SkinManager({
       kind: 'custom',
     }))
     return [...builtin, ...custom]
-  }, [customSkins])
+  }, [customSkins, t])
 
   const selectedOption = useMemo(() => {
     const builtin = WOODEN_FISH_SKINS[selectedId as BuiltinWoodenFishSkinId]
-    if (builtin) return { id: selectedId as WoodenFishSkinId, title: '当前', skin: builtin, kind: 'builtin' as const }
+    if (builtin) {
+      const title =
+        selectedId === 'wood'
+          ? t('settings.skins.builtin.wood')
+          : t('settings.skins.builtin.rosewood')
+      return { id: selectedId as WoodenFishSkinId, title, skin: builtin, kind: 'builtin' as const }
+    }
     const custom = customSkinsById.get(selectedId)
     if (custom) return { id: custom.id, title: stripZipSuffix(custom.name), skin: custom.skin, kind: 'custom' as const }
-    return { id: 'rosewood' as const, title: '紫檀', skin: WOODEN_FISH_SKINS.rosewood, kind: 'builtin' as const }
-  }, [customSkinsById, selectedId])
+    return { id: 'rosewood' as const, title: t('settings.skins.builtin.rosewood'), skin: WOODEN_FISH_SKINS.rosewood, kind: 'builtin' as const }
+  }, [customSkinsById, selectedId, t])
 
   const effectiveSelectedId = selectedOption.id
 
@@ -117,23 +126,26 @@ export function SkinManager({
     <Card className="p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="font-medium text-slate-900">木鱼皮肤</div>
+          <div className="font-medium text-slate-900">{t('settings.skins.title')}</div>
           <div className="text-sm text-slate-500 mt-1">
-            支持导入 zip 皮肤包（必须包含 <span className="font-mono">muyu.png</span> 与 <span className="font-mono">hammer.png</span>，尺寸分别为 500×350 与 500×150）
+            {t('settings.skins.importHintPrefix')}{' '}
+            <span className="font-mono">muyu.png</span> {t('settings.skins.importHintAnd')}{' '}
+            <span className="font-mono">hammer.png</span>
+            {t('settings.skins.importHintSuffix')}
           </div>
-          {loading && <div className="text-xs text-slate-500 mt-2">正在加载自定义皮肤…</div>}
+          {loading && <div className="text-xs text-slate-500 mt-2">{t('settings.skins.loading')}</div>}
           {error && <div className="text-xs text-red-600 mt-2">{error}</div>}
         </div>
         <div className="shrink-0 flex items-center gap-2" data-no-drag>
           <Button variant="secondary" onClick={() => setPreviewId(selectedOption.id)}>
-            预览/参考
+            {t('settings.skins.previewReference')}
           </Button>
           <Button
             variant="secondary"
             disabled={exportBusy}
             onClick={() => void handleDownloadZip('rosewood', 'wooden-fish-skin-template.zip')}
           >
-            下载模板
+            {t('settings.skins.downloadTemplate')}
           </Button>
           <Button
             variant="secondary"
@@ -145,10 +157,10 @@ export function SkinManager({
               )
             }
           >
-            导出当前 ZIP
+            {t('settings.skins.exportCurrentZip')}
           </Button>
           <Button onClick={openImport} disabled={importBusy}>
-            {importBusy ? '导入中…' : '导入 ZIP'}
+            {importBusy ? t('settings.skins.importing') : t('settings.skins.importZip')}
           </Button>
           <input
             ref={fileInputRef}
@@ -166,7 +178,11 @@ export function SkinManager({
       </div>
 
       {importError && <div className="text-xs text-red-600 mt-2">{importError}</div>}
-      {exportPath && <div className="text-xs text-slate-500 mt-2">已导出：<span className="font-mono">{exportPath}</span></div>}
+      {exportPath && (
+        <div className="text-xs text-slate-500 mt-2">
+          {t('settings.skins.exported')} <span className="font-mono">{exportPath}</span>
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-3" data-no-drag>
         {options.map((opt) => (
@@ -176,7 +192,8 @@ export function SkinManager({
             title={opt.title}
             selected={effectiveSelectedId === opt.id}
             skin={opt.skin}
-            badge={opt.kind === 'custom' ? '自定义' : '内置'}
+            badgeText={opt.kind === 'custom' ? t('settings.skins.badge.custom') : t('settings.skins.badge.builtin')}
+            badgeKind={opt.kind}
             canDelete={opt.kind === 'custom'}
             onDelete={() => setDeleteConfirm({ id: opt.id, title: opt.title })}
             onSelect={(id) => onSelect(id)}
@@ -201,14 +218,16 @@ export function SkinManager({
       >
         <DialogContent className="max-w-md" data-no-drag>
           <DialogHeader>
-            <DialogTitle>删除自定义皮肤？</DialogTitle>
+            <DialogTitle>{t('settings.skins.deleteDialog.title')}</DialogTitle>
             <DialogDescription>
-              将永久删除 <span className="font-medium text-slate-900">{deleteConfirm?.title ?? ''}</span> 的文件（仅自定义皮肤可删除）。
+              {t('settings.skins.deleteDialog.descriptionPrefix')}{' '}
+              <span className="font-medium text-slate-900">{deleteConfirm?.title ?? ''}</span>{' '}
+              {t('settings.skins.deleteDialog.descriptionSuffix')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setDeleteConfirm(null)} disabled={deleteBusyId != null}>
-              取消
+              {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -220,7 +239,7 @@ export function SkinManager({
                 void handleDelete(id)
               }}
             >
-              {deleteBusyId ? '删除中…' : '删除'}
+              {deleteBusyId ? t('settings.skins.deleting') : t('settings.skins.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -234,7 +253,8 @@ function SkinPreviewCard({
   title,
   selected,
   skin,
-  badge,
+  badgeText,
+  badgeKind,
   canDelete,
   onDelete,
   onSelect,
@@ -244,12 +264,14 @@ function SkinPreviewCard({
   title: string
   selected: boolean
   skin: WoodenFishSkin
-  badge: string
+  badgeText: string
+  badgeKind: 'builtin' | 'custom'
   canDelete: boolean
   onDelete: () => void
   onSelect: (id: WoodenFishSkinId) => void
   onPreview: (id: WoodenFishSkinId) => void
 }) {
+  const { t } = useTranslation()
   return (
     <div
       role="button"
@@ -275,7 +297,7 @@ function SkinPreviewCard({
           e.stopPropagation()
           onPreview(id)
         }}>
-          预览
+          {t('settings.skins.preview')}
         </Button>
       </div>
 
@@ -284,12 +306,12 @@ function SkinPreviewCard({
           <span
             className={[
               'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-none',
-              badge === '自定义'
+              badgeKind === 'custom'
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                 : 'border-slate-200 bg-slate-50 text-slate-600',
             ].join(' ')}
           >
-            {badge}
+            {badgeText}
           </span>
         </div>
         <img
@@ -327,7 +349,7 @@ function SkinPreviewCard({
               onDelete()
             }}
           >
-            删除
+            {t('settings.skins.delete')}
           </Button>
         </div>
       )}
@@ -344,6 +366,7 @@ function SkinPreviewDialog({
   onOpenChange: (open: boolean) => void
   selected: SkinOption
 }) {
+  const { t } = useTranslation()
   const [animating, setAnimating] = useState(false)
 
   const play = () => {
@@ -355,22 +378,22 @@ function SkinPreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl" data-no-drag>
         <DialogHeader>
-          <DialogTitle>皮肤预览器</DialogTitle>
+          <DialogTitle>{t('settings.skins.previewDialog.title')}</DialogTitle>
           <DialogDescription>
-            参考：主窗口默认尺寸为 320×320（缩放 100%）。导入皮肤的图片像素必须与默认资源一致：muyu.png 500×350，hammer.png 500×150。
+            {t('settings.skins.previewDialog.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-4">
-          <PreviewBlock title="默认（紫檀）" skin={WOODEN_FISH_SKINS.rosewood} animating={animating} />
-          <PreviewBlock title={`当前（${selected.title}）`} skin={selected.skin} animating={animating} />
+          <PreviewBlock title={t('settings.skins.previewDialog.defaultRosewood')} skin={WOODEN_FISH_SKINS.rosewood} animating={animating} />
+          <PreviewBlock title={t('settings.skins.previewDialog.current', { title: selected.title })} skin={selected.skin} animating={animating} />
         </div>
 
         <DialogFooter>
           <Button variant="secondary" onClick={play}>
-            播放敲击
+            {t('settings.skins.previewDialog.playHit')}
           </Button>
-          <Button onClick={() => onOpenChange(false)}>关闭</Button>
+          <Button onClick={() => onOpenChange(false)}>{t('common.close')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -408,12 +431,12 @@ function PreviewBlock({
 async function readFileAsBase64(file: File): Promise<string> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
-    reader.onerror = () => reject(new Error('读取文件失败'))
+    reader.onerror = () => reject(new Error(i18n.t('settings.skins.errors.readFailed') as string))
     reader.onload = () => resolve(String(reader.result ?? ''))
     reader.readAsDataURL(file)
   })
   const comma = dataUrl.indexOf(',')
-  if (comma === -1) throw new Error('Zip 编码失败')
+  if (comma === -1) throw new Error(i18n.t('settings.skins.errors.zipEncodeFailed') as string)
   return dataUrl.slice(comma + 1)
 }
 

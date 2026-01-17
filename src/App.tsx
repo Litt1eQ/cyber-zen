@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { WoodenFish } from './components/WoodenFish'
@@ -19,12 +20,15 @@ import { showMainQuickMenu } from './utils/quickMenu'
 import type { InputEvent } from './types/merit'
 import { COMMANDS, EVENTS } from './types/events'
 import { getWoodenFishHitTimeoutMs } from './components/WoodenFish/motion'
+import { useAppLocaleSync } from './hooks/useAppLocaleSync'
 
 function App() {
+  const { t, i18n } = useTranslation()
   const fetchStats = useMeritStore((s) => s.fetchStats)
   const fetchSettings = useSettingsStore((s) => s.fetchSettings)
   const settings = useSettingsStore((s) => s.settings)
   useInputListener()
+  useAppLocaleSync()
   const inputMonitoring = useInputMonitoringPermission()
   useGlobalShortcuts(settings)
 
@@ -38,6 +42,14 @@ function App() {
     fetchSettings()
     fetchStats()
   }, [fetchSettings, fetchStats])
+
+  useEffect(() => {
+    try {
+      document.title = t('windows.main')
+    } catch {
+      // ignore
+    }
+  }, [i18n.resolvedLanguage, t])
 
   useEffect(() => {
     if (!settings) return

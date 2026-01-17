@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getName, getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { appDataDir } from '@tauri-apps/api/path'
@@ -27,6 +28,7 @@ import { isLinux, isMac, isWindows } from '../../utils/platform'
 import { SkinManager } from './SkinManager'
 import { HEAT_LEVEL_COUNT_DEFAULT, HEAT_LEVEL_COUNT_MAX, HEAT_LEVEL_COUNT_MIN } from '../Statistics/heatScale'
 import { KEYBOARD_LAYOUTS, normalizeKeyboardLayoutId } from '@/lib/keyboard'
+import { useAppLocaleSync } from '@/hooks/useAppLocaleSync'
 
 type SettingsTab = 'general' | 'shortcuts' | 'statistics' | 'about'
 
@@ -37,11 +39,13 @@ const MERIT_LABEL_MAX_CHARS = 4
 const DEFAULT_MERIT_LABEL = '功德'
 
 export function Settings() {
+  const { t, i18n } = useTranslation()
   const { settings, updateSettings, fetchSettings } = useSettingsStore()
   const { clearHistory, resetAll, stats, fetchStats } = useMeritStore()
   const { isListening, toggleListening, error: listeningError } = useInputListener()
   const inputMonitoring = useInputMonitoringPermission()
   const startDragging = useWindowDragging()
+  useAppLocaleSync()
   const [showConfirm, setShowConfirm] = useState<'clear' | 'reset' | null>(null)
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [appInfo, setAppInfo] = useState<{ name: string; version: string } | null>(null)
@@ -71,6 +75,14 @@ export function Settings() {
   const autostartSupported = isMac() || isWindows() || isLinux()
 
   useSettingsSync()
+
+  useEffect(() => {
+    try {
+      document.title = t('windows.settings')
+    } catch {
+      // ignore
+    }
+  }, [i18n.resolvedLanguage, t])
 
   useEffect(() => {
     if (!settings) return
@@ -178,12 +190,12 @@ export function Settings() {
   const tabs = useMemo(
     () =>
       [
-        { id: 'general' as const, label: '基本设置', icon: IconSettings },
-        { id: 'shortcuts' as const, label: '快捷键', icon: IconKeyboard },
-        { id: 'statistics' as const, label: '统计分析', icon: IconChart },
-        { id: 'about' as const, label: '关于', icon: IconInfo },
+        { id: 'general' as const, label: t('settings.tabs.general'), icon: IconSettings },
+        { id: 'shortcuts' as const, label: t('settings.tabs.shortcuts'), icon: IconKeyboard },
+        { id: 'statistics' as const, label: t('settings.tabs.statistics'), icon: IconChart },
+        { id: 'about' as const, label: t('settings.tabs.about'), icon: IconInfo },
       ] satisfies Array<{ id: SettingsTab; label: string; icon: React.ComponentType<{ className?: string }> }>,
-    []
+    [t]
   )
 
   useEffect(() => {
@@ -212,7 +224,7 @@ export function Settings() {
   if (!settings) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-white">
-        <div className="text-slate-500">加载中...</div>
+        <div className="text-slate-500">{t('common.loading')}</div>
       </div>
     )
   }
@@ -292,10 +304,10 @@ export function Settings() {
         >
           <div className="settings-sidebar-header px-3 pb-6 flex flex-col items-center gap-2">
             <div className="h-16 w-16 rounded-2xl bg-white shadow-md border border-slate-200/60 flex items-center justify-center" data-no-drag>
-              <img src="/logo.png" alt="赛博木鱼" className="h-10 w-10 opacity-90" />
+              <img src="/logo.png" alt={t('app.name')} className="h-10 w-10 opacity-90" />
             </div>
             <div className="text-xs font-semibold text-slate-900" data-no-drag>
-              赛博木鱼
+              {t('app.name')}
             </div>
           </div>
 
@@ -329,33 +341,36 @@ export function Settings() {
             <div className="max-w-4xl">
               <div className="mb-6">
                 <h1 className="text-xl font-bold text-slate-900">
-                  {tabs.find((t) => t.id === activeTab)?.label ?? '设置'}
+                  {tabs.find((t) => t.id === activeTab)?.label ?? t('settings.titleFallback')}
                 </h1>
                 {activeTab === 'shortcuts' && (
                   <div className="text-sm text-slate-500 mt-2">
-                    支持录制后全局生效（可留空表示关闭）
+                    {t('settings.shortcutsHint')}
                   </div>
                 )}
               </div>
 
             {activeTab === 'general' && (
               <div className="space-y-8">
-                <SettingsSection title="输入监听" description="全局键盘/鼠标事件监听设置">
+                <SettingsSection
+                  title={t('settings.sections.inputListening.title')}
+                  description={t('settings.sections.inputListening.description')}
+                >
                   {inputMonitoring.supported && (
                     <SettingCard>
                       <div className="flex items-center justify-between gap-4">
                         <div className="min-w-0">
-                          <div className="font-medium text-slate-900">macOS 输入监控权限</div>
+                          <div className="font-medium text-slate-900">{t('settings.inputMonitoring.macPermissionTitle')}</div>
                           <div className="text-sm text-slate-500 mt-1">
                             {inputMonitoring.loading
-                              ? '检测中...'
+                              ? t('settings.inputMonitoring.detecting')
                               : inputMonitoring.authorized
-                                ? '已授权'
-                                : '未授权（无法接收全局键盘/鼠标事件）'}
+                                ? t('settings.inputMonitoring.authorized')
+                                : t('settings.inputMonitoring.unauthorized')}
                           </div>
                           {!inputMonitoring.authorized && !inputMonitoring.loading && (
                             <div className="text-xs text-slate-500 mt-1">
-                              如已授权仍无效：请在“输入监控”中移除本应用后重新添加，并重启应用。
+                              {t('settings.inputMonitoring.fixHint')}
                             </div>
                           )}
                           {inputMonitoring.lastError && (
@@ -374,7 +389,7 @@ export function Settings() {
                                 size="sm"
                                 data-no-drag
                               >
-                                去授权
+                                {t('settings.inputMonitoring.goAuthorize')}
                               </Button>
                               <Button
                                 disabled={inputMonitoring.loading}
@@ -383,7 +398,7 @@ export function Settings() {
                                 size="sm"
                                 data-no-drag
                               >
-                                打开系统设置
+                                {t('settings.inputMonitoring.openSystemSettings')}
                               </Button>
                             </>
                           )}
@@ -395,7 +410,7 @@ export function Settings() {
                               size="sm"
                               data-no-drag
                             >
-                              刷新
+                              {t('settings.inputMonitoring.refresh')}
                             </Button>
                           )}
                         </div>
@@ -404,8 +419,12 @@ export function Settings() {
                   )}
 
                   <SettingRow
-                    title="全局监听状态"
-                    description={isListening ? '正在监听所有输入' : '已停止监听'}
+                    title={t('settings.inputMonitoring.globalListeningStatus')}
+                    description={
+                      isListening
+                        ? t('settings.inputMonitoring.listeningAll')
+                        : t('settings.inputMonitoring.stopped')
+                    }
                     extra={listeningError?.message}
                     control={
 <Button
@@ -415,32 +434,32 @@ export function Settings() {
                         className={isListening ? '' : 'bg-emerald-600 hover:bg-emerald-700'}
                         data-no-drag
                       >
-                        {isListening ? '停止' : '启动'}
+                        {isListening ? t('settings.inputMonitoring.stop') : t('settings.inputMonitoring.start')}
                       </Button>
                     }
                   />
 
                   <SettingRow
-                    title="键盘输入"
-                    description="监听键盘按键"
+                    title={t('settings.inputMonitoring.keyboardInput')}
+                    description={t('settings.inputMonitoring.keyboardInputDesc')}
                     control={
                       <Switch checked={settings.enable_keyboard} onCheckedChange={(v) => updateSettings({ enable_keyboard: v })} data-no-drag />
                     }
                   />
 
                   <SettingRow
-                    title="鼠标单击"
-                    description="监听鼠标单击事件"
+                    title={t('settings.inputMonitoring.mouseClick')}
+                    description={t('settings.inputMonitoring.mouseClickDesc')}
                     control={
                       <Switch checked={settings.enable_mouse_single} onCheckedChange={(v) => updateSettings({ enable_mouse_single: v })} data-no-drag />
                     }
                   />
                 </SettingsSection>
 
-                <SettingsSection title="窗口设置">
+                <SettingsSection title={t('settings.sections.window.title')}>
                   <SettingRow
-                    title="锁定木鱼位置"
-                    description="启用后，禁止拖动主窗口（防误触）"
+                    title={t('settings.window.lockPosition')}
+                    description={t('settings.window.lockPositionDesc')}
                     control={
                       <Switch
                         checked={settings.lock_window_position ?? false}
@@ -451,8 +470,8 @@ export function Settings() {
                   />
 
                   <SettingRow
-                    title="窗口穿透"
-                    description="启用后，窗口不影响对其他应用程序的操作"
+                    title={t('settings.window.passThrough')}
+                    description={t('settings.window.passThroughDesc')}
                     control={
                       <Switch
                         checked={settings.window_pass_through}
@@ -463,15 +482,15 @@ export function Settings() {
                   />
 
                   <SettingRow
-                    title="总在最前"
-                    description="窗口始终显示在最前面"
+                    title={t('settings.window.alwaysOnTop')}
+                    description={t('settings.window.alwaysOnTopDesc')}
                     control={
                       <Switch checked={settings.always_on_top} onCheckedChange={(v) => updateSettings({ always_on_top: v })} data-no-drag />
                     }
                   />
 
                   <SettingRow
-                    title="停靠边距"
+                    title={t('settings.window.dockMargin')}
                     description={`${Math.round(settings.dock_margin_px ?? 0)} px`}
                     control={
                       <Slider
@@ -487,8 +506,8 @@ export function Settings() {
                   />
 
                   <SettingRow
-                    title="窗口大小"
-                    description="仅支持固定档位缩放"
+                    title={t('settings.window.scale')}
+                    description={t('settings.window.scaleDesc')}
                     control={
                       <Select value={String(settings.window_scale)} onValueChange={(v) => updateSettings({ window_scale: Number(v) })}>
                         <SelectTrigger className="w-28" data-no-drag>
@@ -506,7 +525,7 @@ export function Settings() {
                   />
 
                   <SettingRow
-                    title="窗口透明度"
+                    title={t('settings.window.opacity')}
                     description={`${Math.round(settings.opacity * 100)}%`}
                     control={
                       <Slider
@@ -522,8 +541,8 @@ export function Settings() {
                   />
 
                   <SettingRow
-                    title="自动淡出"
-                    description="鼠标离开后自动降低透明度，靠近时恢复"
+                    title={t('settings.window.autoFade')}
+                    description={t('settings.window.autoFadeDesc')}
                     control={
                       <Switch
                         checked={settings.auto_fade_enabled ?? false}
@@ -536,7 +555,7 @@ export function Settings() {
                   {(settings.auto_fade_enabled ?? false) && (
                     <>
                       <SettingRow
-                        title="淡出透明度"
+                        title={t('settings.window.autoFadeIdleOpacity')}
                         description={`${Math.round(((settings.auto_fade_idle_opacity ?? 0.35) as number) * 100)}%`}
                         control={
                           <Slider
@@ -551,7 +570,7 @@ export function Settings() {
                         }
                       />
                       <SettingRow
-                        title="淡出延迟"
+                        title={t('settings.window.autoFadeDelay')}
                         description={`${Math.round(settings.auto_fade_delay_ms ?? 800)} ms`}
                         control={
                           <Slider
@@ -566,7 +585,7 @@ export function Settings() {
                         }
                       />
                       <SettingRow
-                        title="淡出动画"
+                        title={t('settings.window.autoFadeDuration')}
                         description={`${Math.round(settings.auto_fade_duration_ms ?? 180)} ms`}
                         control={
                           <Slider
@@ -584,8 +603,8 @@ export function Settings() {
                   )}
 
                   <SettingRow
-                    title="防误拖（按住再拖）"
-                    description={`${Math.round(settings.drag_hold_ms ?? 0)} ms（0 表示关闭）`}
+                    title={t('settings.window.dragHold')}
+                    description={`${Math.round(settings.drag_hold_ms ?? 0)} ms ${t('settings.window.dragHoldDescSuffix')}`}
                     control={
                       <Slider
                         min={0}
@@ -600,10 +619,13 @@ export function Settings() {
                   />
                 </SettingsSection>
 
-                <SettingsSection title="热力图" description="统计页热力图显示偏好">
+                <SettingsSection
+                  title={t('settings.sections.heatmap.title')}
+                  description={t('settings.sections.heatmap.description')}
+                >
                   <SettingRow
-                    title="键盘配列"
-                    description="影响统计页键盘热力图的键位显示"
+                    title={t('settings.heatmap.keyboardLayout')}
+                    description={t('settings.heatmap.keyboardLayoutDesc')}
                     control={
                       <Select value={keyboardLayoutId} onValueChange={(v) => updateSettings({ keyboard_layout: v })}>
                         <SelectTrigger className="w-44" data-no-drag>
@@ -612,7 +634,7 @@ export function Settings() {
                         <SelectContent>
                           {KEYBOARD_LAYOUTS.map((opt) => (
                             <SelectItem key={opt.id} value={opt.id}>
-                              {opt.name}
+                              {t(opt.nameKey)}
                               {opt.keyCountHint ? ` (${opt.keyCountHint})` : ''}
                             </SelectItem>
                           ))}
@@ -621,8 +643,12 @@ export function Settings() {
                     }
                   />
                   <SettingRow
-                    title="颜色分级档位"
-                    description={`${settings.heatmap_levels ?? HEAT_LEVEL_COUNT_DEFAULT} 档（${HEAT_LEVEL_COUNT_MIN}-${HEAT_LEVEL_COUNT_MAX}）`}
+                    title={t('settings.heatmap.levels')}
+                    description={t('settings.heatmap.levelsDesc', {
+                      value: settings.heatmap_levels ?? HEAT_LEVEL_COUNT_DEFAULT,
+                      min: HEAT_LEVEL_COUNT_MIN,
+                      max: HEAT_LEVEL_COUNT_MAX,
+                    })}
                     control={
                       <Slider
                         min={HEAT_LEVEL_COUNT_MIN}
@@ -637,15 +663,15 @@ export function Settings() {
                   />
                 </SettingsSection>
 
-                <SettingsSection title="外观设置">
+                <SettingsSection title={t('settings.sections.appearance.title')}>
                   <SkinManager
                     selectedId={settings.wooden_fish_skin ?? 'rosewood'}
                     onSelect={(id) => updateSettings({ wooden_fish_skin: id })}
                   />
 
                   <SettingRow
-                    title="木鱼透明度"
-                    description={`${Math.round(((settings.wooden_fish_opacity ?? 1) as number) * 100)}%（仅影响木鱼与木槌）`}
+                    title={t('settings.appearance.woodenFishOpacity')}
+                    description={`${Math.round(((settings.wooden_fish_opacity ?? 1) as number) * 100)}% ${t('settings.appearance.woodenFishOpacityDesc')}`}
                     control={
                       <Slider
                         min={0}
@@ -660,7 +686,7 @@ export function Settings() {
                   />
 
                   <SettingRow
-                    title="功德浮字透明度"
+                    title={t('settings.appearance.meritPopOpacity')}
                     description={`${Math.round(((settings.merit_pop_opacity ?? 0.82) as number) * 100)}%`}
                     control={
                       <Slider
@@ -676,8 +702,11 @@ export function Settings() {
                   />
 
                   <SettingRow
-                    title="功德浮字文案"
-                    description={`示例：${(settings.merit_pop_label ?? DEFAULT_MERIT_LABEL).slice(0, MERIT_LABEL_MAX_CHARS)}+1（文案最多 ${MERIT_LABEL_MAX_CHARS} 字）`}
+                    title={t('settings.appearance.meritPopLabel')}
+                    description={t('settings.appearance.meritPopLabelExample', {
+                      example: `${(settings.merit_pop_label ?? DEFAULT_MERIT_LABEL).slice(0, MERIT_LABEL_MAX_CHARS)}+1`,
+                      max: MERIT_LABEL_MAX_CHARS,
+                    })}
                     control={
                       <div className="flex items-center gap-2">
                         <Input
@@ -710,10 +739,30 @@ export function Settings() {
                   />
                 </SettingsSection>
 
-                <SettingsSection title="应用设置">
+                <SettingsSection title={t('settings.sections.app.title')}>
                   <SettingRow
-                    title="开机自启动"
-                    description={autostartSupported ? '开机后自动启动应用' : '仅支持 macOS / Windows / Linux'}
+                    title={t('settings.language.title')}
+                    description={t('settings.language.description')}
+                    control={
+                      <Select
+                        value={settings.app_locale ?? 'system'}
+                        onValueChange={(v) => updateSettings({ app_locale: v as any })}
+                      >
+                        <SelectTrigger className="w-44" data-no-drag>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="system">{t('settings.language.system')}</SelectItem>
+                          <SelectItem value="en">{t('settings.language.en')}</SelectItem>
+                          <SelectItem value="zh-CN">{t('settings.language.zhCN')}</SelectItem>
+                          <SelectItem value="zh-TW">{t('settings.language.zhTW')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+                  <SettingRow
+                    title={t('settings.app.autostart')}
+                    description={autostartSupported ? t('settings.app.autostartDescSupported') : t('settings.app.autostartDescUnsupported')}
                     extra={autostartError ?? undefined}
                     control={
                       <Switch
@@ -726,8 +775,8 @@ export function Settings() {
                   />
 
                   <SettingRow
-                    title="显示任务栏图标"
-                    description="启用后，可在窗口列表中显示"
+                    title={t('settings.app.showTaskbarIcon')}
+                    description={t('settings.app.showTaskbarIconDesc')}
                     control={
                       <Switch
                         checked={settings.show_taskbar_icon}
@@ -738,9 +787,9 @@ export function Settings() {
                   />
                 </SettingsSection>
 
-                <SettingsSection title="动画设置">
+                <SettingsSection title={t('settings.sections.animation.title')}>
                   <SettingRow
-                    title="动画速度"
+                    title={t('settings.animation.speed')}
                     description={`${settings.animation_speed}x`}
                     control={
                       <Slider
@@ -762,74 +811,77 @@ export function Settings() {
             {activeTab === 'shortcuts' && (
               <div className="space-y-5">
                 <ShortcutRecorder
-                  title="切换木鱼显示"
-                  description="显示/隐藏主窗口"
+                  title={t('settings.shortcuts.toggleMain')}
+                  description={t('settings.shortcuts.toggleMainDesc')}
                   value={settings.shortcut_toggle_main}
                   onChange={(next) => updateSettings({ shortcut_toggle_main: next ? next : null })}
                 />
                 <ShortcutRecorder
-                  title="切换设置窗口"
-                  description="显示/隐藏本设置窗口"
+                  title={t('settings.shortcuts.toggleSettings')}
+                  description={t('settings.shortcuts.toggleSettingsDesc')}
                   value={settings.shortcut_toggle_settings}
                   onChange={(next) => updateSettings({ shortcut_toggle_settings: next ? next : null })}
                 />
                 <ShortcutRecorder
-                  title="打开自定义统计"
-                  description="快速打开自定义统计窗口"
+                  title={t('settings.shortcuts.openCustomStatistics')}
+                  description={t('settings.shortcuts.openCustomStatisticsDesc')}
                   value={settings.shortcut_open_custom_statistics}
                   onChange={(next) => updateSettings({ shortcut_open_custom_statistics: next ? next : null })}
                 />
                 <ShortcutRecorder
-                  title="关闭自定义统计"
-                  description="快速关闭自定义统计窗口"
+                  title={t('settings.shortcuts.closeCustomStatistics')}
+                  description={t('settings.shortcuts.closeCustomStatisticsDesc')}
                   value={settings.shortcut_close_custom_statistics}
                   onChange={(next) => updateSettings({ shortcut_close_custom_statistics: next ? next : null })}
                 />
                 <ShortcutRecorder
-                  title="切换输入监听"
-                  description="启动/停止全局输入监听"
+                  title={t('settings.shortcuts.toggleListening')}
+                  description={t('settings.shortcuts.toggleListeningDesc')}
                   value={settings.shortcut_toggle_listening}
                   onChange={(next) => updateSettings({ shortcut_toggle_listening: next ? next : null })}
                 />
                 <ShortcutRecorder
-                  title="窗口穿透"
-                  description="切换窗口是否穿透鼠标"
+                  title={t('settings.shortcuts.toggleWindowPassThrough')}
+                  description={t('settings.shortcuts.toggleWindowPassThroughDesc')}
                   value={settings.shortcut_toggle_window_pass_through}
                   onChange={(next) => updateSettings({ shortcut_toggle_window_pass_through: next ? next : null })}
                 />
                 <ShortcutRecorder
-                  title="窗口置顶"
-                  description="切换窗口是否总在最前"
+                  title={t('settings.shortcuts.toggleAlwaysOnTop')}
+                  description={t('settings.shortcuts.toggleAlwaysOnTopDesc')}
                   value={settings.shortcut_toggle_always_on_top}
                   onChange={(next) => updateSettings({ shortcut_toggle_always_on_top: next ? next : null })}
                 />
 
                 <div className="text-xs text-slate-500 mt-2">
-                  说明：建议使用“修饰键 + 字母/数字”或 F1-F12；如与系统/其他应用冲突，可能注册失败或不生效。
+                  {t('settings.shortcuts.hint')}
                 </div>
               </div>
             )}
 
             {activeTab === 'statistics' && (
               <div className="space-y-8">
-                <SettingsSection title="今日概览">
+                <SettingsSection title={t('settings.sections.todayOverview.title')}>
                   <TodayOverviewPanel stats={stats} />
                 </SettingsSection>
 
-                <SettingsSection title="历史统计">
+                <SettingsSection title={t('settings.sections.history.title')}>
                   <Statistics />
                 </SettingsSection>
 
-                <SettingsSection title="自定义统计展示" description="可单独打开一个窗口，自由选择要展示的统计模块">
+                <SettingsSection
+                  title={t('settings.sections.customStatistics.title')}
+                  description={t('settings.sections.customStatistics.description')}
+                >
                   <SettingCard>
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0">
-                        <div className="font-medium text-slate-900">自定义统计窗口</div>
-                        <div className="text-sm text-slate-500 mt-1">支持在窗口内勾选/排序统计模块，并从托盘/右键菜单/快捷键快速打开。</div>
+                        <div className="font-medium text-slate-900">{t('settings.customStatistics.windowTitle')}</div>
+                        <div className="text-sm text-slate-500 mt-1">{t('settings.customStatistics.windowDesc')}</div>
                       </div>
                       <div className="flex items-center gap-2" data-no-drag>
                         <Button onClick={() => void invoke(COMMANDS.SHOW_CUSTOM_STATISTICS_WINDOW)} data-no-drag>
-                          打开
+                          {t('settings.customStatistics.open')}
                         </Button>
                       </div>
                     </div>
@@ -840,13 +892,13 @@ export function Settings() {
 
             {activeTab === 'about' && (
               <div className="space-y-8">
-                <SettingsSection title="关于应用">
+                <SettingsSection title={t('settings.sections.aboutApp.title')}>
                   <SettingCard>
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0">
-                        <div className="font-semibold text-slate-900">赛博木鱼</div>
+                        <div className="font-semibold text-slate-900">{t('settings.about.appName')}</div>
                         <div className="text-sm text-slate-500 mt-1">
-                          {appInfo ? `${appInfo.name} v${appInfo.version}` : '加载版本信息...'}
+                          {appInfo ? `${appInfo.name} v${appInfo.version}` : t('settings.about.loadingVersion')}
                         </div>
                       </div>
                       <div className="flex items-center gap-2" data-no-drag>
@@ -854,16 +906,16 @@ export function Settings() {
                           onClick={handleCheckUpdate}
                           data-no-drag
                         >
-                          检查更新
+                          {t('settings.about.checkUpdate')}
                         </Button>
                       </div>
                     </div>
                   </SettingCard>
                 </SettingsSection>
 
-                <SettingsSection title="开源地址">
+                <SettingsSection title={t('settings.sections.openSource.title')}>
                   <SettingRow
-                    title="开源地址"
+                    title={t('settings.sections.openSource.title')}
                     description={
                       <a
                         href={OPEN_SOURCE_URL}
@@ -883,23 +935,23 @@ export function Settings() {
                         className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                         data-no-drag
                       >
-                        反馈问题
+                        {t('settings.about.issueFeedback')}
                       </Button>
                     }
                   />
                 </SettingsSection>
 
-                <SettingsSection title="数据目录">
+                <SettingsSection title={t('settings.sections.dataDir.title')}>
                   <SettingRow
-                    title="数据目录"
-                    description={dataDir || '加载中...'}
+                    title={t('settings.sections.dataDir.title')}
+                    description={dataDir || t('settings.about.dataDirLoading')}
                     control={
 <Button
                         onClick={handleOpenDataDir}
                         variant="outline"
                         data-no-drag
                       >
-                        打开
+                        {t('common.open')}
                       </Button>
                     }
                   />
@@ -908,24 +960,24 @@ export function Settings() {
                   )}
                 </SettingsSection>
 
-                <SettingsSection title="数据管理">
+                <SettingsSection title={t('settings.sections.dataManage.title')}>
                   <SettingRow
-                    title="清空历史记录"
-                    description="保留今日功德数据"
+                    title={t('settings.about.clearHistory')}
+                    description={t('settings.about.clearHistoryDesc')}
                     control={
 <Button
                         onClick={() => setShowConfirm('clear')}
                         variant="outline"
                         data-no-drag
                       >
-                        清空
+                        {t('settings.about.clear')}
                       </Button>
                     }
                   />
 
                   <SettingRow
-                    title="重置所有数据"
-                    description="清空所有功德数据（不可恢复）"
+                    title={t('settings.about.resetAll')}
+                    description={t('settings.about.resetAllDesc')}
                     control={
 <Button
                         onClick={() => setShowConfirm('reset')}
@@ -933,7 +985,7 @@ export function Settings() {
                         className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200"
                         data-no-drag
                       >
-                        重置
+                        {t('settings.about.reset')}
                       </Button>
                     }
                   />
@@ -958,12 +1010,12 @@ export function Settings() {
       >
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle>需要输入监控权限</DialogTitle>
+              <DialogTitle>{t('settings.inputMonitoring.permissionDialogTitle')}</DialogTitle>
               <DialogDescription asChild>
                 <div className="space-y-2">
-                  <div>开启 macOS「输入监控」权限后才能接收全局键盘/鼠标事件。</div>
+                  <div>{t('settings.inputMonitoring.permissionDialogBody')}</div>
                   <div className="text-xs text-slate-500">
-                    如已开启仍无效：请在“输入监控”中移除本应用后重新添加，并重启应用。
+                    {t('settings.inputMonitoring.fixHint')}
                   </div>
                   {inputMonitoring.lastError && (
                     <div className="text-xs text-red-600">{inputMonitoring.lastError}</div>
@@ -978,7 +1030,7 @@ export function Settings() {
               onClick={() => void closeInputPermissionDialog(true)}
               className="flex-1"
             >
-              稍后
+              {t('common.later')}
             </Button>
             <Button
               disabled={inputPermissionDialogBusy}
@@ -993,7 +1045,7 @@ export function Settings() {
                 }
               }}
             >
-              打开系统设置
+              {t('settings.inputMonitoring.openSystemSettings')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1003,12 +1055,14 @@ export function Settings() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {showConfirm === 'clear' ? '确认清空历史记录？' : '确认重置所有数据？'}
+              {showConfirm === 'clear'
+                ? t('settings.about.confirmClearTitle')
+                : t('settings.about.confirmResetTitle')}
             </DialogTitle>
             <DialogDescription>
               {showConfirm === 'clear'
-                ? '这将清空所有历史记录，但保留今日功德数据。'
-                : '这将清空所有功德数据，此操作不可恢复！'}
+                ? t('settings.about.confirmClearBody')
+                : t('settings.about.confirmResetBody')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -1017,14 +1071,14 @@ export function Settings() {
               variant="outline"
               className="flex-1"
             >
-              取消
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={showConfirm === 'clear' ? handleClearHistory : handleResetAll}
               variant="destructive"
               className="flex-1"
             >
-              确认
+              {t('common.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1040,19 +1094,19 @@ export function Settings() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {updateState.status === 'checking' && '正在检查更新...'}
-              {updateState.status === 'latest' && '已是最新版本'}
-              {updateState.status === 'available' && '发现新版本'}
-              {updateState.status === 'installing' && '正在更新...'}
-              {updateState.status === 'error' && '更新失败'}
-              {updateState.status === 'idle' && '检查更新'}
+              {updateState.status === 'checking' && t('settings.about.update.checking')}
+              {updateState.status === 'latest' && t('settings.about.update.latest')}
+              {updateState.status === 'available' && t('settings.about.update.available')}
+              {updateState.status === 'installing' && t('settings.about.update.installing')}
+              {updateState.status === 'error' && t('settings.about.update.error')}
+              {updateState.status === 'idle' && t('settings.about.update.idle')}
             </DialogTitle>
             <DialogDescription asChild>
               <div>
                 {updateState.status === 'available' && (
                   <div className="space-y-2">
                     <div>
-                      版本：<span className="font-medium text-slate-900">{updateState.update.version}</span>
+                      {t('settings.about.update.version', { version: updateState.update.version })}
                     </div>
                     {updateState.update.body && (
                       <div className="whitespace-pre-wrap break-words text-slate-600">
@@ -1061,9 +1115,9 @@ export function Settings() {
                     )}
                   </div>
                 )}
-                {updateState.status === 'latest' && '当前已是最新版本。'}
-                {updateState.status === 'checking' && '请稍候...'}
-                {updateState.status === 'installing' && '下载并安装完成后会自动重启应用。'}
+                {updateState.status === 'latest' && t('settings.about.update.latestBody')}
+                {updateState.status === 'checking' && t('settings.about.update.checkingBody')}
+                {updateState.status === 'installing' && t('settings.about.update.installingBody')}
                 {updateState.status === 'error' && updateState.message}
               </div>
             </DialogDescription>
@@ -1075,14 +1129,14 @@ export function Settings() {
               className="flex-1"
               disabled={updateState.status === 'checking' || updateState.status === 'installing'}
             >
-              {updateState.status === 'available' ? '稍后' : '关闭'}
+              {updateState.status === 'available' ? t('common.later') : t('common.close')}
             </Button>
             {updateState.status === 'available' && (
               <Button
                 onClick={handleInstallUpdate}
                 className="flex-1"
               >
-                立即更新
+                {t('settings.about.update.updateNow')}
               </Button>
             )}
           </DialogFooter>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { DailyStats } from '../../types/merit'
 import { Button } from '../ui/button'
@@ -24,9 +25,8 @@ import {
 import {
   addMonths,
   daysInMonth,
-  formatMonthLabel,
+  formatMonthLabelForLocale,
   formatNaiveDateKey,
-  formatWeekdayZh,
   isSameMonth,
   monthCompare,
   naiveDateToLocalDate,
@@ -39,7 +39,6 @@ import {
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 
-const WEEKDAYS_ZH = ['一', '二', '三', '四', '五', '六', '日'] as const
 const YEAR_VIEW_QUERY = '(min-width: 900px)'
 
 type Props = {
@@ -57,10 +56,16 @@ function safeLocalDateFromKey(dateKey: string): Date | null {
   return naiveDateToLocalDate(parts)
 }
 
-function formatDateLabelZh(dateKey: string): string {
+function formatDateLabelForLocale(dateKey: string, locale: string): string {
   const date = safeLocalDateFromKey(dateKey)
   if (!date) return dateKey
-  return `${date.getMonth() + 1}月${date.getDate()}日（${formatWeekdayZh(date)}）`
+  try {
+    const md = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(date)
+    const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date)
+    return `${md} (${weekday})`
+  } catch {
+    return dateKey
+  }
 }
 
 function yearFromDateKey(dateKey: string): number | null {
@@ -104,6 +109,7 @@ function MonthlyHistoryCalendarOnly({
   heatLevelCount,
   onSelectedKeyChange,
 }: Pick<Props, 'days' | 'todayKey' | 'heatLevelCount' | 'onSelectedKeyChange'>) {
+  const { t, i18n } = useTranslation()
   const showYearView = useMediaQuery(YEAR_VIEW_QUERY)
   const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const byDateKey = useMemo(() => {
@@ -169,6 +175,15 @@ function MonthlyHistoryCalendarOnly({
 
   const canGoPrev = monthCompare(addMonths(cursor, -1), range.min) >= 0
   const canGoNext = monthCompare(addMonths(cursor, 1), range.max) <= 0
+  const weekdayLabels = useMemo(() => {
+    try {
+      const fmt = new Intl.DateTimeFormat(i18n.language, { weekday: 'narrow' })
+      const base = new Date(2020, 5, 1, 12) // 2020-06-01 is Monday
+      return Array.from({ length: 7 }, (_, idx) => fmt.format(new Date(base.getFullYear(), base.getMonth(), base.getDate() + idx, 12)))
+    } catch {
+      return ['', '', '', '', '', '', '']
+    }
+  }, [i18n.language])
 
   const monthDays = useMemo(() => {
     const first = startOfMonth(cursor)
@@ -264,10 +279,10 @@ function MonthlyHistoryCalendarOnly({
         <Card className="p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-900 tracking-wide">{formatMonthLabel(cursor)}</div>
+              <div className="text-sm font-semibold text-slate-900 tracking-wide">{formatMonthLabelForLocale(cursor, i18n.language)}</div>
               <div className="text-[11px] text-slate-500">
-                <span className="sr-only">{cursor.year}年</span>
-                点击日期选择
+                <span className="sr-only">{t('statistics.calendar.yearSr', { year: cursor.year })}</span>
+                {t('statistics.calendar.clickToSelectDate')}
               </div>
             </div>
 
@@ -278,8 +293,8 @@ function MonthlyHistoryCalendarOnly({
                 size="icon"
                 disabled={!canGoPrev}
                 onClick={() => setCursor((c) => addMonths(c, -1))}
-                aria-label="上个月"
-                title={`${cursor.year}年${cursor.month}月 上个月`}
+                aria-label={t('statistics.calendar.prevMonth')}
+                title={t('statistics.calendar.prevMonthTitle', { year: cursor.year, month: cursor.month })}
                 data-no-drag
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -290,8 +305,8 @@ function MonthlyHistoryCalendarOnly({
                 size="icon"
                 disabled={!canGoNext}
                 onClick={() => setCursor((c) => addMonths(c, 1))}
-                aria-label="下个月"
-                title={`${cursor.year}年${cursor.month}月 下个月`}
+                aria-label={t('statistics.calendar.nextMonth')}
+                title={t('statistics.calendar.nextMonthTitle', { year: cursor.year, month: cursor.month })}
                 data-no-drag
               >
                 <ChevronRight className="h-4 w-4" />
@@ -308,14 +323,14 @@ function MonthlyHistoryCalendarOnly({
                 disabled={!todayKey}
                 data-no-drag
               >
-                今天
+                {t('statistics.calendar.today')}
               </Button>
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-7 gap-2">
-            {WEEKDAYS_ZH.map((w) => (
-              <div key={w} className="text-[11px] text-slate-500 text-center">
+            {weekdayLabels.map((w, idx) => (
+              <div key={`${w}-${idx}`} className="text-[11px] text-slate-500 text-center">
                 {w}
               </div>
             ))}
@@ -327,6 +342,7 @@ function MonthlyHistoryCalendarOnly({
               const level = heatLevelForValue(total, monthTotals.maxTotal, monthTotals.thresholds, heatLevelsCount)
               const isSelected = selectedKey === cell.key
               const isToday = todayKey === cell.key
+              const dateLabel = formatDateLabelForLocale(cell.key, i18n.language)
               return (
                 <button
                   key={cell.key}
@@ -339,8 +355,8 @@ function MonthlyHistoryCalendarOnly({
                     isToday && 'outline outline-1 outline-blue-600/60'
                   )}
                   aria-pressed={isSelected}
-                  aria-label={`${formatDateLabelZh(cell.key)}，总计 ${total}`}
-                  title={`${cell.key}  总计 ${total}`}
+                  aria-label={t('statistics.tooltips.dayTotal', { date: dateLabel, total: total.toLocaleString() })}
+                  title={t('statistics.tooltips.dayTotal', { date: cell.key, total: total.toLocaleString() })}
                   data-no-drag
                 >
                   <div className={cn('text-[11px] font-medium leading-none', isHeatDark(level, heatLevelsCount) ? 'text-white' : 'text-slate-700')}>
@@ -360,16 +376,16 @@ function MonthlyHistoryCalendarOnly({
           </div>
 
           <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-            <div className="min-w-0 truncate" title={`${cursor.year}年${cursor.month}月`}>
-              <span className="sr-only">{cursor.year}年</span>
-              {cursor.month}月热力
+            <div className="min-w-0 truncate" title={t('statistics.calendar.monthTitle', { year: cursor.year, month: cursor.month })}>
+              <span className="sr-only">{t('statistics.calendar.yearSr', { year: cursor.year })}</span>
+              {t('statistics.calendar.monthHeat', { month: cursor.month })}
             </div>
             <div className="flex items-center gap-2">
-              <span>少</span>
+              <span>{t('statistics.heat.low')}</span>
               {heatLevels(heatLevelsCount).map((lv) => (
                 <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} aria-hidden="true" />
               ))}
-              <span>多</span>
+              <span>{t('statistics.heat.high')}</span>
             </div>
           </div>
         </Card>
@@ -385,6 +401,7 @@ function MonthlyHistoryCalendarFull({
   keyboardLayoutId,
   onSelectedKeyChange,
 }: Pick<Props, 'days' | 'todayKey' | 'heatLevelCount' | 'keyboardLayoutId' | 'onSelectedKeyChange'>) {
+  const { t, i18n } = useTranslation()
   const showYearView = useMediaQuery(YEAR_VIEW_QUERY)
   const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const byDateKey = useMemo(() => {
@@ -452,6 +469,15 @@ function MonthlyHistoryCalendarFull({
 
   const canGoPrev = monthCompare(addMonths(cursor, -1), range.min) >= 0
   const canGoNext = monthCompare(addMonths(cursor, 1), range.max) <= 0
+  const weekdayLabels = useMemo(() => {
+    try {
+      const fmt = new Intl.DateTimeFormat(i18n.language, { weekday: 'narrow' })
+      const base = new Date(2020, 5, 1, 12) // 2020-06-01 is Monday
+      return Array.from({ length: 7 }, (_, idx) => fmt.format(new Date(base.getFullYear(), base.getMonth(), base.getDate() + idx, 12)))
+    } catch {
+      return ['', '', '', '', '', '', '']
+    }
+  }, [i18n.language])
 
   const monthDays = useMemo(() => {
     const first = startOfMonth(cursor)
@@ -631,10 +657,10 @@ function MonthlyHistoryCalendarFull({
         <Card className="p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-900 tracking-wide">{formatMonthLabel(cursor)}</div>
+              <div className="text-sm font-semibold text-slate-900 tracking-wide">{formatMonthLabelForLocale(cursor, i18n.language)}</div>
               <div className="text-[11px] text-slate-500">
-                <span className="sr-only">{cursor.year}年</span>
-                点击日期查看详情
+                <span className="sr-only">{t('statistics.calendar.yearSr', { year: cursor.year })}</span>
+                {t('statistics.calendar.clickToViewDetails')}
               </div>
             </div>
 
@@ -645,8 +671,8 @@ function MonthlyHistoryCalendarFull({
                 size="icon"
                 disabled={!canGoPrev}
                 onClick={() => setCursor((c) => addMonths(c, -1))}
-                aria-label="上个月"
-                title={`${cursor.year}年${cursor.month}月 上个月`}
+                aria-label={t('statistics.calendar.prevMonth')}
+                title={t('statistics.calendar.prevMonthTitle', { year: cursor.year, month: cursor.month })}
                 data-no-drag
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -657,8 +683,8 @@ function MonthlyHistoryCalendarFull({
                 size="icon"
                 disabled={!canGoNext}
                 onClick={() => setCursor((c) => addMonths(c, 1))}
-                aria-label="下个月"
-                title={`${cursor.year}年${cursor.month}月 下个月`}
+                aria-label={t('statistics.calendar.nextMonth')}
+                title={t('statistics.calendar.nextMonthTitle', { year: cursor.year, month: cursor.month })}
                 data-no-drag
               >
                 <ChevronRight className="h-4 w-4" />
@@ -675,14 +701,14 @@ function MonthlyHistoryCalendarFull({
                 disabled={!todayKey}
                 data-no-drag
               >
-                今天
+                {t('statistics.calendar.today')}
               </Button>
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-7 gap-2">
-            {WEEKDAYS_ZH.map((w) => (
-              <div key={w} className="text-[11px] text-slate-500 text-center">
+            {weekdayLabels.map((w, idx) => (
+              <div key={`${w}-${idx}`} className="text-[11px] text-slate-500 text-center">
                 {w}
               </div>
             ))}
@@ -694,6 +720,7 @@ function MonthlyHistoryCalendarFull({
               const level = heatLevelForValue(total, monthTotals.maxTotal, monthTotals.thresholds, heatLevelsCount)
               const isSelected = selectedKey === cell.key
               const isToday = todayKey === cell.key
+              const dateLabel = formatDateLabelForLocale(cell.key, i18n.language)
               return (
                 <button
                   key={cell.key}
@@ -706,8 +733,8 @@ function MonthlyHistoryCalendarFull({
                     isToday && 'outline outline-1 outline-blue-600/60'
                   )}
                   aria-pressed={isSelected}
-                  aria-label={`${formatDateLabelZh(cell.key)}，总计 ${total}`}
-                  title={`${cell.key}  总计 ${total}`}
+                  aria-label={t('statistics.tooltips.dayTotal', { date: dateLabel, total: total.toLocaleString() })}
+                  title={t('statistics.tooltips.dayTotal', { date: cell.key, total: total.toLocaleString() })}
                   data-no-drag
                 >
                   <div className={cn('text-[11px] font-medium leading-none', isHeatDark(level, heatLevelsCount) ? 'text-white' : 'text-slate-700')}>
@@ -727,16 +754,16 @@ function MonthlyHistoryCalendarFull({
           </div>
 
           <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-            <div className="min-w-0 truncate" title={`${cursor.year}年${cursor.month}月`}>
-              <span className="sr-only">{cursor.year}年</span>
-              {cursor.month}月热力
+            <div className="min-w-0 truncate" title={t('statistics.calendar.monthTitle', { year: cursor.year, month: cursor.month })}>
+              <span className="sr-only">{t('statistics.calendar.yearSr', { year: cursor.year })}</span>
+              {t('statistics.calendar.monthHeat', { month: cursor.month })}
             </div>
             <div className="flex items-center gap-2">
-              <span>少</span>
+              <span>{t('statistics.heat.low')}</span>
               {heatLevels(heatLevelsCount).map((lv) => (
                 <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} aria-hidden="true" />
               ))}
-              <span>多</span>
+              <span>{t('statistics.heat.high')}</span>
             </div>
           </div>
         </Card>
@@ -745,8 +772,10 @@ function MonthlyHistoryCalendarFull({
       <Card className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-900 tracking-wide">当日详情</div>
-            <div className="mt-1 text-xs text-slate-500">{selectedKey ? formatDateLabelZh(selectedKey) : '请选择一天'}</div>
+            <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('statistics.calendar.dayDetails')}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {selectedKey ? formatDateLabelForLocale(selectedKey, i18n.language) : t('statistics.calendar.pickADay')}
+            </div>
           </div>
           <div className="flex items-center gap-2" data-no-drag>
             <Button
@@ -756,7 +785,7 @@ function MonthlyHistoryCalendarFull({
               onClick={() => setKeyHeatMode('day')}
               data-no-drag
             >
-              当日
+              {t('customStatistics.mode.daily')}
             </Button>
             <Button
               type="button"
@@ -765,29 +794,29 @@ function MonthlyHistoryCalendarFull({
               onClick={() => setKeyHeatMode('total')}
               data-no-drag
             >
-              累计
+              {t('customStatistics.mode.cumulative')}
             </Button>
           </div>
         </div>
 
         <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
-          <div className="text-xs text-slate-500">数量</div>
+          <div className="text-xs text-slate-500">{t('statistics.calendar.count')}</div>
           <div className="mt-2 text-3xl font-bold text-slate-900 tabular-nums">
             {(selectedDay?.total ?? 0).toLocaleString()}
           </div>
         </div>
 
         <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
-          <div className="text-xs text-slate-500">来源</div>
+          <div className="text-xs text-slate-500">{t('statistics.calendar.source')}</div>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-slate-50 border border-slate-200/60 p-3">
-              <div className="text-xs text-slate-500">键盘</div>
+              <div className="text-xs text-slate-500">{t('customStatistics.keyboard')}</div>
               <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">
                 {(selectedDay?.keyboard ?? 0).toLocaleString()}
               </div>
             </div>
             <div className="rounded-lg bg-slate-50 border border-slate-200/60 p-3">
-              <div className="text-xs text-slate-500">单击</div>
+              <div className="text-xs text-slate-500">{t('customStatistics.click')}</div>
               <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">
                 {(selectedDay?.mouse_single ?? 0).toLocaleString()}
               </div>
@@ -797,7 +826,7 @@ function MonthlyHistoryCalendarFull({
 
         {keyHeatMode === 'day' && (
           <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
-            <div className="text-xs text-slate-500">按小时分布</div>
+            <div className="text-xs text-slate-500">{t('statistics.calendar.hourlyDistribution')}</div>
             <div className="mt-3">
               <HourlyDistribution hourly={selectedDay?.hourly ?? null} />
             </div>
@@ -807,7 +836,7 @@ function MonthlyHistoryCalendarFull({
         {keyHeatMode === 'day' && (
           <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-slate-500">对比</div>
+              <div className="text-xs text-slate-500">{t('statistics.calendar.comparison')}</div>
               <div className="flex items-center gap-2" data-no-drag>
                 <Button
                   type="button"
@@ -816,7 +845,7 @@ function MonthlyHistoryCalendarFull({
                   onClick={() => setCompareMode('yesterday')}
                   data-no-drag
                 >
-                  较昨日
+                  {t('statistics.calendar.vsYesterday')}
                 </Button>
                 <Button
                   type="button"
@@ -825,7 +854,7 @@ function MonthlyHistoryCalendarFull({
                   onClick={() => setCompareMode('last_week')}
                   data-no-drag
                 >
-                  较上周同日
+                  {t('statistics.calendar.vsLastWeek')}
                 </Button>
               </div>
             </div>
@@ -833,8 +862,14 @@ function MonthlyHistoryCalendarFull({
               <DayComparison
                 title={
                   compareMode === 'yesterday'
-                    ? `${selectedKey ?? '当日'} vs 昨日（${compareKeys.yesterday ?? 'N/A'}）`
-                    : `${selectedKey ?? '当日'} vs 上周同日（${compareKeys.lastWeek ?? 'N/A'}）`
+                    ? t('statistics.calendar.compareTitleYesterday', {
+                      day: selectedKey ?? t('customStatistics.mode.daily'),
+                      other: compareKeys.yesterday ?? 'N/A',
+                    })
+                    : t('statistics.calendar.compareTitleLastWeek', {
+                      day: selectedKey ?? t('customStatistics.mode.daily'),
+                      other: compareKeys.lastWeek ?? 'N/A',
+                    })
                 }
                 base={selectedDay}
                 reference={compareReferenceDay}
@@ -846,9 +881,9 @@ function MonthlyHistoryCalendarFull({
 
         <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-slate-500">键盘热力图</div>
+            <div className="text-xs text-slate-500">{t('statistics.calendar.keyboardHeatmap')}</div>
             <div className="flex items-center gap-2" data-no-drag>
-              <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
+              <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? t('customStatistics.mode.daily') : t('customStatistics.mode.cumulative')}</div>
               <KeyboardHeatmapShareDialog
                 unshiftedCounts={keyCountsUnshifted}
                 shiftedCounts={keyCountsShifted}
@@ -856,14 +891,14 @@ function MonthlyHistoryCalendarFull({
                 layoutId={keyboardLayoutId}
                 platform={platform}
                 dateKey={selectedKey ?? todayKey ?? null}
-                modeLabel={keyHeatMode === 'day' ? '当日' : '累计'}
+                modeLabel={keyHeatMode === 'day' ? t('customStatistics.mode.daily') : t('customStatistics.mode.cumulative')}
                 meritValue={shareMeritValue}
                 meritLabel={
                   keyHeatMode === 'total'
-                    ? '累计功德'
+                    ? t('customStatistics.meritLabel.cumulative')
                     : selectedKey && todayKey && selectedKey === todayKey
-                      ? '今日功德'
-                      : '当日功德'
+                      ? t('customStatistics.meritLabel.today')
+                      : t('statistics.calendar.meritLabel.day')
                 }
               />
             </div>
@@ -880,8 +915,8 @@ function MonthlyHistoryCalendarFull({
 
         <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-slate-500">按键排行</div>
-            <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
+            <div className="text-xs text-slate-500">{t('statistics.calendar.keyRanking')}</div>
+            <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? t('customStatistics.mode.daily') : t('customStatistics.mode.cumulative')}</div>
           </div>
           <div className="mt-3">
             <KeyRanking counts={keyCountsAll} platform={platform} keyboardLayoutId={keyboardLayoutId} />
@@ -889,13 +924,13 @@ function MonthlyHistoryCalendarFull({
         </div>
 
         <div className="mt-4">
-          <ShortcutList counts={shortcutCounts} modeLabel={keyHeatMode === 'day' ? '当日' : '累计'} />
+          <ShortcutList counts={shortcutCounts} modeLabel={keyHeatMode === 'day' ? t('customStatistics.mode.daily') : t('customStatistics.mode.cumulative')} />
         </div>
 
         <div className="mt-4 rounded-lg border border-slate-200/60 bg-white p-4">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-slate-500">鼠标热力图</div>
-            <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? '当日' : '累计'}</div>
+            <div className="text-xs text-slate-500">{t('statistics.calendar.mouseHeatmap')}</div>
+            <div className="text-xs text-slate-500">{keyHeatMode === 'day' ? t('customStatistics.mode.daily') : t('customStatistics.mode.cumulative')}</div>
           </div>
           <div className="mt-3">
             <MouseButtonsHeatmap counts={mouseButtonCounts} heatLevelCount={heatLevelsCount} />

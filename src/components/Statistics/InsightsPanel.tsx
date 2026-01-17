@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '@/types/merit'
 import { cn } from '@/lib/utils'
 import {
@@ -54,6 +55,7 @@ function TonePill({ value }: { value: number }) {
 }
 
 function CompactCounters({ title, counters }: { title: string; counters: PeriodCounters }) {
+  const { t } = useTranslation()
   return (
     <div className="rounded-lg border border-slate-200/60 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
@@ -62,8 +64,8 @@ function CompactCounters({ title, counters }: { title: string; counters: PeriodC
           <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">{counters.total.toLocaleString()}</div>
         </div>
         <div className="shrink-0 text-right text-[11px] text-slate-500 tabular-nums">
-          <div>键盘 {counters.keyboard.toLocaleString()}</div>
-          <div>单击 {counters.mouse_single.toLocaleString()}</div>
+          <div>{t('statistics.breakdown.keyboard', { value: counters.keyboard.toLocaleString() })}</div>
+          <div>{t('statistics.breakdown.click', { value: counters.mouse_single.toLocaleString() })}</div>
         </div>
       </div>
     </div>
@@ -71,11 +73,12 @@ function CompactCounters({ title, counters }: { title: string; counters: PeriodC
 }
 
 function ComparisonBlock({ comp }: { comp: PeriodComparison }) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-2">
       <div className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(140px,1fr))]">
         <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
-          <div className="text-[11px] text-slate-500">总计</div>
+          <div className="text-[11px] text-slate-500">{t('customStatistics.total')}</div>
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <div className="min-w-0">
               <TonePill value={comp.delta.total} />
@@ -84,7 +87,7 @@ function ComparisonBlock({ comp }: { comp: PeriodComparison }) {
           </div>
         </div>
         <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
-          <div className="text-[11px] text-slate-500">键盘</div>
+          <div className="text-[11px] text-slate-500">{t('customStatistics.keyboard')}</div>
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <div className="min-w-0">
               <TonePill value={comp.delta.keyboard} />
@@ -93,7 +96,7 @@ function ComparisonBlock({ comp }: { comp: PeriodComparison }) {
           </div>
         </div>
         <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
-          <div className="text-[11px] text-slate-500">单击</div>
+          <div className="text-[11px] text-slate-500">{t('customStatistics.click')}</div>
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <div className="min-w-0">
               <TonePill value={comp.delta.mouse_single} />
@@ -103,7 +106,10 @@ function ComparisonBlock({ comp }: { comp: PeriodComparison }) {
         </div>
       </div>
       <div className="text-[11px] text-slate-500">
-        当前 {comp.current.total.toLocaleString()} · 上一段 {comp.previous.total.toLocaleString()}
+        {t('statistics.insights.comparison.currentVsPrevious', {
+          current: comp.current.total.toLocaleString(),
+          previous: comp.previous.total.toLocaleString(),
+        })}
       </div>
     </div>
   )
@@ -134,6 +140,7 @@ function Tile({
 }
 
 export function InsightsPanel({ days, endKey }: { days: DailyStats[]; endKey: string }) {
+  const { t } = useTranslation()
   const index = useMemo(() => buildDayIndex(days), [days])
 
   const streaks = useMemo(() => computeStreaks(index, endKey), [endKey, index])
@@ -149,20 +156,20 @@ export function InsightsPanel({ days, endKey }: { days: DailyStats[]; endKey: st
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">统计摘要</div>
-          <div className="mt-1 text-xs text-slate-500 tabular-nums">截止 {endKey}</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.insights.title')}</div>
+          <div className="mt-1 text-xs text-slate-500 tabular-nums">{t('statistics.untilDate', { date: endKey })}</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Tile title="连续功德" icon={<Flame className="h-4 w-4" aria-hidden="true" />}>
+        <Tile title={t('statistics.insights.streak.title')} icon={<Flame className="h-4 w-4" aria-hidden="true" />}>
           <div className="flex items-end justify-between gap-3">
             <div>
-              <div className="text-[11px] text-slate-500">当前连续</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.insights.streak.current')}</div>
               <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{streaks.current}</div>
             </div>
             <div className="text-right">
-              <div className="text-[11px] text-slate-500">历史最长</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.insights.streak.longest')}</div>
               <div className="mt-1 text-lg font-bold text-slate-900 tabular-nums">{streaks.longest}</div>
             </div>
           </div>
@@ -171,28 +178,30 @@ export function InsightsPanel({ days, endKey }: { days: DailyStats[]; endKey: st
               {streaks.longestRange.startKey} → {streaks.longestRange.endKey}
             </div>
           ) : (
-            <div className="mt-2 text-[11px] text-slate-500">暂无连续记录</div>
+            <div className="mt-2 text-[11px] text-slate-500">{t('statistics.insights.streak.none')}</div>
           )}
         </Tile>
 
-        <Tile title="本周 / 本月" icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}>
+        <Tile title={t('statistics.insights.weekMonth.title')} icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}>
           <div className="space-y-3">
-            <div className="text-[11px] text-slate-500 tabular-nums">周从 {week?.startKey ?? '—'} 起 · 月从 {month?.startKey ?? '—'} 起</div>
-            {week ? <CompactCounters title="本周累计" counters={week.sum} /> : <div className="text-sm text-slate-500">暂无本周数据</div>}
-            {month ? <CompactCounters title="本月累计" counters={month.sum} /> : <div className="text-sm text-slate-500">暂无本月数据</div>}
+            <div className="text-[11px] text-slate-500 tabular-nums">
+              {t('statistics.insights.weekMonth.starts', { week: week?.startKey ?? '—', month: month?.startKey ?? '—' })}
+            </div>
+            {week ? <CompactCounters title={t('statistics.insights.weekMonth.weekSum')} counters={week.sum} /> : <div className="text-sm text-slate-500">{t('statistics.insights.weekMonth.noWeek')}</div>}
+            {month ? <CompactCounters title={t('statistics.insights.weekMonth.monthSum')} counters={month.sum} /> : <div className="text-sm text-slate-500">{t('statistics.insights.weekMonth.noMonth')}</div>}
           </div>
         </Tile>
 
-        <Tile title="近 7/30 天环比" icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}>
+        <Tile title={t('statistics.insights.comparison.title')} icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}>
           <div className="space-y-4">
             <div>
-              <div className="text-[11px] text-slate-500">近 7 天 vs 前 7 天</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.insights.comparison.label', { days: 7 })}</div>
               <div className="mt-2">
                 <ComparisonBlock comp={comp7} />
               </div>
             </div>
             <div>
-              <div className="text-[11px] text-slate-500">近 30 天 vs 前 30 天</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.insights.comparison.label', { days: 30 })}</div>
               <div className="mt-2">
                 <ComparisonBlock comp={comp30} />
               </div>
@@ -200,41 +209,41 @@ export function InsightsPanel({ days, endKey }: { days: DailyStats[]; endKey: st
           </div>
         </Tile>
 
-        <Tile title="高峰与最强" icon={<Clock className="h-4 w-4" aria-hidden="true" />}>
+        <Tile title={t('statistics.insights.peak.title')} icon={<Clock className="h-4 w-4" aria-hidden="true" />}>
           <div className="space-y-3">
             <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
-              <div className="text-[11px] text-slate-500">近 30 天最活跃小时</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.insights.peak.peakHourTitle', { days: 30 })}</div>
               {peak30 ? (
                 <div className="mt-1 flex items-end justify-between gap-3">
                   <div className="text-lg font-bold text-slate-900 tabular-nums">{fmtHour(peak30.hour)}</div>
-                  <div className="text-[11px] text-slate-500 tabular-nums">{peak30.sum.total.toLocaleString()} 次</div>
+                  <div className="text-[11px] text-slate-500 tabular-nums">{t('statistics.times', { value: peak30.sum.total.toLocaleString() })}</div>
                 </div>
               ) : (
-                <div className="mt-1 text-sm text-slate-500">暂无小时数据</div>
+                <div className="mt-1 text-sm text-slate-500">{t('statistics.insights.peak.noHourly')}</div>
               )}
             </div>
 
             <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
-              <div className="text-[11px] text-slate-500">近 30 天最强一天</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.insights.peak.bestDayTitle', { days: 30 })}</div>
               {best30 ? (
                 <div className="mt-1 flex items-end justify-between gap-3">
                   <div className="text-sm font-semibold text-slate-900 tabular-nums">{best30.dateKey}</div>
                   <div className="text-[11px] text-slate-500 tabular-nums">{best30.total.toLocaleString()}</div>
                 </div>
               ) : (
-                <div className="mt-1 text-sm text-slate-500">暂无</div>
+                <div className="mt-1 text-sm text-slate-500">{t('statistics.noData')}</div>
               )}
             </div>
 
             <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
-              <div className="text-[11px] text-slate-500">历史最强一天</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.insights.peak.bestDayAllTitle')}</div>
               {bestAll ? (
                 <div className="mt-1 flex items-end justify-between gap-3">
                   <div className="text-sm font-semibold text-slate-900 tabular-nums">{bestAll.dateKey}</div>
                   <div className="text-[11px] text-slate-500 tabular-nums">{bestAll.total.toLocaleString()}</div>
                 </div>
               ) : (
-                <div className="mt-1 text-sm text-slate-500">暂无</div>
+                <div className="mt-1 text-sm text-slate-500">{t('statistics.noData')}</div>
               )}
             </div>
           </div>

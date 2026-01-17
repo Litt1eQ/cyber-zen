@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 type HourBucket = { total: number; keyboard: number; mouse_single: number }
@@ -23,6 +24,7 @@ function hourLabel(hour: number): string {
 }
 
 export function HourlyDistribution({ hourly }: { hourly?: HourBucket[] | null }) {
+  const { t } = useTranslation()
   const buckets = useMemo(() => normalizeHourly(hourly), [hourly])
   const maxTotal = useMemo(() => buckets.reduce((acc, b) => Math.max(acc, b.total), 0), [buckets])
   const hasAny = maxTotal > 0
@@ -30,7 +32,7 @@ export function HourlyDistribution({ hourly }: { hourly?: HourBucket[] | null })
   if (!hasAny) {
     return (
       <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-        暂无小时分布（仅新版本开始记录）
+        {t('statistics.hourlyDistribution.noDataNote')}
       </div>
     )
   }
@@ -41,14 +43,14 @@ export function HourlyDistribution({ hourly }: { hourly?: HourBucket[] | null })
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-sm bg-teal-500" aria-hidden="true" />
-            键盘
+            {t('customStatistics.keyboard')}
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" aria-hidden="true" />
-            单击
+            {t('customStatistics.click')}
           </span>
         </div>
-        <div className="tabular-nums">峰值 {maxTotal.toLocaleString()}/小时</div>
+        <div className="tabular-nums">{t('statistics.peakPerHour', { value: maxTotal.toLocaleString() })}</div>
       </div>
 
       <div className="h-28">
@@ -64,7 +66,12 @@ export function HourlyDistribution({ hourly }: { hourly?: HourBucket[] | null })
               <div
                 key={hour}
                 className="flex-1 min-w-0"
-                title={`${hourLabel(hour)}:00  总计 ${total.toLocaleString()}（键盘 ${k.toLocaleString()} / 单击 ${m.toLocaleString()}）`}
+                title={t('statistics.tooltips.hourBreakdown', {
+                  hour: `${hourLabel(hour)}:00`,
+                  total: total.toLocaleString(),
+                  keyboard: k.toLocaleString(),
+                  click: m.toLocaleString(),
+                })}
                 data-no-drag
               >
                 <div className="relative h-24 w-full overflow-hidden rounded-md border border-slate-200/60 bg-white">
@@ -95,4 +102,3 @@ export function HourlyDistribution({ hourly }: { hourly?: HourBucket[] | null })
     </div>
   )
 }
-

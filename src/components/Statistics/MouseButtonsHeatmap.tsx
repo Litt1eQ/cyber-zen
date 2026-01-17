@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   computeHeatThresholds,
@@ -17,18 +18,21 @@ function sumCounts(counts: Counts): number {
   return sum
 }
 
-const BUTTONS = [
-  { code: 'MouseLeft', label: '左键', flex: 1 },
-  { code: 'MouseRight', label: '右键', flex: 1 },
-] as const
-
 export function MouseButtonsHeatmap({ counts, heatLevelCount }: { counts: Counts; heatLevelCount?: number }) {
+  const { t } = useTranslation()
+  const buttons = useMemo(
+    () => [
+      { code: 'MouseLeft', label: t('statistics.mouseButtonsHeatmap.left'), flex: 1 },
+      { code: 'MouseRight', label: t('statistics.mouseButtonsHeatmap.right'), flex: 1 },
+    ],
+    [t]
+  )
   const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const stats = useMemo(() => {
-    const values = BUTTONS.map((b) => counts[b.code] ?? 0)
+    const values = buttons.map((b) => counts[b.code] ?? 0)
     const max = values.reduce((acc, v) => Math.max(acc, v), 0)
     return { max, thresholds: computeHeatThresholds(values, heatLevelsCount) }
-  }, [counts, heatLevelsCount])
+  }, [buttons, counts, heatLevelsCount])
 
   const total = sumCounts(counts)
   const hasAny = total > 0
@@ -36,17 +40,17 @@ export function MouseButtonsHeatmap({ counts, heatLevelCount }: { counts: Counts
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-slate-500">鼠标按钮分布</div>
+        <div className="text-xs text-slate-500">{t('statistics.mouseButtonsHeatmap.title')}</div>
         <div className="text-xs text-slate-500 tabular-nums">{total.toLocaleString()}</div>
       </div>
 
       {!hasAny ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
-          暂无鼠标按钮记录
+          {t('statistics.mouseButtonsHeatmap.noData')}
         </div>
       ) : (
         <div className="flex gap-2">
-          {BUTTONS.map((b) => {
+          {buttons.map((b) => {
             const count = counts[b.code] ?? 0
             const level = heatLevelForValue(count, stats.max, stats.thresholds, heatLevelsCount)
             return (
@@ -74,13 +78,13 @@ export function MouseButtonsHeatmap({ counts, heatLevelCount }: { counts: Counts
       )}
 
       <div className="flex items-center justify-between text-xs text-slate-500">
-        <span>少</span>
+        <span>{t('statistics.heat.low')}</span>
         <div className="flex items-center gap-1" aria-hidden="true">
           {heatLevels(heatLevelsCount).map((lv) => (
             <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} />
           ))}
         </div>
-        <span>多</span>
+        <span>{t('statistics.heat.high')}</span>
       </div>
     </div>
   )

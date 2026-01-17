@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '@/types/merit'
 import { buildDayIndex, keysInWindow } from '@/lib/statisticsInsights'
 import { cn } from '@/lib/utils'
@@ -30,6 +31,7 @@ export function KeyDiversityBars({
   endKey: string
   defaultRangeDays?: RangeDays
 }) {
+  const { t } = useTranslation()
   const [rangeDays, setRangeDays] = useState<RangeDays>(defaultRangeDays)
   const index = useMemo(() => buildDayIndex(days), [days])
 
@@ -54,28 +56,33 @@ export function KeyDiversityBars({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">按键多样性</div>
-          <div className="mt-1 text-xs text-slate-500 tabular-nums">每天使用到的不同按键数量（&gt;0）· 截止 {endKey}</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.key_diversity.title')}</div>
+          <div className="mt-1 text-xs text-slate-500 tabular-nums">{t('statistics.keyDiversity.subtitle', { date: endKey })}</div>
         </div>
         <div className="flex items-center gap-2" data-no-drag>
           <Button type="button" size="sm" variant={rangeDays === 7 ? 'secondary' : 'outline'} onClick={() => setRangeDays(7)} data-no-drag>
-            7 天
+            {t('statistics.range.days', { days: 7 })}
           </Button>
           <Button type="button" size="sm" variant={rangeDays === 30 ? 'secondary' : 'outline'} onClick={() => setRangeDays(30)} data-no-drag>
-            30 天
+            {t('statistics.range.days', { days: 30 })}
           </Button>
         </div>
       </div>
 
       {!hasAny ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无按键统计
+          {t('statistics.keyDiversity.noData')}
         </div>
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <div className="min-w-0 truncate">柱高：不同按键数（与总次数无关）</div>
-            <div className="tabular-nums">日均 {Math.round(series.avg).toLocaleString()} · 峰值 {series.maxDistinct.toLocaleString()}</div>
+            <div className="min-w-0 truncate">{t('statistics.keyDiversity.barHint')}</div>
+            <div className="tabular-nums">
+              {t('statistics.keyDiversity.metrics', {
+                avg: Math.round(series.avg).toLocaleString(),
+                peak: series.maxDistinct.toLocaleString(),
+              })}
+            </div>
           </div>
 
           <div className="h-36">
@@ -87,7 +94,11 @@ export function KeyDiversityBars({
                   <div
                     key={p.key}
                     className="flex-1 min-w-0"
-                    title={`${p.key}  不同按键 ${p.distinct.toLocaleString()}（总计 ${p.total.toLocaleString()}）`}
+                    title={t('statistics.tooltips.keyDiversity', {
+                      date: p.key,
+                      distinct: p.distinct.toLocaleString(),
+                      total: p.total.toLocaleString(),
+                    })}
                     data-no-drag
                   >
                     <div className="relative h-28 w-full overflow-hidden rounded-md border border-slate-200/60 bg-white">
@@ -111,11 +122,11 @@ export function KeyDiversityBars({
           <div className="text-xs text-slate-500">
             <span className="inline-flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-sm bg-indigo-500/80" aria-hidden="true" />
-              有输入
+              {t('statistics.legend.hasInput')}
             </span>
             <span className="ml-4 inline-flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-sm bg-slate-300" aria-hidden="true" />
-              总计为 0
+              {t('statistics.legend.totalZero')}
             </span>
           </div>
         </div>

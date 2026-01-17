@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   buildKeySpecIndex,
@@ -159,6 +160,7 @@ function KeyboardView({
   heatLevelCount: number
   showShiftedLabel: boolean
 }) {
+  const { t } = useTranslation()
   const keyIndex = useMemo(() => buildKeySpecIndex(layout), [layout])
   const total = totalKeyCount(counts)
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -206,7 +208,7 @@ function KeyboardView({
 
       {total <= 0 ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无记录
+          {t('statistics.noData')}
         </div>
       ) : (
         <div ref={hostRef} className="w-full overflow-hidden">
@@ -454,6 +456,7 @@ export function KeyboardHeatmap({
   heatLevelCount?: number
   layoutId?: KeyboardLayoutId | string | null
 }) {
+  const { t } = useTranslation()
   const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
   const platform = useMemo(() => {
     if (isMac()) return 'mac'
@@ -490,18 +493,18 @@ export function KeyboardHeatmap({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-slate-500">击键分布（区分 Shift）</div>
+        <div className="text-xs text-slate-500">{t('statistics.keyboardHeatmap.title')}</div>
         <div className="text-xs text-slate-500 tabular-nums">{total.toLocaleString()}</div>
       </div>
 
       {!hasAny ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
-          暂无键盘记录
+          {t('statistics.keyboardHeatmap.noData')}
         </div>
       ) : (
         <div className="space-y-4">
           <KeyboardView
-            title="无 Shift / 小写 / 数字"
+            title={t('statistics.keyboardHeatmap.sections.unshifted')}
             layoutId={normalizedLayoutId}
             layout={layout}
             counts={unshiftedCounts}
@@ -511,7 +514,7 @@ export function KeyboardHeatmap({
             showShiftedLabel={false}
           />
           <KeyboardView
-            title="Shift / 大写 / 符号"
+            title={t('statistics.keyboardHeatmap.sections.shifted')}
             layoutId={normalizedLayoutId}
             layout={layout}
             counts={shiftedCounts}
@@ -524,13 +527,13 @@ export function KeyboardHeatmap({
       )}
 
       <div className="flex items-center justify-between text-xs text-slate-500">
-        <span>少</span>
+        <span>{t('statistics.heat.low')}</span>
         <div className="flex items-center gap-1" aria-hidden="true">
           {heatLevels(heatLevelsCount).map((lv) => (
             <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} />
           ))}
         </div>
-        <span>多</span>
+        <span>{t('statistics.heat.high')}</span>
       </div>
     </div>
   )

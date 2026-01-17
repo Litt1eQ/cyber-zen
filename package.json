@@ -1,7 +1,7 @@
 {
   "name": "cyber-zen",
   "private": true,
-  "version": "0.1.19",
+  "version": "0.1.20",
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -24,9 +24,11 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.24.10",
+    "i18next": "^25.7.4",
     "lucide-react": "^0.562.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-i18next": "^16.5.3",
     "tailwind-merge": "^3.4.0",
     "zustand": "^5.0.9"
   },

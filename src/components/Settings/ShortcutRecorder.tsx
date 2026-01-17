@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { isMac } from '../../utils/platform'
 import { Card } from '../ui/card'
 import { KeyCombo, type KeyComboPart } from '../ui/key-combo'
@@ -105,6 +106,7 @@ export function ShortcutRecorder({
   value: string | null | undefined
   onChange: (next: string) => void
 }) {
+  const { t } = useTranslation()
   const elRef = useRef<HTMLDivElement | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [pressed, setPressed] = useState<string[]>([])
@@ -116,7 +118,7 @@ export function ShortcutRecorder({
     setPressed(sortKeys(parsedValue))
   }, [isRecording, parsedValue])
 
-  const hint = isRecording ? '按下快捷键…' : '点击录制快捷键'
+  const hint = isRecording ? t('settings.shortcutRecorder.pressHint') : t('settings.shortcutRecorder.clickHint')
   const mac = isMac()
 
   return (
@@ -183,8 +185,8 @@ export function ShortcutRecorder({
               onChange('')
               setPressed([])
             }}
-            aria-label="清除快捷键"
-            title="清除"
+            aria-label={t('settings.shortcutRecorder.clearAria')}
+            title={t('settings.shortcutRecorder.clear')}
             data-no-drag
             style={{ display: pressed.length === 0 || isRecording ? 'none' : 'block' }}
           >

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '@/types/merit'
 import { buildDayIndex, keysInWindow } from '@/lib/statisticsInsights'
 import { Button } from '@/components/ui/button'
@@ -23,11 +24,11 @@ function pct(n: number, d: number): number {
   return Math.max(0, Math.min(1, n / d))
 }
 
-function rangeLabel(mode: RangeMode, endKey: string) {
-  if (mode === 'day') return `当日 ${endKey}`
-  if (mode === '7') return `近7天（截止 ${endKey}）`
-  if (mode === '30') return `近30天（截止 ${endKey}）`
-  return '累计'
+function rangeLabel(t: (key: string, options?: Record<string, unknown>) => string, mode: RangeMode, endKey: string) {
+  if (mode === 'day') return t('statistics.range.dayWithDate', { date: endKey })
+  if (mode === '7') return t('statistics.range.lastDaysWithEnd', { days: 7, date: endKey })
+  if (mode === '30') return t('statistics.range.lastDaysWithEnd', { days: 30, date: endKey })
+  return t('customStatistics.mode.cumulative')
 }
 
 function modeToDays(mode: RangeMode): number | null {
@@ -52,6 +53,7 @@ export function KeyPareto({
   keyboardLayoutId?: string | null
   defaultRange?: RangeMode
 }) {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<RangeMode>(defaultRange)
 
   const platform: KeyboardPlatform = useMemo(() => {
@@ -97,34 +99,34 @@ export function KeyPareto({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">按键集中度（Pareto）</div>
-          <div className="mt-1 text-xs text-slate-500 tabular-nums">{rangeLabel(mode, endKey)}</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.key_pareto.title')}</div>
+          <div className="mt-1 text-xs text-slate-500 tabular-nums">{rangeLabel(t, mode, endKey)}</div>
         </div>
         <div className="flex items-center gap-2" data-no-drag>
           <Button type="button" size="sm" variant={mode === 'day' ? 'secondary' : 'outline'} onClick={() => setMode('day')} data-no-drag>
-            当日
+            {t('statistics.range.day')}
           </Button>
           <Button type="button" size="sm" variant={mode === '7' ? 'secondary' : 'outline'} onClick={() => setMode('7')} data-no-drag>
-            7 天
+            {t('statistics.range.days', { days: 7 })}
           </Button>
           <Button type="button" size="sm" variant={mode === '30' ? 'secondary' : 'outline'} onClick={() => setMode('30')} data-no-drag>
-            30 天
+            {t('statistics.range.days', { days: 30 })}
           </Button>
           <Button type="button" size="sm" variant={mode === 'all' ? 'secondary' : 'outline'} onClick={() => setMode('all')} data-no-drag>
-            累计
+            {t('customStatistics.mode.cumulative')}
           </Button>
         </div>
       </div>
 
       {!hasAny ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无按键记录
+          {t('statistics.keyPareto.noData')}
         </div>
       ) : (
         <div className="space-y-3">
           <div className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(160px,1fr))]">
             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-              <div className="text-[11px] text-slate-500">Top10 占比</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.keyPareto.topNShare', { n: 10 })}</div>
               <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{Math.round(stats.top10Share * 100)}%</div>
               <div className="mt-1 text-[11px] text-slate-500 tabular-nums">{stats.top10Sum.toLocaleString()} / {stats.total.toLocaleString()}</div>
               <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
@@ -132,24 +134,24 @@ export function KeyPareto({
               </div>
             </div>
             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-              <div className="text-[11px] text-slate-500">长尾占比</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.keyPareto.longTailShare')}</div>
               <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{Math.round(stats.longTailShare * 100)}%</div>
-              <div className="mt-1 text-[11px] text-slate-500 tabular-nums">其他按键（非 Top10）</div>
+              <div className="mt-1 text-[11px] text-slate-500 tabular-nums">{t('statistics.keyPareto.longTailHint', { n: 10 })}</div>
               <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                 <div className="h-full bg-slate-400" style={{ width: `${stats.longTailShare * 100}%` }} aria-hidden="true" />
               </div>
             </div>
             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-              <div className="text-[11px] text-slate-500">总按键次数</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.keyPareto.totalKeyPresses')}</div>
               <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{stats.total.toLocaleString()}</div>
-              <div className="mt-1 text-[11px] text-slate-500 tabular-nums">覆盖 {stats.entriesCount.toLocaleString()} 个按键（&gt;0）</div>
+              <div className="mt-1 text-[11px] text-slate-500 tabular-nums">{t('statistics.keyPareto.coverage', { keys: stats.entriesCount.toLocaleString() })}</div>
             </div>
           </div>
 
           <div className="rounded-lg border border-slate-200/60 bg-white p-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-xs font-semibold text-slate-900">Top 10 按键</div>
-              <div className="text-xs text-slate-500 tabular-nums">占比 {Math.round(stats.top10Share * 100)}%</div>
+              <div className="text-xs font-semibold text-slate-900">{t('statistics.keyPareto.topNKeys', { n: 10 })}</div>
+              <div className="text-xs text-slate-500 tabular-nums">{t('statistics.keyPareto.shareWithValue', { value: Math.round(stats.top10Share * 100).toLocaleString() })}</div>
             </div>
 
             <div className="mt-3 space-y-2">

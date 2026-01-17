@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { MeritStats } from '@/types/merit'
@@ -7,6 +8,7 @@ import { useMeritStore } from '@/stores/useMeritStore'
 import { useSettingsSync } from '@/hooks/useSettingsSync'
 import { useDailyReset } from '@/hooks/useDailyReset'
 import { useWindowDragging } from '@/hooks/useWindowDragging'
+import { useAppLocaleSync } from '@/hooks/useAppLocaleSync'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -49,6 +51,7 @@ function move<T>(items: T[], from: number, to: number): T[] {
 }
 
 export function CustomStatistics() {
+  const { t, i18n } = useTranslation()
   const startDragging = useWindowDragging()
   const { settings, fetchSettings, updateSettings } = useSettingsStore()
   const { stats, fetchStats, updateStats } = useMeritStore()
@@ -56,6 +59,15 @@ export function CustomStatistics() {
 
   useSettingsSync()
   useDailyReset()
+  useAppLocaleSync()
+
+  useEffect(() => {
+    try {
+      document.title = t('windows.customStatistics')
+    } catch {
+      // ignore
+    }
+  }, [i18n.resolvedLanguage, t])
 
   useEffect(() => {
     fetchSettings()
@@ -147,7 +159,7 @@ export function CustomStatistics() {
   if (!settings || !stats) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-white">
-        <div className="text-slate-500">加载中...</div>
+        <div className="text-slate-500">{t('common.loading')}</div>
       </div>
     )
   }
@@ -158,14 +170,17 @@ export function CustomStatistics() {
         <div className="mx-auto w-full max-w-4xl px-6 pt-5 pb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-slate-900">自定义统计</h1>
+              <h1 className="text-lg font-bold text-slate-900">{t('customStatistics.title')}</h1>
               <div className="text-xs text-slate-500 mt-1 tabular-nums">
-                今日 {stats.today.total.toLocaleString()} · 总功德 {stats.total_merit.toLocaleString()}
+                {t('customStatistics.todaySummary', {
+                  today: stats.today.total.toLocaleString(),
+                  total: stats.total_merit.toLocaleString(),
+                })}
               </div>
             </div>
             <div className="flex items-center gap-2" data-no-drag>
               <Button type="button" variant="outline" onClick={() => setCustomizeOpen(true)} data-no-drag>
-                自定义
+                {t('customStatistics.customize')}
               </Button>
             </div>
           </div>
@@ -175,7 +190,7 @@ export function CustomStatistics() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto w-full max-w-4xl px-6 py-5 space-y-4">
           {enabledWidgets.length === 0 ? (
-            <Card className="p-5 text-slate-500">未选择任何统计模块</Card>
+            <Card className="p-5 text-slate-500">{t('customStatistics.empty')}</Card>
           ) : (
             enabledWidgets.map((id) => {
               const widget = CUSTOM_STATISTICS_WIDGETS.find((w) => w.id === id)
@@ -185,10 +200,14 @@ export function CustomStatistics() {
               return (
                 <div key={id}>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm font-semibold text-slate-900">{widget.title}</div>
+                    <div className="text-sm font-semibold text-slate-900">{t(widget.titleKey)}</div>
                     {isHeatmap ? (
                       <div className="flex items-center gap-2" data-no-drag>
-                        <div className="text-xs text-slate-500">{range === 'all' ? '累计' : '当日'}</div>
+                        <div className="text-xs text-slate-500">
+                          {range === 'all'
+                            ? t('customStatistics.mode.cumulative')
+                            : t('customStatistics.mode.daily')}
+                        </div>
                         <KeyboardHeatmapShareDialog
                           unshiftedCounts={scopedAggregates.keyCountsUnshifted}
                           shiftedCounts={scopedAggregates.keyCountsShifted}
@@ -196,13 +215,21 @@ export function CustomStatistics() {
                           layoutId={settings.keyboard_layout}
                           platform={platform}
                           dateKey={stats.today.date}
-                          modeLabel={range === 'all' ? '累计' : '当日'}
+                          modeLabel={
+                            range === 'all'
+                              ? t('customStatistics.mode.cumulative')
+                              : t('customStatistics.mode.daily')
+                          }
                           meritValue={range === 'all' ? stats.total_merit : stats.today.total}
-                          meritLabel={range === 'all' ? '累计功德' : '今日功德'}
+                          meritLabel={
+                            range === 'all'
+                              ? t('customStatistics.meritLabel.cumulative')
+                              : t('customStatistics.meritLabel.today')
+                          }
                         />
                       </div>
                     ) : (
-                      widget.description && <div className="text-xs text-slate-500">{widget.description}</div>
+                      widget.descriptionKey && <div className="text-xs text-slate-500">{t(widget.descriptionKey)}</div>
                     )}
                   </div>
                   <div className="w-full overflow-x-auto">
@@ -217,19 +244,19 @@ export function CustomStatistics() {
                         />
                       ) : (
                         <Card className="p-4">
-                          <div className="text-sm font-semibold text-slate-900 tracking-wide">今日概览</div>
+                          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.todayOverview')}</div>
                           <div className="mt-1 text-xs text-slate-500">{stats.today.date}</div>
                           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-                              <div className="text-xs text-slate-500">总计</div>
+                              <div className="text-xs text-slate-500">{t('customStatistics.total')}</div>
                               <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">{stats.today.total.toLocaleString()}</div>
                             </div>
                             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-                              <div className="text-xs text-slate-500">键盘</div>
+                              <div className="text-xs text-slate-500">{t('customStatistics.keyboard')}</div>
                               <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">{stats.today.keyboard.toLocaleString()}</div>
                             </div>
                             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-                              <div className="text-xs text-slate-500">单击</div>
+                              <div className="text-xs text-slate-500">{t('customStatistics.click')}</div>
                               <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">{stats.today.mouse_single.toLocaleString()}</div>
                             </div>
                           </div>
@@ -258,15 +285,15 @@ export function CustomStatistics() {
       <Dialog open={customizeOpen} onOpenChange={setCustomizeOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>自定义展示</DialogTitle>
-            <DialogDescription>选择要展示的统计模块，并调整顺序与展示范围（配置会自动保存）。</DialogDescription>
+            <DialogTitle>{t('customStatistics.customizeDialog.title')}</DialogTitle>
+            <DialogDescription>{t('customStatistics.customizeDialog.description')}</DialogDescription>
           </DialogHeader>
 
           <Card className="p-4">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <div className="font-medium text-slate-900">展示范围</div>
-                <div className="text-sm text-slate-500 mt-1">影响键盘热力图/排行/鼠标/快捷键/小时分布等模块的数据范围。</div>
+                <div className="font-medium text-slate-900">{t('customStatistics.customizeDialog.range.title')}</div>
+                <div className="text-sm text-slate-500 mt-1">{t('customStatistics.customizeDialog.range.description')}</div>
               </div>
               <div className="flex items-center gap-2 shrink-0" data-no-drag>
                 <Button
@@ -276,7 +303,7 @@ export function CustomStatistics() {
                   onClick={() => void updateSettings({ custom_statistics_range: 'today' })}
                   data-no-drag
                 >
-                  当天
+                  {t('customStatistics.customizeDialog.range.today')}
                 </Button>
                 <Button
                   type="button"
@@ -285,7 +312,7 @@ export function CustomStatistics() {
                   onClick={() => void updateSettings({ custom_statistics_range: 'all' })}
                   data-no-drag
                 >
-                  全部
+                  {t('customStatistics.customizeDialog.range.all')}
                 </Button>
               </div>
             </div>
@@ -299,8 +326,8 @@ export function CustomStatistics() {
                 <Card key={w.id} className="p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <div className="font-medium text-slate-900">{w.title}</div>
-                      {w.description && <div className="text-sm text-slate-500 mt-1">{w.description}</div>}
+                      <div className="font-medium text-slate-900">{t(w.titleKey)}</div>
+                      {w.descriptionKey && <div className="text-sm text-slate-500 mt-1">{t(w.descriptionKey)}</div>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0" data-no-drag>
                       {enabled && (
@@ -313,7 +340,7 @@ export function CustomStatistics() {
                             onClick={() => void moveWidget(w.id, -1)}
                             data-no-drag
                           >
-                            上移
+                            {t('customStatistics.customizeDialog.moveUp')}
                           </Button>
                           <Button
                             type="button"
@@ -323,7 +350,7 @@ export function CustomStatistics() {
                             onClick={() => void moveWidget(w.id, 1)}
                             data-no-drag
                           >
-                            下移
+                            {t('customStatistics.customizeDialog.moveDown')}
                           </Button>
                         </>
                       )}
@@ -337,11 +364,11 @@ export function CustomStatistics() {
 
           <DialogFooter className="flex items-center justify-between gap-3">
             <Button type="button" variant="outline" onClick={() => void setEnabledWidgets([...DEFAULT_CUSTOM_STATISTICS_WIDGETS])} data-no-drag>
-              恢复默认
+              {t('customStatistics.customizeDialog.resetDefault')}
             </Button>
             <div className="flex items-center gap-2">
               <Button type="button" variant="outline" onClick={() => setCustomizeOpen(false)} data-no-drag>
-                关闭
+                {t('common.close')}
               </Button>
             </div>
           </DialogFooter>

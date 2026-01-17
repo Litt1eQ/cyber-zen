@@ -15,6 +15,7 @@ interface SettingsState {
 }
 
 const defaultSettings: Settings = {
+  app_locale: 'system',
   enable_keyboard: true,
   enable_mouse_single: true,
   always_on_top: true,

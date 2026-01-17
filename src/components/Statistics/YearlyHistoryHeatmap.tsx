@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { DailyStats } from '@/types/merit'
 import { cn } from '@/lib/utils'
@@ -13,7 +14,7 @@ type YearGridCell = {
   month: number
 }
 
-function buildYearGrid(year: number) {
+function buildYearGrid(year: number, locale: string) {
   const weekStart = 1 // Monday
   const jan1 = new Date(year, 0, 1, 12)
   const dec31 = new Date(year, 11, 31, 12)
@@ -53,7 +54,11 @@ function buildYearGrid(year: number) {
       continue
     }
     if (lastLabeledMonth !== month) {
-      monthLabels.push(`${month}月`)
+      try {
+        monthLabels.push(new Intl.DateTimeFormat(locale, { month: 'short' }).format(new Date(year, month - 1, 1, 12)))
+      } catch {
+        monthLabels.push(String(month))
+      }
       lastLabeledMonth = month
       continue
     }
@@ -86,8 +91,9 @@ export function YearlyHistoryHeatmap({
   onYearChange,
   onSelectKey,
 }: YearlyHistoryHeatmapProps) {
+  const { t, i18n } = useTranslation()
   const heatLevelsCount = useMemo(() => normalizeHeatLevelCount(heatLevelCount), [heatLevelCount])
-  const { weeks, monthLabels } = useMemo(() => buildYearGrid(year), [year])
+  const { weeks, monthLabels } = useMemo(() => buildYearGrid(year, i18n.language), [i18n.language, year])
 
   const yearTotals = useMemo(() => {
     const totals: number[] = []
@@ -103,14 +109,23 @@ export function YearlyHistoryHeatmap({
 
   const canGoPrev = year - 1 >= minYear
   const canGoNext = year + 1 <= maxYear
-  const dayLabels = ['一', '', '三', '', '五', '', ''] as const
+  const dayLabels = useMemo(() => {
+    try {
+      const fmt = new Intl.DateTimeFormat(i18n.language, { weekday: 'narrow' })
+      const base = new Date(2020, 5, 1, 12) // 2020-06-01 is Monday
+      const labels = Array.from({ length: 7 }, (_, idx) => fmt.format(new Date(base.getFullYear(), base.getMonth(), base.getDate() + idx, 12)))
+      return [labels[0] ?? '', '', labels[2] ?? '', '', labels[4] ?? '', '', ''] as const
+    } catch {
+      return ['', '', '', '', '', '', ''] as const
+    }
+  }, [i18n.language])
 
   return (
     <Card className="p-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">{year}年</div>
-          <div className="text-[11px] text-slate-500">贡献热力（按周）</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('statistics.yearlyHeatmap.yearTitle', { year })}</div>
+          <div className="text-[11px] text-slate-500">{t('statistics.yearlyHeatmap.subtitle')}</div>
         </div>
 
         <div className="flex items-center gap-2" data-no-drag>
@@ -120,8 +135,8 @@ export function YearlyHistoryHeatmap({
             size="icon"
             disabled={!canGoPrev}
             onClick={() => onYearChange(year - 1)}
-            aria-label="上一年"
-            title={`${year - 1}年`}
+            aria-label={t('statistics.yearlyHeatmap.prevYear')}
+            title={t('statistics.yearlyHeatmap.yearTitle', { year: year - 1 })}
             data-no-drag
           >
             <ChevronLeft className="h-4 w-4" />
@@ -132,8 +147,8 @@ export function YearlyHistoryHeatmap({
             size="icon"
             disabled={!canGoNext}
             onClick={() => onYearChange(year + 1)}
-            aria-label="下一年"
-            title={`${year + 1}年`}
+            aria-label={t('statistics.yearlyHeatmap.nextYear')}
+            title={t('statistics.yearlyHeatmap.yearTitle', { year: year + 1 })}
             data-no-drag
           >
             <ChevronRight className="h-4 w-4" />
@@ -151,7 +166,7 @@ export function YearlyHistoryHeatmap({
             disabled={!todayKey}
             data-no-drag
           >
-            今天
+            {t('statistics.calendar.today')}
           </Button>
         </div>
       </div>
@@ -199,8 +214,8 @@ export function YearlyHistoryHeatmap({
                           isToday && 'outline outline-1 outline-blue-600/60'
                         )}
                         aria-pressed={isSelected}
-                        aria-label={`${cell.key} 总计 ${total}`}
-                        title={`${cell.key}  总计 ${total}`}
+                        aria-label={t('statistics.tooltips.dayTotal', { date: cell.key, total: total.toLocaleString() })}
+                        title={t('statistics.tooltips.dayTotal', { date: cell.key, total: total.toLocaleString() })}
                         data-no-drag
                       />
                     )
@@ -213,15 +228,15 @@ export function YearlyHistoryHeatmap({
       </div>
 
       <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-        <div className="min-w-0 truncate" title={`${year}年`}>
-          热力
+        <div className="min-w-0 truncate" title={t('statistics.yearlyHeatmap.yearTitle', { year })}>
+          {t('statistics.yearlyHeatmap.legendTitle')}
         </div>
         <div className="flex items-center gap-2">
-          <span>少</span>
+          <span>{t('statistics.heat.low')}</span>
           {heatLevels(heatLevelsCount).map((lv) => (
             <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} aria-hidden="true" />
           ))}
-          <span>多</span>
+          <span>{t('statistics.heat.high')}</span>
         </div>
       </div>
     </Card>

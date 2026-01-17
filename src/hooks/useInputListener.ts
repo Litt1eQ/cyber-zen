@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useMeritStore } from '../stores/useMeritStore'
@@ -12,11 +13,13 @@ export type InputListenerErrorCode = 'permission_required' | 'listen_failed'
 export type InputListenerError = {
   code: InputListenerErrorCode
   message: string
+  detail?: string
 }
 
 export function useInputListener() {
+  const { t } = useTranslation()
   const [isListening, setIsListening] = useState(false)
-  const [error, setError] = useState<InputListenerError | null>(null)
+  const [rawError, setRawError] = useState<{ code: InputListenerErrorCode; detail?: string } | null>(null)
   const updateStats = useMeritStore((state) => state.updateStats)
   const settings = useSettingsStore((state) => state.settings)
 
@@ -32,14 +35,12 @@ export function useInputListener() {
 
   const startListening = async () => {
     try {
-      setError(null)
+      setRawError(null)
       if (isMac()) {
         const permitted = await invoke<boolean>(COMMANDS.CHECK_INPUT_MONITORING_PERMISSION)
         if (!permitted) {
-          setError({
+          setRawError({
             code: 'permission_required',
-            message:
-              '需要开启 macOS「输入监控」权限：系统设置 → 隐私与安全性 → 输入监控。',
           })
           setIsListening(false)
           return
@@ -48,18 +49,18 @@ export function useInputListener() {
       await invoke(COMMANDS.START_INPUT_LISTENING)
       setIsListening(true)
     } catch (err) {
-      setError({ code: 'listen_failed', message: String(err) })
+      setRawError({ code: 'listen_failed', detail: String(err) })
       setIsListening(false)
     }
   }
 
   const stopListening = async () => {
     try {
-      setError(null)
+      setRawError(null)
       await invoke(COMMANDS.STOP_INPUT_LISTENING)
       setIsListening(false)
     } catch (err) {
-      setError({ code: 'listen_failed', message: String(err) })
+      setRawError({ code: 'listen_failed', detail: String(err) })
     }
   }
 
@@ -76,7 +77,7 @@ export function useInputListener() {
       const listening = await invoke<boolean>(COMMANDS.IS_INPUT_LISTENING)
       setIsListening(listening)
     } catch (err) {
-      setError({ code: 'listen_failed', message: String(err) })
+      setRawError({ code: 'listen_failed', detail: String(err) })
     }
   }
 
@@ -84,14 +85,14 @@ export function useInputListener() {
     checkListeningStatus()
     invoke<InputListenerError | null>(COMMANDS.GET_INPUT_LISTENER_ERROR)
       .then((msg) => {
-        if (msg) setError(msg)
+        if (msg) setRawError({ code: msg.code, detail: msg.message })
       })
       .catch(() => {})
   }, [])
 
   useEffect(() => {
     const unlisten = listen<InputListenerError>(EVENTS.INPUT_LISTENER_ERROR, (event) => {
-      setError(event.payload)
+      setRawError({ code: event.payload.code, detail: event.payload.message })
       setIsListening(false)
     })
 
@@ -99,6 +100,18 @@ export function useInputListener() {
       unlisten.then((fn) => fn())
     }
   }, [])
+
+  const error: InputListenerError | null = (() => {
+    if (!rawError) return null
+    if (rawError.code === 'permission_required') {
+      return { code: rawError.code, message: t('errors.inputMonitoringRequiredMac') }
+    }
+    return {
+      code: rawError.code,
+      message: rawError.detail ?? t('errors.unknown'),
+      detail: rawError.detail,
+    }
+  })()
 
   return {
     isListening,

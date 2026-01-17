@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '@/types/merit'
 import { buildDayIndex, keysInWindow } from '@/lib/statisticsInsights'
 import { appInputCountsForDay, mergeAppInputCounts, type AppInputStats } from '@/lib/statisticsAggregates'
@@ -14,11 +15,11 @@ function pct(n: number, d: number): number {
   return Math.max(0, Math.min(1, n / d))
 }
 
-function rangeLabel(mode: RangeMode, endKey: string) {
-  if (mode === 'day') return `当日 ${endKey}`
-  if (mode === '7') return `近7天（截止 ${endKey}）`
-  if (mode === '30') return `近30天（截止 ${endKey}）`
-  return '累计'
+function rangeLabel(t: (key: string, options?: Record<string, unknown>) => string, mode: RangeMode, endKey: string) {
+  if (mode === 'day') return t('statistics.range.dayWithDate', { date: endKey })
+  if (mode === '7') return t('statistics.range.lastDaysWithEnd', { days: 7, date: endKey })
+  if (mode === '30') return t('statistics.range.lastDaysWithEnd', { days: 30, date: endKey })
+  return t('customStatistics.mode.cumulative')
 }
 
 function modeToDays(mode: RangeMode): number | null {
@@ -49,6 +50,7 @@ export function AppConcentration({
   endKey: string
   defaultRange?: RangeMode
 }) {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<RangeMode>(defaultRange)
   const index = useMemo(() => buildDayIndex(days), [days])
 
@@ -88,58 +90,60 @@ export function AppConcentration({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">应用集中度</div>
-          <div className="mt-1 text-xs text-slate-500 tabular-nums">{rangeLabel(mode, endKey)}</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.app_concentration.title')}</div>
+          <div className="mt-1 text-xs text-slate-500 tabular-nums">{rangeLabel(t, mode, endKey)}</div>
         </div>
         <div className="flex items-center gap-2" data-no-drag>
           <Button type="button" size="sm" variant={mode === 'day' ? 'secondary' : 'outline'} onClick={() => setMode('day')} data-no-drag>
-            当日
+            {t('statistics.range.day')}
           </Button>
           <Button type="button" size="sm" variant={mode === '7' ? 'secondary' : 'outline'} onClick={() => setMode('7')} data-no-drag>
-            7 天
+            {t('statistics.range.days', { days: 7 })}
           </Button>
           <Button type="button" size="sm" variant={mode === '30' ? 'secondary' : 'outline'} onClick={() => setMode('30')} data-no-drag>
-            30 天
+            {t('statistics.range.days', { days: 30 })}
           </Button>
           <Button type="button" size="sm" variant={mode === 'all' ? 'secondary' : 'outline'} onClick={() => setMode('all')} data-no-drag>
-            累计
+            {t('customStatistics.mode.cumulative')}
           </Button>
         </div>
       </div>
 
       {!hasAny ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无应用归因数据
+          {t('statistics.appConcentration.noData')}
         </div>
       ) : (
         <div className="space-y-3">
           <div className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-              <div className="text-[11px] text-slate-500">Top1 占比</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.appConcentration.topNShare', { n: 1 })}</div>
               <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">{Math.round(pct(stats.top1, stats.total) * 100)}%</div>
               <div className="mt-1 text-[11px] text-slate-500 tabular-nums">{stats.top1.toLocaleString()} / {stats.total.toLocaleString()}</div>
             </div>
             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-              <div className="text-[11px] text-slate-500">Top3 占比</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.appConcentration.topNShare', { n: 3 })}</div>
               <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">{Math.round(pct(stats.top3, stats.total) * 100)}%</div>
               <div className="mt-1 text-[11px] text-slate-500 tabular-nums">{stats.top3.toLocaleString()} / {stats.total.toLocaleString()}</div>
             </div>
             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-              <div className="text-[11px] text-slate-500">Top5 占比</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.appConcentration.topNShare', { n: 5 })}</div>
               <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">{Math.round(pct(stats.top5, stats.total) * 100)}%</div>
               <div className="mt-1 text-[11px] text-slate-500 tabular-nums">{stats.top5.toLocaleString()} / {stats.total.toLocaleString()}</div>
             </div>
             <div className="rounded-lg border border-slate-200/60 bg-white p-3">
-              <div className="text-[11px] text-slate-500">HHI（越高越集中）</div>
+              <div className="text-[11px] text-slate-500">{t('statistics.appConcentration.hhiLabel')}</div>
               <div className="mt-1 text-xl font-bold text-slate-900 tabular-nums">{stats.hhi != null ? stats.hhi.toFixed(3) : '—'}</div>
-              <div className="mt-1 text-[11px] text-slate-500 tabular-nums">等效应用数 {stats.effN != null ? stats.effN.toFixed(1) : '—'}</div>
+              <div className="mt-1 text-[11px] text-slate-500 tabular-nums">
+                {t('statistics.appConcentration.effectiveApps', { value: stats.effN != null ? stats.effN.toFixed(1) : '—' })}
+              </div>
             </div>
           </div>
 
           <div className="rounded-lg border border-slate-200/60 bg-white p-3 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-xs font-semibold text-slate-900">Top 应用构成</div>
-              <div className="text-xs text-slate-500 tabular-nums">总计 {stats.total.toLocaleString()}</div>
+              <div className="text-xs font-semibold text-slate-900">{t('statistics.appConcentration.topAppsTitle')}</div>
+              <div className="text-xs text-slate-500 tabular-nums">{t('statistics.totalWithValue', { value: stats.total.toLocaleString() })}</div>
             </div>
 
             <div className="flex h-2 rounded-full bg-slate-100 overflow-hidden">
@@ -156,7 +160,7 @@ export function AppConcentration({
                 <div
                   className="h-full bg-slate-300"
                   style={{ width: `${pct(stats.other, stats.total) * 100}%` }}
-                  title={`其他  ${(pct(stats.other, stats.total) * 100).toFixed(1)}%`}
+                  title={`${t('statistics.other')}  ${(pct(stats.other, stats.total) * 100).toFixed(1)}%`}
                   aria-hidden="true"
                 />
               ) : null}
@@ -183,7 +187,7 @@ export function AppConcentration({
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-sm bg-slate-300" aria-hidden="true" />
-                    <div className="truncate font-medium text-slate-700">其他</div>
+                    <div className="truncate font-medium text-slate-700">{t('statistics.other')}</div>
                   </div>
                   <div className="shrink-0 text-[11px] text-slate-500 tabular-nums">
                     {(pct(stats.other, stats.total) * 100).toFixed(1)}% · {stats.other.toLocaleString()}
@@ -194,7 +198,7 @@ export function AppConcentration({
 
             {stats.hhi != null ? (
               <div className="text-[11px] text-slate-500">
-                注：HHI = Σ(占比²)，范围 (0, 1]；等效应用数 = 1/HHI。
+                {t('statistics.appConcentration.hhiNote')}
               </div>
             ) : null}
           </div>
@@ -203,4 +207,3 @@ export function AppConcentration({
     </div>
   )
 }
-

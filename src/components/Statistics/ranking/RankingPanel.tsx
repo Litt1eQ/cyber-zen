@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 export type RankingTone = 'up' | 'down'
 
@@ -26,7 +27,7 @@ export function RankingPanel({
   limit,
   maxValue,
   tone,
-  emptyLabel = '无记录',
+  emptyLabel,
   headerRight,
   toolbar,
   listContainerClassName,
@@ -44,6 +45,7 @@ export function RankingPanel({
   listContainerClassName?: string
   className?: string
 }) {
+  const { t } = useTranslation()
   const badgeClass = tone === 'up' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
   const barClass =
     tone === 'up'
@@ -52,6 +54,7 @@ export function RankingPanel({
   const panelClass = tone === 'up' ? 'border-emerald-200/70 bg-emerald-50/40' : 'border-rose-200/70 bg-rose-50/40'
 
   const max = maxValue ?? entries.reduce((acc, entry) => Math.max(acc, entry.value || 0), 0)
+  const resolvedEmptyLabel = emptyLabel ?? t('statistics.ranking.empty')
 
   return (
     <div className={cn('rounded-lg border p-3', panelClass, className)}>
@@ -79,7 +82,7 @@ export function RankingPanel({
           className="mt-3 rounded-md border border-slate-200/60 bg-white/70 px-3 py-3 text-center text-xs text-slate-500"
           data-no-drag
         >
-          {emptyLabel}
+          {resolvedEmptyLabel}
         </div>
       ) : (
         <div className={cn('mt-3', listContainerClassName)}>

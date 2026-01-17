@@ -22,6 +22,7 @@ import { KeyPareto } from '@/components/Statistics/KeyPareto'
 import { MouseButtonStructure } from '@/components/Statistics/MouseButtonStructure'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 import type { StatisticsAggregates } from '@/lib/statisticsAggregates'
+import i18n from '@/i18n'
 
 export type CustomStatisticsWidgetId =
   | 'insights'
@@ -55,8 +56,8 @@ export type WidgetRenderContext = {
 
 type WidgetDefinition = {
   id: CustomStatisticsWidgetId
-  title: string
-  description?: string
+  titleKey: string
+  descriptionKey?: string
   render: (ctx: WidgetRenderContext) => ReactNode
 }
 
@@ -70,8 +71,8 @@ function platformForKeyboard() {
 export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   {
     id: 'insights',
-    title: '统计摘要',
-    description: '连续/本周本月/环比/高峰',
+    titleKey: 'customStatistics.widgets.insights.title',
+    descriptionKey: 'customStatistics.widgets.insights.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <InsightsPanel
@@ -83,8 +84,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'trend',
-    title: '7/30 天趋势',
-    description: '总计/键盘/单击',
+    titleKey: 'customStatistics.widgets.trend.title',
+    descriptionKey: 'customStatistics.widgets.trend.description',
     render: ({ allDays }) => (
       <Card className="p-4">
         <TrendPanel days={allDays} />
@@ -93,8 +94,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'weekday_distribution',
-    title: '周几分布',
-    description: '平均/天 · 7/30/1年',
+    titleKey: 'customStatistics.widgets.weekday_distribution.title',
+    descriptionKey: 'customStatistics.widgets.weekday_distribution.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <WeekdayDistribution
@@ -107,8 +108,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'source_share',
-    title: '输入来源占比',
-    description: '键盘 vs 单击 · 当日/7天/30天/累计',
+    titleKey: 'customStatistics.widgets.source_share.title',
+    descriptionKey: 'customStatistics.widgets.source_share.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <InputSourceShare days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]} endKey={stats.today.date} defaultRange="30" />
@@ -117,8 +118,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'daily_source_bars',
-    title: '按天堆叠（键盘/单击）',
-    description: '7/30 天 · 直观看构成与峰值',
+    titleKey: 'customStatistics.widgets.daily_source_bars.title',
+    descriptionKey: 'customStatistics.widgets.daily_source_bars.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <DailySourceBars days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]} endKey={stats.today.date} defaultRangeDays={30} />
@@ -127,8 +128,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'hourly_weekday_heatmap',
-    title: '周几 × 小时热力',
-    description: '平均/天（总计/键盘/单击）· 7/30/1年',
+    titleKey: 'customStatistics.widgets.hourly_weekday_heatmap.title',
+    descriptionKey: 'customStatistics.widgets.hourly_weekday_heatmap.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <HourlyWeekdayHeatmap
@@ -142,8 +143,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'key_diversity',
-    title: '按键多样性',
-    description: '每天不同按键数（>0）· 7/30 天',
+    titleKey: 'customStatistics.widgets.key_diversity.title',
+    descriptionKey: 'customStatistics.widgets.key_diversity.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <KeyDiversityBars days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]} endKey={stats.today.date} defaultRangeDays={30} />
@@ -152,8 +153,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'shortcut_trend',
-    title: '快捷键使用趋势',
-    description: '按天快捷键次数 + Top 占比（7/30 天）',
+    titleKey: 'customStatistics.widgets.shortcut_trend.title',
+    descriptionKey: 'customStatistics.widgets.shortcut_trend.description',
     render: ({ stats, allDays }) => (
       <Card className="p-4">
         <ShortcutUsageTrend days={allDays} endKey={stats.today.date} defaultRangeDays={30} />
@@ -162,8 +163,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'app_concentration',
-    title: '应用集中度',
-    description: 'Top1/3/5 占比 + HHI',
+    titleKey: 'customStatistics.widgets.app_concentration.title',
+    descriptionKey: 'customStatistics.widgets.app_concentration.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <AppConcentration
@@ -176,8 +177,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'shift_usage',
-    title: 'Shift 使用率',
-    description: 'Shifted vs Unshifted（支持趋势）',
+    titleKey: 'customStatistics.widgets.shift_usage.title',
+    descriptionKey: 'customStatistics.widgets.shift_usage.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <ShiftUsage
@@ -190,8 +191,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'key_pareto',
-    title: '按键集中度（Pareto）',
-    description: 'Top10 占比 + 长尾占比',
+    titleKey: 'customStatistics.widgets.key_pareto.title',
+    descriptionKey: 'customStatistics.widgets.key_pareto.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <KeyPareto
@@ -205,8 +206,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'mouse_button_structure',
-    title: '鼠标按键结构',
-    description: '左/右/其他占比 + 趋势',
+    titleKey: 'customStatistics.widgets.mouse_button_structure.title',
+    descriptionKey: 'customStatistics.widgets.mouse_button_structure.description',
     render: ({ stats, settings, allDays }) => (
       <Card className="p-4">
         <MouseButtonStructure
@@ -219,8 +220,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'calendar',
-    title: '按天统计',
-    description: '全部：月历热力（可点选日期） · 当天：今日概览',
+    titleKey: 'customStatistics.widgets.calendar.title',
+    descriptionKey: 'customStatistics.widgets.calendar.description',
     render: ({ stats, settings, allDays }) => (
       <MonthlyHistoryCalendar
         days={allDays}
@@ -232,8 +233,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'keyboard_heatmap_total',
-    title: '键盘热力图',
-    description: '当日/累计 · 区分 Shift',
+    titleKey: 'customStatistics.widgets.keyboard_heatmap_total.title',
+    descriptionKey: 'customStatistics.widgets.keyboard_heatmap_total.description',
     render: ({ settings, aggregates }) => (
       <Card className="p-4">
         <KeyboardHeatmap
@@ -247,8 +248,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'key_ranking_total',
-    title: '按键排行（累计）',
-    description: 'Top/Bottom 10（>0）',
+    titleKey: 'customStatistics.widgets.key_ranking_total.title',
+    descriptionKey: 'customStatistics.widgets.key_ranking_total.description',
     render: ({ settings, aggregates }) => (
       <Card className="p-4">
         <KeyRanking
@@ -261,7 +262,8 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'mouse_buttons_total',
-    title: '鼠标按键热力图（累计）',
+    titleKey: 'customStatistics.widgets.mouse_buttons_total.title',
+    descriptionKey: 'customStatistics.widgets.mouse_buttons_total.description',
     render: ({ settings, aggregates }) => (
       <Card className="p-4">
         <MouseButtonsHeatmap
@@ -273,17 +275,18 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'shortcut_list_total',
-    title: '快捷键统计（累计）',
+    titleKey: 'customStatistics.widgets.shortcut_list_total.title',
+    descriptionKey: 'customStatistics.widgets.shortcut_list_total.description',
     render: ({ aggregates }) => (
       <Card className="p-4">
-        <ShortcutList counts={aggregates.shortcutCounts} modeLabel="累计" />
+        <ShortcutList counts={aggregates.shortcutCounts} modeLabel={i18n.t('customStatistics.mode.cumulative') as string} />
       </Card>
     ),
   },
   {
     id: 'hourly_total',
-    title: '小时分布（累计）',
-    description: '仅新版本开始记录',
+    titleKey: 'customStatistics.widgets.hourly_total.title',
+    descriptionKey: 'customStatistics.widgets.hourly_total.description',
     render: ({ aggregates }) => (
       <Card className="p-4">
         <HourlyDistribution hourly={aggregates.hourly} />
@@ -292,14 +295,20 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
   },
   {
     id: 'app_ranking_total',
-    title: '应用输入排行',
-    description: '按前台应用归因（Top 20）',
+    titleKey: 'customStatistics.widgets.app_ranking_total.title',
+    descriptionKey: 'customStatistics.widgets.app_ranking_total.description',
     render: ({ settings, aggregates }) => (
       <Card className="p-4">
         <AppInputRanking
           counts={aggregates.appInputCounts}
           limit={20}
-          modeLabel={settings.custom_statistics_range === 'all' ? '累计' : '当日'}
+          modeLabel={
+            i18n.t(
+              settings.custom_statistics_range === 'all'
+                ? 'customStatistics.mode.cumulative'
+                : 'customStatistics.mode.daily',
+            ) as string
+          }
         />
       </Card>
     ),
@@ -307,7 +316,9 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
 ]
 
 export function widgetTitle(id: string): string {
-  return CUSTOM_STATISTICS_WIDGETS.find((w) => w.id === id)?.title ?? id
+  const widget = CUSTOM_STATISTICS_WIDGETS.find((w) => w.id === id)
+  if (!widget) return id
+  return i18n.t(widget.titleKey) as string
 }
 
 export function isKnownWidgetId(id: string): id is CustomStatisticsWidgetId {

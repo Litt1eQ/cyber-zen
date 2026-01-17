@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { buildKeySpecIndex, getKeyboardLayout, normalizeKeyboardLayoutId, type KeyboardPlatform } from '@/lib/keyboard'
 import { KeyCombo, type KeyComboPart } from '@/components/ui/key-combo'
 import { RankingPanel, type RankingEntry } from '@/components/Statistics/ranking/RankingPanel'
@@ -26,6 +27,7 @@ export function KeyRanking({
   keyboardLayoutId?: string | null
   limit?: number
 }) {
+  const { t } = useTranslation()
   const layoutId = useMemo(() => normalizeKeyboardLayoutId(keyboardLayoutId), [keyboardLayoutId])
   const keyIndex = useMemo(() => buildKeySpecIndex(getKeyboardLayout(layoutId, platform)), [layoutId, platform])
 
@@ -46,7 +48,7 @@ export function KeyRanking({
   if (usedKeysCount === 0) {
     return (
       <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-        暂无按键记录
+        {t('statistics.keyRanking.noData')}
       </div>
     )
   }
@@ -55,8 +57,8 @@ export function KeyRanking({
     <div className="space-y-3">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <RankingPanel
-          title="按键最多 Top 10"
-          subtitle={`覆盖 ${usedKeysCount.toLocaleString()} 个按键（>0）`}
+          title={t('statistics.keyRanking.mostTitle', { n: limit })}
+          subtitle={t('statistics.keyRanking.mostSubtitle', { keys: usedKeysCount.toLocaleString() })}
           entries={top.map(
             (entry): RankingEntry => ({
               id: entry.code,
@@ -70,8 +72,8 @@ export function KeyRanking({
           tone="up"
         />
         <RankingPanel
-          title="按键最少 Top 10"
-          subtitle="仅统计有记录的按键（>0）"
+          title={t('statistics.keyRanking.leastTitle', { n: limit })}
+          subtitle={t('statistics.keyRanking.leastSubtitle')}
           entries={bottom.map(
             (entry): RankingEntry => ({
               id: entry.code,
@@ -85,7 +87,7 @@ export function KeyRanking({
           tone="down"
         />
       </div>
-      <div className="text-[11px] text-slate-500">提示：未使用（0 次）的按键不计入“最少”排行。</div>
+      <div className="text-[11px] text-slate-500">{t('statistics.keyRanking.hint')}</div>
     </div>
   )
 }

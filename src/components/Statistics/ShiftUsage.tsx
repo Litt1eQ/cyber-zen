@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '@/types/merit'
 import { buildDayIndex, keysInWindow } from '@/lib/statisticsInsights'
 import { cn } from '@/lib/utils'
@@ -16,11 +17,15 @@ function fmtPct(p: number): string {
   return `${Math.round(clamp01(p) * 100)}%`
 }
 
-function rangeLabel(mode: RangeMode, endKey: string) {
-  if (mode === 'day') return `当日 ${endKey}`
-  if (mode === '7') return `近7天（截止 ${endKey}）`
-  if (mode === '30') return `近30天（截止 ${endKey}）`
-  return '累计（仅统计可区分 Shift 的天）'
+function rangeLabel(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  mode: RangeMode,
+  endKey: string,
+) {
+  if (mode === 'day') return t('statistics.range.dayWithDate', { date: endKey })
+  if (mode === '7') return t('statistics.range.lastDaysWithEnd', { days: 7, date: endKey })
+  if (mode === '30') return t('statistics.range.lastDaysWithEnd', { days: 30, date: endKey })
+  return t('customStatistics.mode.cumulative')
 }
 
 function modeToDays(mode: RangeMode): number | null {
@@ -56,6 +61,7 @@ export function ShiftUsage({
   endKey: string
   defaultRange?: RangeMode
 }) {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<RangeMode>(defaultRange)
   const index = useMemo(() => buildDayIndex(days), [days])
 
@@ -123,38 +129,38 @@ export function ShiftUsage({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">Shift 使用率</div>
-          <div className="mt-1 text-xs text-slate-500 tabular-nums">{rangeLabel(mode, endKey)}</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.shift_usage.title')}</div>
+          <div className="mt-1 text-xs text-slate-500 tabular-nums">{rangeLabel(t, mode, endKey)}</div>
         </div>
         <div className="flex items-center gap-2" data-no-drag>
           <Button type="button" size="sm" variant={mode === 'day' ? 'secondary' : 'outline'} onClick={() => setMode('day')} data-no-drag>
-            当日
+            {t('statistics.range.day')}
           </Button>
           <Button type="button" size="sm" variant={mode === '7' ? 'secondary' : 'outline'} onClick={() => setMode('7')} data-no-drag>
-            7 天
+            {t('statistics.range.days', { days: 7 })}
           </Button>
           <Button type="button" size="sm" variant={mode === '30' ? 'secondary' : 'outline'} onClick={() => setMode('30')} data-no-drag>
-            30 天
+            {t('statistics.range.days', { days: 30 })}
           </Button>
           <Button type="button" size="sm" variant={mode === 'all' ? 'secondary' : 'outline'} onClick={() => setMode('all')} data-no-drag>
-            累计
+            {t('customStatistics.mode.cumulative')}
           </Button>
         </div>
       </div>
 
       {!summary.hasSplit ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无可区分 Shift 的按键数据（仅新版本开始记录）
+          {t('statistics.shiftUsage.noSplitData')}
         </div>
       ) : !hasAny ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无按键记录
+          {t('statistics.shiftUsage.noKeyData')}
         </div>
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-4 items-center">
             <div className="flex items-center justify-center">
-              <svg viewBox={`0 0 ${donut.size} ${donut.size}`} className="h-[120px] w-[120px]" role="img" aria-label="Shift 使用率">
+              <svg viewBox={`0 0 ${donut.size} ${donut.size}`} className="h-[120px] w-[120px]" role="img" aria-label={t('statistics.shiftUsage.ariaLabel')}>
                 <g transform={`rotate(-90 ${donut.cx} ${donut.cy})`}>
                   <circle cx={donut.cx} cy={donut.cy} r={donut.r} fill="none" stroke="#e2e8f0" strokeWidth={donut.strokeWidth} />
                   <circle
@@ -184,7 +190,7 @@ export function ShiftUsage({
                   {fmtPct(shiftedShare)}
                 </text>
                 <text x={donut.cx} y={donut.cy + 18} textAnchor="middle" fontSize="10" fill="#64748b">
-                  Shift
+                  {t('statistics.shiftUsage.shiftKey')}
                 </text>
               </svg>
             </div>
@@ -195,7 +201,7 @@ export function ShiftUsage({
                   <div className="flex items-center justify-between gap-2">
                     <div className="inline-flex items-center gap-2 text-[11px] text-slate-500">
                       <span className="h-2.5 w-2.5 rounded-sm bg-violet-500" aria-hidden="true" />
-                      Shifted
+                      {t('statistics.shiftUsage.shifted')}
                     </div>
                     <div className="text-[11px] text-slate-500 tabular-nums">{fmtPct(shiftedShare)}</div>
                   </div>
@@ -208,7 +214,7 @@ export function ShiftUsage({
                   <div className="flex items-center justify-between gap-2">
                     <div className="inline-flex items-center gap-2 text-[11px] text-slate-500">
                       <span className="h-2.5 w-2.5 rounded-sm bg-sky-500" aria-hidden="true" />
-                      Unshifted
+                      {t('statistics.shiftUsage.unshifted')}
                     </div>
                     <div className="text-[11px] text-slate-500 tabular-nums">{fmtPct(1 - shiftedShare)}</div>
                   </div>
@@ -220,25 +226,28 @@ export function ShiftUsage({
               </div>
 
               <div className="text-xs text-slate-500 tabular-nums">
-                覆盖 {summary.coveredDays.toLocaleString()}/{summary.windowDays.toLocaleString()} 天（其余天未记录 Shift 分离）
+                {t('statistics.shiftUsage.coverage', {
+                  covered: summary.coveredDays.toLocaleString(),
+                  total: summary.windowDays.toLocaleString(),
+                })}
               </div>
             </div>
           </div>
 
           {mode === 'all' ? (
-            <div className="text-xs text-slate-500">提示：切换到 7/30 天可查看按天趋势。</div>
+            <div className="text-xs text-slate-500">{t('statistics.shiftUsage.allHint')}</div>
           ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-500">
-                <div className="min-w-0 truncate">按天堆叠（仅显示记录了 Shift 分离的天）</div>
-                <div className="tabular-nums">峰值 {maxDayTotal.toLocaleString()}/天</div>
+                <div className="min-w-0 truncate">{t('statistics.shiftUsage.trendHint')}</div>
+                <div className="tabular-nums">{t('statistics.peakPerDay', { value: maxDayTotal.toLocaleString() })}</div>
               </div>
               <div className="h-36">
                 <div className="flex h-full items-end gap-1">
                   {points.map((p, idx) => {
                     if (!p.hasSplit) {
                       return (
-                        <div key={p.key} className="flex-1 min-w-0" title={`${p.key}  未记录 Shift 分离`} data-no-drag>
+                        <div key={p.key} className="flex-1 min-w-0" title={t('statistics.shiftUsage.noSplitDay', { date: p.key })} data-no-drag>
                           <div className="relative h-28 w-full overflow-hidden rounded-md border border-slate-200/60 bg-slate-50" />
                           <div className={cn('mt-1 text-[10px] text-slate-400 tabular-nums text-center', idx % labelEvery === 0 || idx === points.length - 1 ? '' : 'opacity-0')}>
                             {formatShortDate(p.key)}
@@ -254,7 +263,11 @@ export function ShiftUsage({
                       <div
                         key={p.key}
                         className="flex-1 min-w-0"
-                        title={`${p.key}  Shifted ${p.shifted.toLocaleString()} / Unshifted ${p.unshifted.toLocaleString()}`}
+                        title={t('statistics.tooltips.shiftBreakdown', {
+                          date: p.key,
+                          shifted: p.shifted.toLocaleString(),
+                          unshifted: p.unshifted.toLocaleString(),
+                        })}
                         data-no-drag
                       >
                         <div className="relative h-28 w-full overflow-hidden rounded-md border border-slate-200/60 bg-white">
@@ -274,14 +287,14 @@ export function ShiftUsage({
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-sm bg-violet-500" aria-hidden="true" />
-                    Shifted
+                    {t('statistics.shiftUsage.shifted')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-sm bg-sky-500" aria-hidden="true" />
-                    Unshifted
+                    {t('statistics.shiftUsage.unshifted')}
                   </span>
                 </div>
-                <div className="tabular-nums">总计 {total.toLocaleString()}</div>
+                <div className="tabular-nums">{t('statistics.totalWithValue', { value: total.toLocaleString() })}</div>
               </div>
             </div>
           )}
@@ -290,4 +303,3 @@ export function ShiftUsage({
     </div>
   )
 }
-

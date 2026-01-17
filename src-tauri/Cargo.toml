@@ -1,6 +1,6 @@
 [package]
 name = "cyber-zen"
-version = "0.1.19"
+version = "0.1.20"
 description = "一个基于 Tauri 2 + React + Vite 的桌面悬浮「木鱼」应用"
 authors = ["Litt1eQ"]
 license = "GPL-3.0-only"
@@ -40,6 +40,7 @@ rdev = "0.5.3"
 rand = { version = "0.8", features = ["small_rng"] }
 tokio = { version = "1", features = ["time"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
+sys-locale = "0.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2" }

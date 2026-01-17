@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { RankingPanel, type RankingEntry } from '@/components/Statistics/ranking/RankingPanel'
 import type { AppInputStats } from '@/lib/statisticsAggregates'
@@ -42,7 +43,7 @@ export function AppInputRanking({
   counts,
   limit = 20,
   modeLabel,
-  title = '应用输入排行',
+  title,
   headerRight,
   interactive = false,
 }: {
@@ -53,6 +54,8 @@ export function AppInputRanking({
   headerRight?: React.ReactNode
   interactive?: boolean
 }) {
+  const { t } = useTranslation()
+  const resolvedTitle = title ?? t('customStatistics.widgets.app_ranking_total.title')
   const requestedRef = useRef<Set<string>>(new Set())
   const [icons, setIcons] = useState<Record<string, string | null>>({})
   const [query, setQuery] = useState('')
@@ -150,8 +153,8 @@ export function AppInputRanking({
         value,
         segments: showSegments
           ? [
-              { value: e.keyboard, className: 'bg-emerald-600', title: `键盘 ${e.keyboard.toLocaleString()}` },
-              { value: e.mouse_single, className: 'bg-emerald-300', title: `单击 ${e.mouse_single.toLocaleString()}` },
+              { value: e.keyboard, className: 'bg-emerald-600', title: t('statistics.breakdown.keyboard', { value: e.keyboard.toLocaleString() }) },
+              { value: e.mouse_single, className: 'bg-emerald-300', title: t('statistics.breakdown.click', { value: e.mouse_single.toLocaleString() }) },
             ]
           : undefined,
         title: e.name ? `${e.name} (${e.id})` : e.id,
@@ -169,35 +172,44 @@ export function AppInputRanking({
             <div className="truncate font-medium text-slate-900">{displayName}</div>
             {metric === 'total' ? (
               <div className="ml-1 truncate text-[11px] text-slate-500 tabular-nums">
-                键盘 {e.keyboard.toLocaleString()} · 单击 {e.mouse_single.toLocaleString()}
+                {t('statistics.appInputRanking.segmentSummary', {
+                  keyboard: e.keyboard.toLocaleString(),
+                  click: e.mouse_single.toLocaleString(),
+                })}
               </div>
             ) : metric === 'keyboard' ? (
               <div className="ml-1 truncate text-[11px] text-slate-500 tabular-nums">
-                占比 {Math.round(pct(e.keyboard, e.total) * 100)}% · 总计 {e.total.toLocaleString()}
+                {t('statistics.appInputRanking.shareSummary', {
+                  share: Math.round(pct(e.keyboard, e.total) * 100).toLocaleString(),
+                  total: e.total.toLocaleString(),
+                })}
               </div>
             ) : (
               <div className="ml-1 truncate text-[11px] text-slate-500 tabular-nums">
-                占比 {Math.round(pct(e.mouse_single, e.total) * 100)}% · 总计 {e.total.toLocaleString()}
+                {t('statistics.appInputRanking.shareSummary', {
+                  share: Math.round(pct(e.mouse_single, e.total) * 100).toLocaleString(),
+                  total: e.total.toLocaleString(),
+                })}
               </div>
             )}
           </div>
         ),
       }
     })
-  }, [entries, icons, limit, metric])
+  }, [entries, icons, limit, metric, t])
 
   const toolbar = useMemo(() => {
     if (!interactive) return null
 
     const sortOptions: Array<{ value: SortMode; label: string }> = [
-      { value: 'value', label: '按次数' },
+      { value: 'value', label: t('statistics.appInputRanking.sort.byValue') },
       ...(metric === 'total'
         ? [
-            { value: 'keyboard_share' as const, label: '键盘占比' },
-            { value: 'mouse_share' as const, label: '单击占比' },
+            { value: 'keyboard_share' as const, label: t('statistics.appInputRanking.sort.keyboardShare') },
+            { value: 'mouse_share' as const, label: t('statistics.appInputRanking.sort.clickShare') },
           ]
         : []),
-      { value: 'name', label: '按名称' },
+      { value: 'name', label: t('statistics.appInputRanking.sort.byName') },
     ]
 
     return (
@@ -206,7 +218,7 @@ export function AppInputRanking({
           <Input
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
-            placeholder="搜索应用（名称 / ID）"
+            placeholder={t('statistics.appInputRanking.searchPlaceholder')}
             className="h-9"
             data-no-drag
           />
@@ -215,12 +227,12 @@ export function AppInputRanking({
         <div className="sm:col-span-1">
           <Select value={metric} onValueChange={(v) => setMetric(v as MetricMode)}>
             <SelectTrigger className="h-9" data-no-drag>
-              <SelectValue placeholder="指标" />
+              <SelectValue placeholder={t('statistics.appInputRanking.metricPlaceholder')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="total">总计</SelectItem>
-              <SelectItem value="keyboard">键盘</SelectItem>
-              <SelectItem value="mouse_single">单击</SelectItem>
+              <SelectItem value="total">{t('customStatistics.total')}</SelectItem>
+              <SelectItem value="keyboard">{t('customStatistics.keyboard')}</SelectItem>
+              <SelectItem value="mouse_single">{t('customStatistics.click')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -228,7 +240,7 @@ export function AppInputRanking({
         <div className="sm:col-span-2">
           <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
             <SelectTrigger className="h-9" data-no-drag>
-              <SelectValue placeholder="排序" />
+              <SelectValue placeholder={t('statistics.appInputRanking.sortPlaceholder')} />
             </SelectTrigger>
             <SelectContent>
               {sortOptions.map((opt) => (
@@ -243,30 +255,28 @@ export function AppInputRanking({
         <div className="sm:col-span-6 flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
           <div className="min-w-0 truncate">
             {derived.filteredCount !== derived.baseCount ? (
-              <>
-                匹配 {derived.filteredCount.toLocaleString()}/{derived.baseCount.toLocaleString()} 个应用
-              </>
+              <>{t('statistics.appInputRanking.matchCount', { filtered: derived.filteredCount.toLocaleString(), base: derived.baseCount.toLocaleString() })}</>
             ) : (
-              <>覆盖 {derived.baseCount.toLocaleString()} 个应用（&gt;0）</>
+              <>{t('statistics.appInputRanking.coverageCount', { apps: derived.baseCount.toLocaleString() })}</>
             )}
           </div>
           <div className={cn('shrink-0', (query.trim() || sortMode !== 'value' || metric !== 'total') && 'text-slate-400')}>
-            {query.trim() ? '已筛选' : ' '}
+            {query.trim() ? t('statistics.appInputRanking.filtered') : ' '}
           </div>
         </div>
       </div>
     )
-  }, [derived.baseCount, derived.filteredCount, interactive, metric, query, sortMode])
+  }, [derived.baseCount, derived.filteredCount, interactive, metric, query, sortMode, t])
 
   return (
     <RankingPanel
-      title={title}
-      subtitle={interactive ? undefined : `覆盖 ${entries.length.toLocaleString()} 个应用（>0）`}
+      title={resolvedTitle}
+      subtitle={interactive ? undefined : t('statistics.appInputRanking.coverageSubtitle', { apps: entries.length.toLocaleString() })}
       entries={panelEntries}
       limit={limit}
       maxValue={derived.maxValue}
       tone="up"
-      emptyLabel="暂无应用归因数据"
+      emptyLabel={t('statistics.appInputRanking.noData')}
       headerRight={headerRight ?? modeLabel ?? null}
       toolbar={toolbar}
       listContainerClassName="max-h-72 overflow-y-auto pr-2"

@@ -2,6 +2,7 @@ import { useMeritStore } from '../../stores/useMeritStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { MonthlyHistoryCalendar } from './MonthlyHistoryCalendar'
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card } from '../ui/card'
 import { TrendPanel } from './TrendPanel'
 import { AppInputRanking } from './AppInputRanking'
@@ -21,6 +22,7 @@ import { KeyPareto } from './KeyPareto'
 import { MouseButtonStructure } from './MouseButtonStructure'
 
 export function Statistics() {
+  const { t } = useTranslation()
   const stats = useMeritStore((state) => state.stats)
   const heatLevelCount = useSettingsStore((state) => state.settings?.heatmap_levels)
   const keyboardLayoutId = useSettingsStore((state) => state.settings?.keyboard_layout)
@@ -56,11 +58,21 @@ export function Statistics() {
 
   const [appRankingRange, setAppRankingRange] = useState<'day' | '7' | '30' | 'all'>('day')
   const appRankingRangeLabel = useMemo(() => {
-    if (appRankingRange === 'day') return anchorKey ? `当日 ${anchorKey}` : '当日'
-    if (appRankingRange === '7') return anchorKey ? `近7天（截止 ${anchorKey}）` : '近7天'
-    if (appRankingRange === '30') return anchorKey ? `近30天（截止 ${anchorKey}）` : '近30天'
-    return '累计'
-  }, [anchorKey, appRankingRange])
+    if (appRankingRange === 'day') {
+      return anchorKey ? t('statistics.range.dayWithDate', { date: anchorKey }) : t('statistics.range.day')
+    }
+    if (appRankingRange === '7') {
+      return anchorKey
+        ? t('statistics.range.lastDaysWithEnd', { days: 7, date: anchorKey })
+        : t('statistics.range.lastDays', { days: 7 })
+    }
+    if (appRankingRange === '30') {
+      return anchorKey
+        ? t('statistics.range.lastDaysWithEnd', { days: 30, date: anchorKey })
+        : t('statistics.range.lastDays', { days: 30 })
+    }
+    return t('customStatistics.mode.cumulative')
+  }, [anchorKey, appRankingRange, t])
 
   const appRankingCounts = useMemo(() => {
     if (!anchorKey) return {}
@@ -80,7 +92,7 @@ export function Statistics() {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-slate-600 text-sm mb-2">统计增强</h3>
+      <h3 className="text-slate-600 text-sm mb-2">{t('statistics.title')}</h3>
       {stats ? (
         <div className="space-y-4">
           <Card className="p-4">
@@ -140,7 +152,7 @@ export function Statistics() {
             <AppInputRanking
               counts={appRankingCounts}
               limit={20}
-              title="应用输入排行"
+              title={t('customStatistics.widgets.app_ranking_total.title')}
               interactive
               headerRight={
                 <div className="flex items-center gap-2" data-no-drag>
@@ -153,7 +165,7 @@ export function Statistics() {
                       onClick={() => setAppRankingRange('day')}
                       data-no-drag
                     >
-                      当日
+                      {t('statistics.range.day')}
                     </Button>
                     <Button
                       type="button"
@@ -162,7 +174,7 @@ export function Statistics() {
                       onClick={() => setAppRankingRange('7')}
                       data-no-drag
                     >
-                      7天
+                      {t('statistics.range.days', { days: 7 })}
                     </Button>
                     <Button
                       type="button"
@@ -171,7 +183,7 @@ export function Statistics() {
                       onClick={() => setAppRankingRange('30')}
                       data-no-drag
                     >
-                      30天
+                      {t('statistics.range.days', { days: 30 })}
                     </Button>
                     <Button
                       type="button"
@@ -180,7 +192,7 @@ export function Statistics() {
                       onClick={() => setAppRankingRange('all')}
                       data-no-drag
                     >
-                      累计
+                      {t('customStatistics.mode.cumulative')}
                     </Button>
                   </div>
                 </div>
@@ -198,7 +210,7 @@ export function Statistics() {
         </div>
       ) : (
         <div className="rounded-xl p-5 border border-slate-200 bg-white shadow-sm text-slate-500">
-          加载中...
+          {t('common.loading')}
         </div>
       )}
     </div>

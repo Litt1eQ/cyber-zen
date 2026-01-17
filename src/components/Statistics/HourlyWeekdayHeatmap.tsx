@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '@/types/merit'
 import { buildDayIndex, keysInWindow } from '@/lib/statisticsInsights'
 import { weekdayIndexMon0FromNaiveDateKey } from '@/lib/date'
@@ -6,14 +7,16 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { computeHeatThresholds, heatClass, heatLevelForValue, heatLevels, normalizeHeatLevelCount } from './heatScale'
 
-const WEEKDAYS_ZH = ['一', '二', '三', '四', '五', '六', '日'] as const
-
 type Metric = 'total' | 'keyboard' | 'mouse_single'
 
-function metricLabel(metric: Metric) {
-  if (metric === 'keyboard') return '键盘'
-  if (metric === 'mouse_single') return '单击'
-  return '总计'
+function weekdayLabelMon0(weekdayIndexMon0: number, locale: string): string {
+  const base = new Date(2024, 0, 1, 12) // 2024-01-01 is Monday
+  const date = new Date(base.getFullYear(), base.getMonth(), base.getDate() + weekdayIndexMon0, 12)
+  try {
+    return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date)
+  } catch {
+    return String(weekdayIndexMon0)
+  }
 }
 
 function hourLabel(hour: number): string {
@@ -41,6 +44,7 @@ export function HourlyWeekdayHeatmap({
   heatLevelCount?: number | null
   defaultRangeDays?: RangeDays
 }) {
+  const { t, i18n } = useTranslation()
   const [rangeDays, setRangeDays] = useState<RangeDays>(defaultRangeDays)
   const [metric, setMetric] = useState<Metric>('total')
 
@@ -100,24 +104,26 @@ export function HourlyWeekdayHeatmap({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-900 tracking-wide">周几 × 小时热力</div>
-            <div className="mt-1 text-xs text-slate-500 tabular-nums">近 {rangeDays} 天（截止 {endKey}）</div>
+            <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.hourly_weekday_heatmap.title')}</div>
+            <div className="mt-1 text-xs text-slate-500 tabular-nums">
+              {t('statistics.range.lastDaysWithEnd', { days: rangeDays, date: endKey })}
+            </div>
           </div>
           <div className="flex items-center gap-2" data-no-drag>
             <Button type="button" size="sm" variant={rangeDays === 7 ? 'secondary' : 'outline'} onClick={() => setRangeDays(7)} data-no-drag>
-              7 天
+              {t('statistics.range.days', { days: 7 })}
             </Button>
             <Button type="button" size="sm" variant={rangeDays === 30 ? 'secondary' : 'outline'} onClick={() => setRangeDays(30)} data-no-drag>
-              30 天
+              {t('statistics.range.days', { days: 30 })}
             </Button>
             <Button type="button" size="sm" variant={rangeDays === 365 ? 'secondary' : 'outline'} onClick={() => setRangeDays(365)} data-no-drag>
-              1 年
+              {t('statistics.range.year')}
             </Button>
           </div>
         </div>
 
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无小时数据（仅新版本开始记录）
+          {t('statistics.hourlyDistribution.noDataNote')}
         </div>
       </div>
     )
@@ -132,18 +138,27 @@ export function HourlyWeekdayHeatmap({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">周几 × 小时热力</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.hourly_weekday_heatmap.title')}</div>
           <div className="mt-1 text-xs text-slate-500 tabular-nums">
-            {metricLabel(metric)} · 平均/天 · 近 {rangeDays} 天（截止 {endKey}）
+            {t('statistics.hourlyWeekdayHeatmap.subtitle', {
+              metric:
+                metric === 'keyboard'
+                  ? t('customStatistics.keyboard')
+                  : metric === 'mouse_single'
+                    ? t('customStatistics.click')
+                    : t('customStatistics.total'),
+              days: rangeDays,
+              date: endKey,
+            })}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2" data-no-drag>
           <div className="flex items-center gap-1" data-no-drag>
             <Button type="button" size="sm" variant={metric === 'total' ? 'secondary' : 'outline'} onClick={() => setMetric('total')} data-no-drag>
-              总计
+              {t('customStatistics.total')}
             </Button>
             <Button type="button" size="sm" variant={metric === 'keyboard' ? 'secondary' : 'outline'} onClick={() => setMetric('keyboard')} data-no-drag>
-              键盘
+              {t('customStatistics.keyboard')}
             </Button>
             <Button
               type="button"
@@ -152,19 +167,19 @@ export function HourlyWeekdayHeatmap({
               onClick={() => setMetric('mouse_single')}
               data-no-drag
             >
-              单击
+              {t('customStatistics.click')}
             </Button>
           </div>
           <div className="h-6 w-px bg-slate-200/70" aria-hidden="true" />
           <div className="flex items-center gap-1" data-no-drag>
             <Button type="button" size="sm" variant={rangeDays === 7 ? 'secondary' : 'outline'} onClick={() => setRangeDays(7)} data-no-drag>
-              7 天
+              {t('statistics.range.days', { days: 7 })}
             </Button>
             <Button type="button" size="sm" variant={rangeDays === 30 ? 'secondary' : 'outline'} onClick={() => setRangeDays(30)} data-no-drag>
-              30 天
+              {t('statistics.range.days', { days: 30 })}
             </Button>
             <Button type="button" size="sm" variant={rangeDays === 365 ? 'secondary' : 'outline'} onClick={() => setRangeDays(365)} data-no-drag>
-              1 年
+              {t('statistics.range.year')}
             </Button>
           </div>
         </div>
@@ -182,11 +197,14 @@ export function HourlyWeekdayHeatmap({
 
           <div className="mt-2 flex items-start gap-3" style={{ width: labelW + gridW }}>
             <div className="w-[26px] shrink-0 flex flex-col gap-1 pt-[1px]">
-              {WEEKDAYS_ZH.map((label) => (
-                <div key={label} className="text-[11px] text-slate-600 tabular-nums" style={{ height: cellSize }}>
-                  周{label}
-                </div>
-              ))}
+              {Array.from({ length: 7 }, (_, idx) => {
+                const label = weekdayLabelMon0(idx, i18n.language)
+                return (
+                  <div key={idx} className="text-[11px] text-slate-600 tabular-nums" style={{ height: cellSize }}>
+                    {label}
+                  </div>
+                )
+              })}
             </div>
 
             <div className="flex flex-col gap-1" style={{ width: gridW }}>
@@ -196,8 +214,13 @@ export function HourlyWeekdayHeatmap({
                     const cell = data.cellGrid[weekdayIndexMon0]![hour]
                     const avg = cell?.avg ?? 0
                     const level = heatLevelForValue(avg, data.maxAvg, data.thresholds, heatLevelsCount)
-                    const label = WEEKDAYS_ZH[weekdayIndexMon0] ?? String(weekdayIndexMon0)
-                    const title = `周${label} ${hourLabel(hour)}:00  平均 ${Math.round(avg).toLocaleString()}/天（覆盖 ${cell?.daysCount ?? 0} 天）`
+                    const weekday = weekdayLabelMon0(weekdayIndexMon0, i18n.language)
+                    const title = t('statistics.hourlyWeekdayHeatmap.cellTooltip', {
+                      weekday,
+                      hour: `${hourLabel(hour)}:00`,
+                      avg: Math.round(avg).toLocaleString(),
+                      days: cell?.daysCount ?? 0,
+                    })
                     return (
                       <div
                         key={`${weekdayIndexMon0}-${hour}`}
@@ -217,13 +240,22 @@ export function HourlyWeekdayHeatmap({
       </div>
 
       <div className="flex items-center justify-between text-xs text-slate-500">
-        <div className="tabular-nums">颜色：{metricLabel(metric)} 平均/天</div>
+        <div className="tabular-nums">
+          {t('statistics.hourlyWeekdayHeatmap.legend', {
+            metric:
+              metric === 'keyboard'
+                ? t('customStatistics.keyboard')
+                : metric === 'mouse_single'
+                  ? t('customStatistics.click')
+                  : t('customStatistics.total'),
+          })}
+        </div>
         <div className="flex items-center gap-2">
-          <span>少</span>
+          <span>{t('statistics.heat.low')}</span>
           {heatLevels(heatLevelsCount).map((lv) => (
             <span key={lv} className={cn('h-3 w-3 rounded border', heatClass(lv, heatLevelsCount))} aria-hidden="true" />
           ))}
-          <span>多</span>
+          <span>{t('statistics.heat.high')}</span>
         </div>
       </div>
     </div>

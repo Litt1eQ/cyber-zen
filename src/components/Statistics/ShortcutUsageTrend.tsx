@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '@/types/merit'
 import { buildDayIndex, keysInWindow } from '@/lib/statisticsInsights'
 import { cn } from '@/lib/utils'
@@ -50,6 +51,7 @@ export function ShortcutUsageTrend({
   endKey: string
   defaultRangeDays?: RangeDays
 }) {
+  const { t } = useTranslation()
   const [rangeDays, setRangeDays] = useState<RangeDays>(defaultRangeDays)
 
   const platform: KeyboardPlatform = useMemo(() => {
@@ -101,29 +103,33 @@ export function ShortcutUsageTrend({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">快捷键使用趋势</div>
-          <div className="mt-1 text-xs text-slate-500 tabular-nums">按天快捷键次数 · 截止 {endKey}</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.shortcut_trend.title')}</div>
+          <div className="mt-1 text-xs text-slate-500 tabular-nums">{t('statistics.shortcutTrend.subtitle', { date: endKey })}</div>
         </div>
         <div className="flex items-center gap-2" data-no-drag>
           <Button type="button" size="sm" variant={rangeDays === 7 ? 'secondary' : 'outline'} onClick={() => setRangeDays(7)} data-no-drag>
-            7 天
+            {t('statistics.range.days', { days: 7 })}
           </Button>
           <Button type="button" size="sm" variant={rangeDays === 30 ? 'secondary' : 'outline'} onClick={() => setRangeDays(30)} data-no-drag>
-            30 天
+            {t('statistics.range.days', { days: 30 })}
           </Button>
         </div>
       </div>
 
       {!hasAny ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无快捷键记录
+          {t('statistics.shortcutTrend.noData')}
         </div>
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <div className="min-w-0 truncate">柱高：快捷键次数（Ctrl/Alt/Meta + 非修饰键）</div>
+            <div className="min-w-0 truncate">{t('statistics.shortcutTrend.barHint')}</div>
             <div className="tabular-nums">
-              合计 {series.sumTotal.toLocaleString()} · 日均 {Math.round(series.avg).toLocaleString()} · 峰值 {series.maxTotal.toLocaleString()}
+              {t('statistics.trend.metrics', {
+                sum: series.sumTotal.toLocaleString(),
+                avg: Math.round(series.avg).toLocaleString(),
+                peak: series.maxTotal.toLocaleString(),
+              })}
             </div>
           </div>
 
@@ -135,7 +141,7 @@ export function ShortcutUsageTrend({
                   <div
                     key={p.key}
                     className="flex-1 min-w-0"
-                    title={`${p.key}  快捷键 ${p.total.toLocaleString()}`}
+                    title={t('statistics.tooltips.shortcutCount', { date: p.key, value: p.total.toLocaleString() })}
                     data-no-drag
                   >
                     <div className="relative h-28 w-full overflow-hidden rounded-md border border-slate-200/60 bg-white">
@@ -158,12 +164,12 @@ export function ShortcutUsageTrend({
 
           <div className="rounded-lg border border-slate-200/60 bg-white p-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-xs font-semibold text-slate-900">Top 快捷键占比（近 {rangeDays} 天）</div>
-              <div className="text-xs text-slate-500 tabular-nums">总计 {top.total.toLocaleString()}</div>
+              <div className="text-xs font-semibold text-slate-900">{t('statistics.shortcutTrend.topShareTitle', { days: rangeDays })}</div>
+              <div className="text-xs text-slate-500 tabular-nums">{t('statistics.totalWithValue', { value: top.total.toLocaleString() })}</div>
             </div>
 
             {top.total <= 0 ? (
-              <div className="mt-3 text-sm text-slate-500">暂无</div>
+              <div className="mt-3 text-sm text-slate-500">{t('statistics.noData')}</div>
             ) : (
               <>
                 <div className="mt-3 flex h-2 rounded-full bg-slate-100 overflow-hidden">
@@ -180,7 +186,7 @@ export function ShortcutUsageTrend({
                     <div
                       className="h-full bg-slate-300"
                       style={{ width: `${pct(top.other, top.total) * 100}%` }}
-                      title={`其他  ${(pct(top.other, top.total) * 100).toFixed(1)}%`}
+                      title={t('statistics.tooltips.otherShare', { value: (pct(top.other, top.total) * 100).toFixed(1) })}
                       aria-hidden="true"
                     />
                   ) : null}
@@ -204,7 +210,7 @@ export function ShortcutUsageTrend({
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0 flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-sm bg-slate-300" aria-hidden="true" />
-                        <div className="truncate text-sm font-medium text-slate-700">其他</div>
+                        <div className="truncate text-sm font-medium text-slate-700">{t('statistics.other')}</div>
                       </div>
                       <div className="shrink-0 text-[11px] text-slate-500 tabular-nums">
                         {(pct(top.other, top.total) * 100).toFixed(1)}% · {top.other.toLocaleString()}

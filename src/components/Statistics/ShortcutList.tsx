@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   buildKeySpecIndex,
   getKeyboardLayout,
@@ -16,6 +17,7 @@ export function ShortcutList({
   counts: Record<string, number>
   modeLabel?: string
 }) {
+  const { t } = useTranslation()
   const platform: KeyboardPlatform = useMemo(() => {
     if (isMac()) return 'mac'
     if (isWindows()) return 'windows'
@@ -48,13 +50,13 @@ export function ShortcutList({
 
   return (
     <RankingPanel
-      title="快捷键排行"
-      subtitle={`覆盖 ${sorted.length.toLocaleString()} 个快捷键（>0）`}
+      title={t('statistics.shortcutList.title')}
+      subtitle={t('statistics.shortcutList.subtitle', { shortcuts: sorted.length.toLocaleString() })}
       entries={entries}
       limit={entries.length}
       maxValue={maxCount}
       tone="up"
-      emptyLabel="暂无快捷键记录"
+      emptyLabel={t('statistics.shortcutList.noData')}
       headerRight={headerRight}
       listContainerClassName="max-h-72 overflow-y-auto pr-2"
       className="p-4"

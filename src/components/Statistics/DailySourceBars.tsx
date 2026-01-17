@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '@/types/merit'
 import { buildDayIndex, keysInWindow } from '@/lib/statisticsInsights'
 import { cn } from '@/lib/utils'
@@ -21,6 +22,7 @@ export function DailySourceBars({
   endKey: string
   defaultRangeDays?: RangeDays
 }) {
+  const { t } = useTranslation()
   const [rangeDays, setRangeDays] = useState<RangeDays>(defaultRangeDays)
   const index = useMemo(() => buildDayIndex(days), [days])
 
@@ -46,22 +48,22 @@ export function DailySourceBars({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 tracking-wide">按天堆叠（键盘/单击）</div>
-          <div className="mt-1 text-xs text-slate-500 tabular-nums">截止 {endKey}</div>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('customStatistics.widgets.daily_source_bars.title')}</div>
+          <div className="mt-1 text-xs text-slate-500 tabular-nums">{t('statistics.untilDate', { date: endKey })}</div>
         </div>
         <div className="flex items-center gap-2" data-no-drag>
           <Button type="button" size="sm" variant={rangeDays === 7 ? 'secondary' : 'outline'} onClick={() => setRangeDays(7)} data-no-drag>
-            7 天
+            {t('statistics.range.days', { days: 7 })}
           </Button>
           <Button type="button" size="sm" variant={rangeDays === 30 ? 'secondary' : 'outline'} onClick={() => setRangeDays(30)} data-no-drag>
-            30 天
+            {t('statistics.range.days', { days: 30 })}
           </Button>
         </div>
       </div>
 
       {!hasAny ? (
         <div className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
-          暂无数据
+          {t('statistics.noData')}
         </div>
       ) : (
         <div className="space-y-3">
@@ -69,15 +71,19 @@ export function DailySourceBars({
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-sm bg-teal-500" aria-hidden="true" />
-                键盘
+                {t('customStatistics.keyboard')}
               </span>
               <span className="inline-flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" aria-hidden="true" />
-                单击
+                {t('customStatistics.click')}
               </span>
             </div>
             <div className="tabular-nums">
-              合计 {series.sumTotal.toLocaleString()} · 日均 {Math.round(series.avg).toLocaleString()} · 峰值 {series.maxTotal.toLocaleString()}
+              {t('statistics.trend.metrics', {
+                sum: series.sumTotal.toLocaleString(),
+                avg: Math.round(series.avg).toLocaleString(),
+                peak: series.maxTotal.toLocaleString(),
+              })}
             </div>
           </div>
 
@@ -94,7 +100,12 @@ export function DailySourceBars({
                   <div
                     key={p.key}
                     className="flex-1 min-w-0"
-                    title={`${p.key}  总计 ${total.toLocaleString()}（键盘 ${k.toLocaleString()} / 单击 ${m.toLocaleString()}）`}
+                    title={t('statistics.tooltips.dayBreakdown', {
+                      date: p.key,
+                      total: total.toLocaleString(),
+                      keyboard: k.toLocaleString(),
+                      click: m.toLocaleString(),
+                    })}
                     data-no-drag
                   >
                     <div className="relative h-28 w-full overflow-hidden rounded-md border border-slate-200/60 bg-white">
@@ -120,4 +131,3 @@ export function DailySourceBars({
     </div>
   )
 }
-

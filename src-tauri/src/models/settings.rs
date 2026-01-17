@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    pub app_locale: String,
     pub enable_keyboard: bool,
     pub enable_mouse_single: bool,
     pub always_on_top: bool,
@@ -39,6 +40,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            app_locale: "system".to_string(),
             enable_keyboard: true,
             enable_mouse_single: true,
             always_on_top: true,

@@ -56,12 +56,28 @@ export function isSameMonth(a: YearMonth, b: YearMonth): boolean {
 }
 
 export function formatMonthLabel(cursor: YearMonth): string {
-  return `${cursor.month}月`
+  return formatMonthLabelForLocale(cursor, 'zh-CN')
 }
 
 export function formatWeekdayZh(date: Date): string {
-  const weekdays = ['日', '一', '二', '三', '四', '五', '六'] as const
-  return `周${weekdays[date.getDay()]}`
+  return formatWeekdayLabelForLocale(date, 'zh-CN')
+}
+
+export function formatMonthLabelForLocale(cursor: YearMonth, locale: string): string {
+  const date = new Date(cursor.year, cursor.month - 1, 1, 12)
+  try {
+    return new Intl.DateTimeFormat(locale, { month: 'short' }).format(date)
+  } catch {
+    return `${cursor.month}`
+  }
+}
+
+export function formatWeekdayLabelForLocale(date: Date, locale: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date)
+  } catch {
+    return String(date.getDay())
+  }
 }
 
 export function addDaysToNaiveDateKey(dateKey: string, deltaDays: number): string | null {

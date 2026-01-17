@@ -1,14 +1,11 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DailyStats } from '../../types/merit'
 import { cn } from '@/lib/utils'
 
 type SeriesKey = 'total' | 'keyboard' | 'mouse_single'
 
-const SERIES: Array<{ key: SeriesKey; label: string; stroke: string; className: string }> = [
-  { key: 'total', label: '总计', stroke: '#2563eb', className: 'text-blue-600' },
-  { key: 'keyboard', label: '键盘', stroke: '#0d9488', className: 'text-teal-600' },
-  { key: 'mouse_single', label: '单击', stroke: '#d97706', className: 'text-amber-600' },
-]
+type Series = { key: SeriesKey; label: string; stroke: string; className: string }
 
 type Point = { date: string; total: number; keyboard: number; mouse_single: number }
 
@@ -29,6 +26,15 @@ export function TrendChart({
   days: DailyStats[]
   rangeDays: 7 | 30
 }) {
+  const { t } = useTranslation()
+  const series: Series[] = useMemo(
+    () => [
+      { key: 'total', label: t('customStatistics.total'), stroke: '#2563eb', className: 'text-blue-600' },
+      { key: 'keyboard', label: t('customStatistics.keyboard'), stroke: '#0d9488', className: 'text-teal-600' },
+      { key: 'mouse_single', label: t('customStatistics.click'), stroke: '#d97706', className: 'text-amber-600' },
+    ],
+    [t],
+  )
   const points = useMemo(() => {
     const byDate = new Map<string, Point>()
     for (const day of days) {
@@ -70,23 +76,23 @@ export function TrendChart({
     }
     const yForValue = (value: number) => padY + innerH - (innerH * value) / safeMax
 
-    const polylines = SERIES.map((series) => {
+    const polylines = series.map((series) => {
       const linePoints = points.map((p, idx) => ({ x: xForIndex(idx), y: yForValue(p[series.key]) }))
       return { ...series, d: buildPolyline(linePoints) }
     })
 
     return { width, height, padX, padY, innerW, innerH, safeMax, xForIndex, yForValue, polylines }
-  }, [points])
+  }, [points, series])
 
   if (points.length === 0) {
-    return <div className="text-sm text-slate-500">暂无数据</div>
+    return <div className="text-sm text-slate-500">{t('statistics.noData')}</div>
   }
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 text-xs">
-          {SERIES.map((s) => (
+          {series.map((s) => (
             <div key={s.key} className={cn('flex items-center gap-2', s.className)}>
               <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: s.stroke }} aria-hidden="true" />
               <span>{s.label}</span>
@@ -94,7 +100,11 @@ export function TrendChart({
           ))}
         </div>
         <div className="text-xs text-slate-500 tabular-nums">
-          合计 {metrics.totalSum.toLocaleString()} · 日均 {Math.round(metrics.avg).toLocaleString()} · 峰值 {metrics.maxTotal.toLocaleString()}
+          {t('statistics.trend.metrics', {
+            sum: metrics.totalSum.toLocaleString(),
+            avg: Math.round(metrics.avg).toLocaleString(),
+            peak: metrics.maxTotal.toLocaleString(),
+          })}
         </div>
       </div>
 
@@ -103,7 +113,7 @@ export function TrendChart({
           viewBox={`0 0 ${chart.width} ${chart.height}`}
           className="h-36 w-full min-w-[420px]"
           role="img"
-          aria-label={`${rangeDays} 天趋势图`}
+          aria-label={t('statistics.trend.ariaLabel', { days: rangeDays })}
         >
           <defs>
             <linearGradient id="czTrendBg" x1="0" y1="0" x2="0" y2="1">
@@ -154,4 +164,3 @@ export function TrendChart({
     </div>
   )
 }
-

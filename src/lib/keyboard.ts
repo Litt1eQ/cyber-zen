@@ -33,18 +33,18 @@ export const MBP_TOUCHBAR_ARROW_CLUSTER_CODE = '__mbp_touchbar_arrow_cluster' as
 
 export const KEYBOARD_LAYOUTS: ReadonlyArray<{
   id: KeyboardLayoutId
-  name: string
+  nameKey: string
   keyCountHint?: string
 }> = [
-  { id: 'full_108', name: '全尺寸（108）', keyCountHint: '108/104' },
-  { id: 'compact_98', name: '98%', keyCountHint: '98' },
-  { id: 'tkl_80', name: '80%（TKL）', keyCountHint: '87' },
-  { id: 'compact_75', name: '75%', keyCountHint: '82/84' },
-  { id: 'compact_65', name: '65%', keyCountHint: '68' },
-  { id: 'compact_60', name: '60%', keyCountHint: '61' },
-  { id: 'hhkb', name: 'HHKB', keyCountHint: '60' },
-  { id: 'macbook_pro', name: 'MacBook Pro（Touch Bar）', keyCountHint: 'Touch Bar' },
-  { id: 'macbook_pro_no_touchbar', name: 'MacBook Pro（无 Touch Bar）', keyCountHint: 'F1–F12' },
+  { id: 'full_108', nameKey: 'keyboard.layouts.full108', keyCountHint: '108/104' },
+  { id: 'compact_98', nameKey: 'keyboard.layouts.compact98', keyCountHint: '98' },
+  { id: 'tkl_80', nameKey: 'keyboard.layouts.tkl80', keyCountHint: '87' },
+  { id: 'compact_75', nameKey: 'keyboard.layouts.compact75', keyCountHint: '82/84' },
+  { id: 'compact_65', nameKey: 'keyboard.layouts.compact65', keyCountHint: '68' },
+  { id: 'compact_60', nameKey: 'keyboard.layouts.compact60', keyCountHint: '61' },
+  { id: 'hhkb', nameKey: 'keyboard.layouts.hhkb', keyCountHint: '60' },
+  { id: 'macbook_pro', nameKey: 'keyboard.layouts.mbpTouchBar', keyCountHint: 'Touch Bar' },
+  { id: 'macbook_pro_no_touchbar', nameKey: 'keyboard.layouts.mbpNoTouchBar', keyCountHint: 'F1–F12' },
 ]
 // Layout definitions live in `getKeyboardLayout` to keep each preset explicit and self-contained.
 
