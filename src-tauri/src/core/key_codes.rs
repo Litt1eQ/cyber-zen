@@ -202,3 +202,15 @@ pub fn from_macos_virtual_keycode(keycode: u16) -> Option<&'static str> {
         _ => return None,
     })
 }
+
+#[cfg(target_os = "macos")]
+pub fn normalize_macos_key_code(code: &str) -> &str {
+    // macOS modifier remaps (System Settings → Keyboard → Modifier Keys) can cause the
+    // OS to report a swapped key as a "right" variant (e.g. ControlRight) even on keyboards
+    // that don't physically have it (like MacBook internal keyboards). For counting purposes,
+    // normalize to stable left-side codes.
+    match code {
+        "ControlRight" => "ControlLeft",
+        _ => code,
+    }
+}

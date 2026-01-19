@@ -9,8 +9,197 @@ pub enum RawMouseButton {
 
 #[derive(Debug, Clone, Copy)]
 pub enum RawInputEvent {
+    /// A key press that should be counted.
+    ///
+    /// `keycode` is the inferred *logical* keycode (after macOS modifier remaps).
     KeyDown { keycode: u16, flags: u64 },
     MouseDown { button: RawMouseButton, x: f64, y: f64 },
+}
+
+// CoreGraphics constants: CGEventFlags (CGEventTypes.h)
+const FLAG_MASK_ALPHA_SHIFT: u64 = 1 << 16;
+const FLAG_MASK_SHIFT: u64 = 1 << 17;
+const FLAG_MASK_CONTROL: u64 = 1 << 18;
+const FLAG_MASK_ALTERNATE: u64 = 1 << 19;
+const FLAG_MASK_COMMAND: u64 = 1 << 20;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ModifierGroup {
+    Shift,
+    Control,
+    Alt,
+    Command,
+    CapsLock,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ModifierSide {
+    Left,
+    Right,
+}
+
+fn flag_mask_for_group(group: ModifierGroup) -> u64 {
+    match group {
+        ModifierGroup::Shift => FLAG_MASK_SHIFT,
+        ModifierGroup::Control => FLAG_MASK_CONTROL,
+        ModifierGroup::Alt => FLAG_MASK_ALTERNATE,
+        ModifierGroup::Command => FLAG_MASK_COMMAND,
+        ModifierGroup::CapsLock => FLAG_MASK_ALPHA_SHIFT,
+    }
+}
+
+fn expected_group_for_physical_keycode(keycode: u16) -> Option<ModifierGroup> {
+    match keycode {
+        56 | 60 => Some(ModifierGroup::Shift),    // Shift L/R
+        59 | 62 => Some(ModifierGroup::Control),  // Control L/R
+        58 | 61 => Some(ModifierGroup::Alt),      // Option L/R
+        54 | 55 => Some(ModifierGroup::Command),  // Command R/L
+        57 => Some(ModifierGroup::CapsLock),      // CapsLock
+        _ => None,
+    }
+}
+
+fn side_from_physical_keycode(keycode: u16) -> ModifierSide {
+    match keycode {
+        60 | 61 | 62 | 54 => ModifierSide::Right,
+        _ => ModifierSide::Left,
+    }
+}
+
+fn logical_keycode_for_group(group: ModifierGroup, side: ModifierSide) -> u16 {
+    match group {
+        ModifierGroup::Shift => match side {
+            ModifierSide::Left => 56,
+            ModifierSide::Right => 60,
+        },
+        ModifierGroup::Control => match side {
+            ModifierSide::Left => 59,
+            ModifierSide::Right => 62,
+        },
+        ModifierGroup::Alt => match side {
+            ModifierSide::Left => 58,
+            ModifierSide::Right => 61,
+        },
+        ModifierGroup::Command => match side {
+            // Note: Apple's keycodes are reversed compared to the typical L/R ordering.
+            // kVK_Command (left) = 55, kVK_RightCommand = 54.
+            ModifierSide::Left => 55,
+            ModifierSide::Right => 54,
+        },
+        ModifierGroup::CapsLock => 57,
+    }
+}
+
+fn infer_effective_modifier_group(
+    prev_flags: u64,
+    flags: u64,
+    physical_keycode: u16,
+) -> Option<ModifierGroup> {
+    let expected = expected_group_for_physical_keycode(physical_keycode)?;
+    let changed = prev_flags ^ flags;
+    let mut changed_groups: [Option<ModifierGroup>; 5] = [None; 5];
+    let mut n = 0usize;
+    for group in [
+        ModifierGroup::CapsLock,
+        ModifierGroup::Shift,
+        ModifierGroup::Control,
+        ModifierGroup::Alt,
+        ModifierGroup::Command,
+    ] {
+        if (changed & flag_mask_for_group(group)) != 0 {
+            changed_groups[n] = Some(group);
+            n += 1;
+        }
+    }
+
+    if n == 1 {
+        return changed_groups[0];
+    }
+    if n > 1 {
+        for g in changed_groups.iter().flatten() {
+            if *g == expected {
+                return Some(expected);
+            }
+        }
+        return changed_groups[0];
+    }
+
+    // No flag bit changed (common when another key in the same modifier group is already held,
+    // or under some remap scenarios). Prefer any *currently active* modifier group in `flags`,
+    // falling back to the expected physical group.
+    if (flags & flag_mask_for_group(expected)) != 0 {
+        return Some(expected);
+    }
+    for group in [
+        ModifierGroup::Control,
+        ModifierGroup::Shift,
+        ModifierGroup::Alt,
+        ModifierGroup::Command,
+        ModifierGroup::CapsLock,
+    ] {
+        if (flags & flag_mask_for_group(group)) != 0 {
+            return Some(group);
+        }
+    }
+    Some(expected)
+}
+
+#[derive(Debug, Clone)]
+struct FlagsChangedState {
+    down: [bool; 256],
+    last_flags: u64,
+}
+
+impl Default for FlagsChangedState {
+    fn default() -> Self {
+        Self {
+            down: [false; 256],
+            last_flags: 0,
+        }
+    }
+}
+
+fn process_flags_changed(
+    state: &mut FlagsChangedState,
+    physical_keycode: u16,
+    flags: u64,
+) -> Option<u16> {
+    let idx = physical_keycode as usize;
+    if idx >= 256 {
+        return None;
+    }
+
+    let prev_flags = state.last_flags;
+    state.last_flags = flags;
+
+    let effective_group = infer_effective_modifier_group(prev_flags, flags, physical_keycode);
+    let logical_keycode = effective_group
+        .map(|group| logical_keycode_for_group(group, side_from_physical_keycode(physical_keycode)))
+        .unwrap_or(physical_keycode);
+
+    let changed = prev_flags ^ flags;
+
+    let Some(group) = effective_group else {
+        // Fallback: maintain old best-effort toggling behavior.
+        let was_down = state.down[idx];
+        state.down[idx] = !was_down;
+        return (!was_down).then_some(logical_keycode);
+    };
+
+    if group == ModifierGroup::CapsLock {
+        // CapsLock is a toggle; only count the key press when the alpha-shift bit changes.
+        // (macOS may also emit a second `flagsChanged` on key release with no flag change.)
+        state.down[idx] = false;
+        return ((changed & FLAG_MASK_ALPHA_SHIFT) != 0).then_some(logical_keycode);
+    }
+
+    // For non-toggle modifiers, infer press/release from the corresponding flag bit, which is more
+    // stable than blindly toggling per-key state (especially under modifier remaps).
+    let mask = flag_mask_for_group(group);
+    let is_down_now = (flags & mask) != 0;
+    let was_down = state.down[idx];
+    state.down[idx] = is_down_now;
+    (is_down_now && !was_down).then_some(logical_keycode)
 }
 
 #[cfg(target_os = "macos")]
@@ -58,13 +247,6 @@ mod imp {
 
     // CoreGraphics constant: kCGKeyboardEventKeycode
     const K_CG_KEYBOARD_EVENT_KEYCODE: CGEventField = 9;
-
-    // CoreGraphics constants: CGEventFlags (CGEventTypes.h)
-    const K_CG_EVENT_FLAG_MASK_ALPHA_SHIFT: CGEventFlags = 1 << 16;
-    const K_CG_EVENT_FLAG_MASK_SHIFT: CGEventFlags = 1 << 17;
-    const K_CG_EVENT_FLAG_MASK_CONTROL: CGEventFlags = 1 << 18;
-    const K_CG_EVENT_FLAG_MASK_ALTERNATE: CGEventFlags = 1 << 19;
-    const K_CG_EVENT_FLAG_MASK_COMMAND: CGEventFlags = 1 << 20;
 
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
@@ -114,7 +296,7 @@ mod imp {
     struct CallbackCtx {
         tx: mpsc::Sender<RawInputEvent>,
         tap: AtomicPtr<c_void>,
-        modifier_down: Mutex<[bool; 256]>,
+        flags_state: Mutex<super::FlagsChangedState>,
     }
 
     static CTX: AtomicPtr<CallbackCtx> = AtomicPtr::new(ptr::null_mut());
@@ -148,61 +330,28 @@ mod imp {
                     let code =
                         unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
                     let flags = unsafe { CGEventGetFlags(event) };
-                    RawInputEvent::KeyDown {
-                        keycode: code as u16,
-                        flags,
-                    }
+                    let keycode = code as u16;
+                    RawInputEvent::KeyDown { keycode, flags }
                 }
                 // Modifier keys on macOS are reported via `flagsChanged`, not `keyDown`.
                 K_CG_EVENT_FLAGS_CHANGED => {
                     let code =
                         unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
-                    let code_u16 = code as u16;
-                    let idx = code_u16 as usize;
-                    if idx >= 256 {
-                        return;
-                    }
-
-                    // Best-effort: determine "down" without relying on CGEventSourceKeyState (it can
-                    // return false under some environments). `flagsChanged` fires on both press and
-                    // release, so we track per-key state and only emit on transitions to "down".
                     let flags = unsafe { CGEventGetFlags(event) };
-                    let group_mask = match code_u16 {
-                        56 | 60 => Some(K_CG_EVENT_FLAG_MASK_SHIFT), // Shift L/R
-                        59 | 62 => Some(K_CG_EVENT_FLAG_MASK_CONTROL), // Control L/R
-                        58 | 61 => Some(K_CG_EVENT_FLAG_MASK_ALTERNATE), // Option L/R
-                        54 | 55 => Some(K_CG_EVENT_FLAG_MASK_COMMAND), // Command L/R
-                        57 => Some(K_CG_EVENT_FLAG_MASK_ALPHA_SHIFT), // CapsLock
-                        _ => None,
-                    };
+                    let physical_keycode = code as u16;
 
-                    if let Some(mask) = group_mask {
-                        // If the whole modifier group is now "up", this event must be a release of
-                        // the last pressed key in that group — ensure our per-key state is false
-                        // and don't emit.
-                        if (flags & mask) == 0 {
-                            if let Ok(mut state) = ctx.modifier_down.lock() {
-                                state[idx] = false;
-                            }
-                            return;
-                        }
-                    }
-
-                    let should_emit = if let Ok(mut state) = ctx.modifier_down.lock() {
-                        let was_down = state[idx];
-                        // Toggle the per-key state because this key is the one that changed.
-                        state[idx] = !was_down;
-                        !was_down
+                    let logical_keycode = if let Ok(mut st) = ctx.flags_state.lock() {
+                        super::process_flags_changed(&mut st, physical_keycode, flags)
                     } else {
-                        false
+                        None
                     };
 
-                    if !should_emit {
+                    let Some(logical_keycode) = logical_keycode else {
                         return;
-                    }
+                    };
 
                     RawInputEvent::KeyDown {
-                        keycode: code_u16,
+                        keycode: logical_keycode,
                         flags,
                     }
                 }
@@ -252,7 +401,7 @@ mod imp {
         let boxed = Box::new(CallbackCtx {
             tx,
             tap: AtomicPtr::new(ptr::null_mut()),
-            modifier_down: Mutex::new([false; 256]),
+            flags_state: Mutex::new(super::FlagsChangedState::default()),
         });
         let ctx_ptr = Box::into_raw(boxed);
         // If we ever re-run (e.g. after a failed init), leaking the previous ctx is the safest
@@ -322,4 +471,40 @@ mod imp {
 
 pub fn run(tx: mpsc::Sender<RawInputEvent>) -> Result<(), String> {
     imp::run(tx)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remapped_caps_lock_to_control_infers_control_logical_keycode() {
+        let mut st = FlagsChangedState::default();
+        let control_down = FLAG_MASK_CONTROL;
+
+        // Physical keycode is CapsLock (57), but flags indicate Control is down.
+        let keycode = process_flags_changed(&mut st, 57, control_down);
+        assert_eq!(keycode, Some(59)); // ControlLeft
+    }
+
+    #[test]
+    fn remapped_control_to_caps_lock_infers_caps_lock_logical_keycode() {
+        let mut st = FlagsChangedState::default();
+        let caps_lock_on = FLAG_MASK_ALPHA_SHIFT;
+
+        // Physical keycode is ControlLeft (59), but flags indicate CapsLock toggled on.
+        let keycode = process_flags_changed(&mut st, 59, caps_lock_on);
+        assert_eq!(keycode, Some(57)); // CapsLock
+    }
+
+    #[test]
+    fn caps_lock_toggle_off_still_counts_press() {
+        let mut st = FlagsChangedState::default();
+        // Pretend CapsLock is currently on.
+        st.last_flags = FLAG_MASK_ALPHA_SHIFT;
+
+        // Pressing CapsLock toggles it off (alpha shift cleared). We should still emit a press.
+        let keycode = process_flags_changed(&mut st, 57, 0);
+        assert_eq!(keycode, Some(57)); // CapsLock
+    }
 }

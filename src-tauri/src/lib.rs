@@ -125,7 +125,10 @@ pub fn run() {
             }
             if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
                 let label = window.label();
-                if label == "main" || label == "settings" || label == "custom_statistics" {
+                if label == "main"
+                    || label == "settings"
+                    || label == "custom_statistics"
+                {
                     if let Some(webview_window) = window.app_handle().get_webview_window(label) {
                         core::window_placement::schedule_capture(webview_window);
                     }

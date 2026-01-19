@@ -173,7 +173,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                     let (source, count, detail_code) = match raw {
                         crate::core::macos_event_tap::RawInputEvent::KeyDown { keycode, flags } => {
                             let code = key_codes::from_macos_virtual_keycode(keycode)
-                                .map(|v| v.to_string());
+                                .map(|v| key_codes::normalize_macos_key_code(v).to_string());
                             let (is_shifted, shortcut) = if let Some(code) = code.as_deref() {
                                 const MASK_ALPHA_SHIFT: u64 = 1 << 16;
                                 const MASK_SHIFT: u64 = 1 << 17;
