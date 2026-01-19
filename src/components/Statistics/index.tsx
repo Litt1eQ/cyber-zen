@@ -20,10 +20,12 @@ import { AppConcentration } from './AppConcentration'
 import { ShiftUsage } from './ShiftUsage'
 import { KeyPareto } from './KeyPareto'
 import { MouseButtonStructure } from './MouseButtonStructure'
+import { ClickPositionHeatmap } from './ClickPositionHeatmap'
 
 export function Statistics() {
   const { t } = useTranslation()
   const stats = useMeritStore((state) => state.stats)
+  const settings = useSettingsStore((state) => state.settings)
   const heatLevelCount = useSettingsStore((state) => state.settings?.heatmap_levels)
   const keyboardLayoutId = useSettingsStore((state) => state.settings?.keyboard_layout)
   const allDays = stats ? [stats.today, ...stats.history] : []
@@ -143,6 +145,8 @@ export function Statistics() {
           <Card className="p-4">
             <MouseButtonStructure days={allDays} endKey={anchorKey ?? stats.today.date} defaultRange="30" />
           </Card>
+
+          {settings ? <ClickPositionHeatmap settings={settings} /> : null}
 
           <Card className="p-4">
             <AppConcentration days={allDays} endKey={anchorKey ?? stats.today.date} defaultRange="30" />

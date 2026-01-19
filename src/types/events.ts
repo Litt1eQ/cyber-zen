@@ -1,6 +1,7 @@
 export const EVENTS = {
   INPUT_EVENT: 'input-event',
   INPUT_LISTENER_ERROR: 'input-listener-error',
+  CLICK_HEATMAP_UPDATED: 'click-heatmap-updated',
   MERIT_UPDATED: 'merit-updated',
   SETTINGS_UPDATED: 'settings-updated',
   WOODEN_FISH_SKINS_UPDATED: 'wooden-fish-skins-updated',
@@ -46,4 +47,7 @@ export const COMMANDS = {
   DELETE_CUSTOM_WOODEN_FISH_SKIN: 'delete_custom_wooden_fish_skin',
   EXPORT_WOODEN_FISH_SKIN_ZIP: 'export_wooden_fish_skin_zip',
   GET_APP_ICON: 'get_app_icon',
+  GET_DISPLAY_MONITORS: 'get_display_monitors',
+  GET_CLICK_HEATMAP_GRID: 'get_click_heatmap_grid',
+  CLEAR_CLICK_HEATMAP: 'clear_click_heatmap',
 } as const

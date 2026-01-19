@@ -20,6 +20,7 @@ import { AppConcentration } from '@/components/Statistics/AppConcentration'
 import { ShiftUsage } from '@/components/Statistics/ShiftUsage'
 import { KeyPareto } from '@/components/Statistics/KeyPareto'
 import { MouseButtonStructure } from '@/components/Statistics/MouseButtonStructure'
+import { ClickPositionHeatmap } from '@/components/Statistics/ClickPositionHeatmap'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 import type { StatisticsAggregates } from '@/lib/statisticsAggregates'
 import i18n from '@/i18n'
@@ -37,6 +38,7 @@ export type CustomStatisticsWidgetId =
   | 'shift_usage'
   | 'key_pareto'
   | 'mouse_button_structure'
+  | 'click_heatmap'
   | 'calendar'
   | 'keyboard_heatmap_total'
   | 'key_ranking_total'
@@ -217,6 +219,12 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
         />
       </Card>
     ),
+  },
+  {
+    id: 'click_heatmap',
+    titleKey: 'customStatistics.widgets.click_heatmap.title',
+    descriptionKey: 'customStatistics.widgets.click_heatmap.description',
+    render: ({ settings }) => <ClickPositionHeatmap settings={settings} />,
   },
   {
     id: 'calendar',

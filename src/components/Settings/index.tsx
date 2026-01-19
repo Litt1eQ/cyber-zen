@@ -69,6 +69,8 @@ export function Settings() {
 
   const meritLabelFocusedRef = useRef(false)
   const [meritLabelDraft, setMeritLabelDraft] = useState('')
+  const [clickHeatmapColsDraft, setClickHeatmapColsDraft] = useState('')
+  const [clickHeatmapRowsDraft, setClickHeatmapRowsDraft] = useState('')
 
   const canToggleListening = isListening || !inputMonitoring.supported || inputMonitoring.authorized
 
@@ -89,6 +91,12 @@ export function Settings() {
     if (meritLabelFocusedRef.current) return
     setMeritLabelDraft(settings.merit_pop_label ?? DEFAULT_MERIT_LABEL)
   }, [settings, settings?.merit_pop_label])
+
+  useEffect(() => {
+    if (!settings) return
+    setClickHeatmapColsDraft(String(settings.click_heatmap_grid_cols ?? 64))
+    setClickHeatmapRowsDraft(String(settings.click_heatmap_grid_rows ?? 36))
+  }, [settings, settings?.click_heatmap_grid_cols, settings?.click_heatmap_grid_rows])
 
   const openInputPermissionDialog = useCallback(async () => {
     if (inputPermissionDialogOpen) return
@@ -659,6 +667,53 @@ export function Settings() {
                         className="w-56"
                         data-no-drag
                       />
+                    }
+                  />
+
+                  <SettingRow
+                    title={t('settings.clickHeatmap.grid')}
+                    description={t('settings.clickHeatmap.gridDesc', {
+                      cols: settings.click_heatmap_grid_cols ?? 64,
+                      rows: settings.click_heatmap_grid_rows ?? 36,
+                    })}
+                    control={
+                      <div className="flex items-center gap-2" data-no-drag>
+                        <Input
+                          className="w-20 tabular-nums"
+                          inputMode="numeric"
+                          value={clickHeatmapColsDraft}
+                          onChange={(e) => setClickHeatmapColsDraft(e.currentTarget.value)}
+                          onBlur={() => {
+                            const n = Math.round(Number(clickHeatmapColsDraft))
+                            const cols = Number.isFinite(n) ? Math.min(240, Math.max(8, n)) : 64
+                            setClickHeatmapColsDraft(String(cols))
+                            updateSettings({ click_heatmap_grid_cols: cols })
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key !== 'Enter') return
+                            e.currentTarget.blur()
+                          }}
+                          aria-label={t('settings.clickHeatmap.colsAria')}
+                        />
+                        <span className="text-xs text-slate-500">×</span>
+                        <Input
+                          className="w-20 tabular-nums"
+                          inputMode="numeric"
+                          value={clickHeatmapRowsDraft}
+                          onChange={(e) => setClickHeatmapRowsDraft(e.currentTarget.value)}
+                          onBlur={() => {
+                            const n = Math.round(Number(clickHeatmapRowsDraft))
+                            const rows = Number.isFinite(n) ? Math.min(180, Math.max(6, n)) : 36
+                            setClickHeatmapRowsDraft(String(rows))
+                            updateSettings({ click_heatmap_grid_rows: rows })
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key !== 'Enter') return
+                            e.currentTarget.blur()
+                          }}
+                          aria-label={t('settings.clickHeatmap.rowsAria')}
+                        />
+                      </div>
                     }
                   />
                 </SettingsSection>

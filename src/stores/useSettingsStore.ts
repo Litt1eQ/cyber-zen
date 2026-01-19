@@ -29,6 +29,8 @@ const defaultSettings: Settings = {
   animation_speed: 1.0,
   window_scale: 100,
   heatmap_levels: 10,
+  click_heatmap_grid_cols: 64,
+  click_heatmap_grid_rows: 36,
   lock_window_position: false,
   dock_margin_px: 0,
   auto_fade_enabled: false,

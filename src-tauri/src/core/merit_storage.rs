@@ -1,4 +1,4 @@
-use crate::models::{InputOrigin, InputSource, MeritStats, Settings, WindowPlacement};
+use crate::models::{ClickHeatmapState, InputOrigin, InputSource, MeritStats, Settings, WindowPlacement};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use std::collections::BTreeMap;
@@ -26,6 +26,7 @@ pub struct MeritStorage {
     stats: MeritStats,
     settings: Settings,
     window_placements: BTreeMap<String, WindowPlacement>,
+    click_heatmap: ClickHeatmapState,
 }
 
 impl MeritStorage {
@@ -34,6 +35,7 @@ impl MeritStorage {
             stats: MeritStats::new(),
             settings: Settings::new(),
             window_placements: BTreeMap::new(),
+            click_heatmap: ClickHeatmapState::default(),
         }
     }
 
@@ -63,6 +65,25 @@ impl MeritStorage {
 
     pub fn set_window_placements(&mut self, placements: BTreeMap<String, WindowPlacement>) {
         self.window_placements = placements;
+    }
+
+    pub fn get_click_heatmap(&self) -> ClickHeatmapState {
+        self.click_heatmap.clone()
+    }
+
+    pub fn click_heatmap_recording_enabled(&self) -> bool {
+        true
+    }
+
+    pub fn click_heatmap_display(
+        &self,
+        display_id: &str,
+    ) -> Option<&crate::models::click_heatmap::DisplayClickHeatmap> {
+        self.click_heatmap.displays.get(display_id)
+    }
+
+    pub fn set_click_heatmap(&mut self, heatmap: ClickHeatmapState) {
+        self.click_heatmap = heatmap;
     }
 
     pub fn update_window_placement(&mut self, label: String, placement: WindowPlacement) {
@@ -145,6 +166,35 @@ impl MeritStorage {
 
     pub fn update_settings(&mut self, settings: Settings) {
         self.settings = settings;
+        crate::core::persistence::request_save();
+    }
+
+    pub fn record_click_heatmap_cell(&mut self, display_id: &str, idx: usize) {
+        if idx >= crate::models::click_heatmap::CLICK_HEATMAP_BASE_LEN {
+            return;
+        }
+
+        let entry = self
+            .click_heatmap
+            .displays
+            .entry(display_id.to_string())
+            .or_default();
+        if let Some(cell) = entry.grid.get_mut(idx) {
+            *cell = cell.saturating_add(1);
+        }
+        entry.total_clicks = entry.total_clicks.saturating_add(1);
+        crate::core::persistence::request_save();
+    }
+
+    pub fn clear_click_heatmap(&mut self, display_id: Option<&str>) {
+        match display_id {
+            Some(id) => {
+                self.click_heatmap.displays.remove(id);
+            }
+            None => {
+                self.click_heatmap.displays.clear();
+            }
+        }
         crate::core::persistence::request_save();
     }
 

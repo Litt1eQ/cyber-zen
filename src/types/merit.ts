@@ -52,6 +52,8 @@ export interface Settings {
   animation_speed: number
   window_scale: number
   heatmap_levels?: number
+  click_heatmap_grid_cols?: number
+  click_heatmap_grid_rows?: number
   lock_window_position?: boolean
   dock_margin_px?: number
   auto_fade_enabled?: boolean

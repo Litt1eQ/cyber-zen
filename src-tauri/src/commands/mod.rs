@@ -1,5 +1,6 @@
 pub mod autostart;
 pub mod app_icons;
+pub mod click_heatmap;
 pub mod input;
 pub mod merit;
 pub mod permissions;

@@ -113,6 +113,12 @@ export const zhCN = {
       levels: '颜色分级档位',
       levelsDesc: '{{value}} 档（{{min}}-{{max}}）',
     },
+    clickHeatmap: {
+      grid: '网格大小',
+      gridDesc: '{{cols}}×{{rows}}（列×行）',
+      colsAria: '点击热力图网格列数',
+      rowsAria: '点击热力图网格行数',
+    },
     appearance: {
       woodenFishOpacity: '木鱼透明度',
       woodenFishOpacityDesc: '（仅影响木鱼与木槌）',
@@ -259,6 +265,7 @@ export const zhCN = {
       shift_usage: { title: 'Shift 使用率', description: 'Shifted vs Unshifted（支持趋势）' },
       key_pareto: { title: '按键集中度（Pareto）', description: 'Top10 占比 + 长尾占比' },
       mouse_button_structure: { title: '鼠标按键结构', description: '左/右/其他占比 + 趋势' },
+      click_heatmap: { title: '点击位置热力图', description: '按屏幕统计点击位置网格热力图（可切换屏幕）' },
       calendar: { title: '按天统计', description: '全部：月历热力（可点选日期） · 当天：今日概览' },
       keyboard_heatmap_total: { title: '键盘热力图', description: '当日/累计 · 区分 Shift' },
       key_ranking_total: { title: '按键排行（累计）', description: 'Top/Bottom 10（>0）' },
@@ -489,6 +496,16 @@ export const zhCN = {
       left: '左键',
       right: '右键',
     },
+    clickHeatmap: {
+      title: '点击位置热力图',
+      disabled: '请确保已启用全局监听与鼠标单击统计。',
+      summary: '总点击 {{total}} · 单格最大 {{max}}',
+      clear: '清空本屏数据',
+      selectDisplay: '选择屏幕',
+      refreshDisplays: '刷新屏幕',
+      refresh: '刷新数据',
+      noDisplay: '未检测到可用屏幕',
+    },
     mouseButtonStructure: {
       groups: {
         left: '左键',
@@ -689,6 +706,12 @@ export const en: TranslationResource = {
       levels: 'Color Levels',
       levelsDesc: '{{value}} levels ({{min}}-{{max}})',
     },
+    clickHeatmap: {
+      grid: 'Grid Size',
+      gridDesc: '{{cols}}×{{rows}} (cols×rows)',
+      colsAria: 'Click heatmap grid columns',
+      rowsAria: 'Click heatmap grid rows',
+    },
     appearance: {
       woodenFishOpacity: 'Wooden Fish Opacity',
       woodenFishOpacityDesc: '(affects only the fish & hammer)',
@@ -836,6 +859,7 @@ export const en: TranslationResource = {
       shift_usage: { title: 'Shift Usage', description: 'Shifted vs Unshifted (trend)' },
       key_pareto: { title: 'Key Concentration (Pareto)', description: 'Top10 share + long tail' },
       mouse_button_structure: { title: 'Mouse Button Structure', description: 'Left/Right/Other share + trend' },
+      click_heatmap: { title: 'Click Position Heatmap', description: 'Per-display click position grid heatmap (switch displays)' },
       calendar: { title: 'Daily Stats', description: 'All: calendar heatmap (select day) · Today: overview' },
       keyboard_heatmap_total: { title: 'Keyboard Heatmap', description: 'Daily/Total · Shift split' },
       key_ranking_total: { title: 'Key Ranking (Total)', description: 'Top/Bottom 10 (>0)' },
@@ -1066,6 +1090,16 @@ export const en: TranslationResource = {
       left: 'Left',
       right: 'Right',
     },
+    clickHeatmap: {
+      title: 'Click Position Heatmap',
+      disabled: 'Ensure global listening + mouse clicks are enabled.',
+      summary: 'Total {{total}} · Max cell {{max}}',
+      clear: 'Clear this display',
+      selectDisplay: 'Select display',
+      refreshDisplays: 'Refresh displays',
+      refresh: 'Refresh',
+      noDisplay: 'No displays detected',
+    },
     mouseButtonStructure: {
       groups: {
         left: 'Left',
@@ -1258,6 +1292,12 @@ export const zhTW: TranslationResource = {
       levels: '顏色分級檔位',
       levelsDesc: '{{value}} 檔（{{min}}-{{max}}）',
     },
+    clickHeatmap: {
+      grid: '網格大小',
+      gridDesc: '{{cols}}×{{rows}}（列×行）',
+      colsAria: '點擊熱力圖網格列數',
+      rowsAria: '點擊熱力圖網格行數',
+    },
     appearance: {
       woodenFishOpacity: '木魚透明度',
       woodenFishOpacityDesc: '（僅影響木魚與木槌）',
@@ -1404,6 +1444,7 @@ export const zhTW: TranslationResource = {
       shift_usage: { title: 'Shift 使用率', description: 'Shifted vs Unshifted（支援趨勢）' },
       key_pareto: { title: '按鍵集中度（Pareto）', description: 'Top10 占比 + 長尾占比' },
       mouse_button_structure: { title: '滑鼠按鍵結構', description: '左/右/其他占比 + 趨勢' },
+      click_heatmap: { title: '點擊位置熱力圖', description: '按螢幕統計點擊位置網格熱力圖（可切換螢幕）' },
       calendar: { title: '按天統計', description: '全部：月曆熱力（可點選日期） · 當天：今日概覽' },
       keyboard_heatmap_total: { title: '鍵盤熱力圖', description: '當日/累計 · 區分 Shift' },
       key_ranking_total: { title: '按鍵排行（累計）', description: 'Top/Bottom 10（>0）' },
@@ -1633,6 +1674,16 @@ export const zhTW: TranslationResource = {
       noData: '暫無滑鼠按鈕記錄',
       left: '左鍵',
       right: '右鍵',
+    },
+    clickHeatmap: {
+      title: '點擊位置熱力圖',
+      disabled: '請確保已啟用全域監聽與滑鼠單擊統計。',
+      summary: '總點擊 {{total}} · 單格最大 {{max}}',
+      clear: '清空本螢幕資料',
+      selectDisplay: '選擇螢幕',
+      refreshDisplays: '刷新螢幕',
+      refresh: '刷新資料',
+      noDisplay: '未檢測到可用螢幕',
     },
     mouseButtonStructure: {
       groups: {

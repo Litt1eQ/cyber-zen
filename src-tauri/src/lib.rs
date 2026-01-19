@@ -42,7 +42,7 @@ pub fn run() {
                 .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?
                 .join("state.json");
 
-            if let Ok(Some((stats, settings, window_placements))) =
+            if let Ok(Some((stats, settings, window_placements, click_heatmap))) =
                 core::persistence::load(&state_path)
             {
                 let storage = MeritStorage::instance();
@@ -50,6 +50,7 @@ pub fn run() {
                 storage.set_stats(stats);
                 storage.set_settings(settings.clone());
                 storage.set_window_placements(window_placements);
+                storage.set_click_heatmap(click_heatmap);
 
                 if let Some(main_window) = app_handle.get_webview_window("main") {
                     let size = 320.0 * (settings.window_scale as f64 / 100.0);
@@ -114,6 +115,9 @@ pub fn run() {
             commands::skins::delete_custom_wooden_fish_skin,
             commands::skins::export_wooden_fish_skin_zip,
             commands::app_icons::get_app_icon,
+            commands::click_heatmap::get_display_monitors,
+            commands::click_heatmap::get_click_heatmap_grid,
+            commands::click_heatmap::clear_click_heatmap,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Focused(focused) = event {

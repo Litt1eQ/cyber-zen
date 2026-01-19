@@ -1,4 +1,4 @@
-use crate::models::{MeritStats, Settings, WindowPlacement};
+use crate::models::{ClickHeatmapState, MeritStats, Settings, WindowPlacement};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use super::MeritStorage;
 
-const CURRENT_STATE_VERSION: u32 = 3;
+const CURRENT_STATE_VERSION: u32 = 4;
 
 #[derive(Clone)]
 struct PersistContext {
@@ -31,6 +31,8 @@ struct PersistedState {
     settings: Settings,
     #[serde(default)]
     window_placements: BTreeMap<String, WindowPlacement>,
+    #[serde(default)]
+    click_heatmap: ClickHeatmapState,
 }
 
 static SAVE_TX: Lazy<Mutex<Option<Sender<()>>>> = Lazy::new(|| Mutex::new(None));
@@ -86,7 +88,7 @@ pub fn flush_now() {
 
 pub fn load(
     path: &Path,
-) -> io::Result<Option<(MeritStats, Settings, BTreeMap<String, WindowPlacement>)>> {
+) -> io::Result<Option<(MeritStats, Settings, BTreeMap<String, WindowPlacement>, ClickHeatmapState)>> {
     if !path.exists() {
         return Ok(None);
     }
@@ -105,7 +107,12 @@ pub fn load(
         let _ = write_state_atomically(path, &state);
     }
 
-    Ok(Some((state.stats, state.settings, state.window_placements)))
+    Ok(Some((
+        state.stats,
+        state.settings,
+        state.window_placements,
+        state.click_heatmap,
+    )))
 }
 
 fn write_state_atomically(path: &Path, state: &PersistedState) -> io::Result<()> {
@@ -129,12 +136,13 @@ fn write_snapshot(
     path: &Path,
 ) -> io::Result<()> {
     let _guard = WRITE_LOCK.lock();
-    let (stats, settings, window_placements) = {
+    let (stats, settings, window_placements, click_heatmap) = {
         let storage = storage.read();
         (
             storage.get_stats(),
             storage.get_settings(),
             storage.get_window_placements(),
+            storage.get_click_heatmap(),
         )
     };
 
@@ -143,6 +151,7 @@ fn write_snapshot(
         stats,
         settings,
         window_placements,
+        click_heatmap,
     };
 
     write_state_atomically(path, &state)

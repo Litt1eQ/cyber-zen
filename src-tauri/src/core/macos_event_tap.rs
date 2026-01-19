@@ -10,7 +10,7 @@ pub enum RawMouseButton {
 #[derive(Debug, Clone, Copy)]
 pub enum RawInputEvent {
     KeyDown { keycode: u16, flags: u64 },
-    MouseDown(RawMouseButton),
+    MouseDown { button: RawMouseButton, x: f64, y: f64 },
 }
 
 #[cfg(target_os = "macos")]
@@ -86,6 +86,14 @@ mod imp {
 
         fn CGEventGetIntegerValueField(event: CGEventRef, field: CGEventField) -> i64;
         fn CGEventGetFlags(event: CGEventRef) -> CGEventFlags;
+        fn CGEventGetLocation(event: CGEventRef) -> CGPoint;
+    }
+
+    #[repr(C)]
+    #[derive(Debug, Clone, Copy)]
+    struct CGPoint {
+        x: f64,
+        y: f64,
     }
 
     #[link(name = "CoreFoundation", kind = "framework")]
@@ -198,12 +206,29 @@ mod imp {
                         flags,
                     }
                 }
-                K_CG_EVENT_LEFT_MOUSE_DOWN => RawInputEvent::MouseDown(super::RawMouseButton::Left),
+                K_CG_EVENT_LEFT_MOUSE_DOWN => {
+                    let p = unsafe { CGEventGetLocation(event) };
+                    RawInputEvent::MouseDown {
+                        button: super::RawMouseButton::Left,
+                        x: p.x,
+                        y: p.y,
+                    }
+                }
                 K_CG_EVENT_RIGHT_MOUSE_DOWN => {
-                    RawInputEvent::MouseDown(super::RawMouseButton::Right)
+                    let p = unsafe { CGEventGetLocation(event) };
+                    RawInputEvent::MouseDown {
+                        button: super::RawMouseButton::Right,
+                        x: p.x,
+                        y: p.y,
+                    }
                 }
                 K_CG_EVENT_OTHER_MOUSE_DOWN => {
-                    RawInputEvent::MouseDown(super::RawMouseButton::Other)
+                    let p = unsafe { CGEventGetLocation(event) };
+                    RawInputEvent::MouseDown {
+                        button: super::RawMouseButton::Other,
+                        x: p.x,
+                        y: p.y,
+                    }
                 }
                 _ => return,
             };

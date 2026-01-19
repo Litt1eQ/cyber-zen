@@ -13,6 +13,7 @@ use std::thread;
 use tauri::{AppHandle, Emitter};
 
 use crate::core::key_codes;
+use crate::core::click_heatmap;
 use crate::core::merit_batcher::enqueue_merit_trigger;
 use crate::models::InputOrigin;
 use crate::core::active_app;
@@ -210,7 +211,16 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             );
                             continue;
                         }
-                        crate::core::macos_event_tap::RawInputEvent::MouseDown(button) => {
+                        crate::core::macos_event_tap::RawInputEvent::MouseDown { button, x, y } => {
+                            // Record click positions even if we suppress counting for merit to avoid
+                            // double-counting in-app clicks (App-origin merit uses suppression).
+                            click_heatmap::record_global_click(
+                                &worker_handle,
+                                click_heatmap::CoordinateSpace::Logical,
+                                x,
+                                y,
+                            );
+
                             if should_suppress_mouse_press() {
                                 continue;
                             }
@@ -326,6 +336,15 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         return;
                     }
                     EventType::ButtonPress(button) => {
+                        if let Some(pos) = event.position {
+                            click_heatmap::record_global_click(
+                                &callback_handle,
+                                click_heatmap::CoordinateSpace::Physical,
+                                pos.x,
+                                pos.y,
+                            );
+                        }
+
                         if should_suppress_mouse_press() {
                             return;
                         }
