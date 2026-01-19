@@ -152,6 +152,23 @@ impl MeritStorage {
         true
     }
 
+    pub fn add_mouse_move_distance_px_for_display_silent(
+        &mut self,
+        display_id: Option<&str>,
+        px: u64,
+    ) -> bool {
+        if px == 0 {
+            return false;
+        }
+
+        if !self.settings.enable_mouse_single {
+            return false;
+        }
+
+        self.stats.add_mouse_move_distance_px_for_display(display_id, px);
+        true
+    }
+
     pub fn clear_history(&mut self, app_handle: &AppHandle) {
         self.stats.clear_history();
         let _ = app_handle.emit("merit-updated", self.stats.clone());

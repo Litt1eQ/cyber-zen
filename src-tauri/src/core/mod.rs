@@ -7,6 +7,7 @@ pub mod macos_event_tap;
 pub mod macos_permissions;
 pub mod merit_batcher;
 pub mod merit_storage;
+pub mod mouse_distance;
 pub mod persistence;
 pub mod window_placement;
 pub mod wooden_fish_skins;

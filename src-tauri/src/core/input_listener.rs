@@ -14,6 +14,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::core::key_codes;
 use crate::core::click_heatmap;
+use crate::core::mouse_distance;
 use crate::core::merit_batcher::enqueue_merit_trigger;
 use crate::models::InputOrigin;
 use crate::core::active_app;
@@ -169,6 +170,8 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
             }
         }
 
+        mouse_distance::init(app_handle.clone());
+
         #[cfg(target_os = "macos")]
         {
             let (tx, rx) = mpsc::channel::<crate::core::macos_event_tap::RawInputEvent>();
@@ -250,6 +253,14 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             };
 
                             (InputSource::MouseSingle, 1u64, code)
+                        }
+                        crate::core::macos_event_tap::RawInputEvent::MouseMove { x, y } => {
+                            mouse_distance::record_mouse_move(
+                                click_heatmap::CoordinateSpace::Logical,
+                                x,
+                                y,
+                            );
+                            continue;
                         }
                     };
 
@@ -376,6 +387,11 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         (InputSource::MouseSingle, 1u64, code, None, None)
                     }
                     EventType::MouseMove { x, y } => {
+                        mouse_distance::record_mouse_move(
+                            click_heatmap::CoordinateSpace::Physical,
+                            x,
+                            y,
+                        );
                         let mut st = MOUSE_STATE.lock();
                         st.x = x;
                         st.y = y;

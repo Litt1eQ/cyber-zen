@@ -21,6 +21,7 @@ import { ShiftUsage } from './ShiftUsage'
 import { KeyPareto } from './KeyPareto'
 import { MouseButtonStructure } from './MouseButtonStructure'
 import { ClickPositionHeatmap } from './ClickPositionHeatmap'
+import { MouseDistanceStatistics } from './MouseDistanceStatistics'
 
 export function Statistics() {
   const { t } = useTranslation()
@@ -121,6 +122,15 @@ export function Statistics() {
           <Card className="p-4">
             <TrendPanel days={trendDays} defaultRange={7} />
           </Card>
+
+          {settings ? (
+            <MouseDistanceStatistics
+              allDays={allDays}
+              anchorKey={anchorKey ?? stats.today.date}
+              selectedDay={selectedDay}
+              settings={settings}
+            />
+          ) : null}
 
           <Card className="p-4">
             <DailySourceBars days={allDays} endKey={anchorKey ?? stats.today.date} defaultRangeDays={30} />

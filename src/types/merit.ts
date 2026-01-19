@@ -10,6 +10,8 @@ export interface DailyStats {
   total: number
   keyboard: number
   mouse_single: number
+  mouse_move_distance_px?: number
+  mouse_move_distance_px_by_display?: Record<string, number>
   hourly?: Array<{
     total: number
     keyboard: number
@@ -65,6 +67,13 @@ export interface Settings {
   merit_pop_label: string
   custom_statistics_widgets?: string[]
   custom_statistics_range?: 'today' | 'all'
+  mouse_distance_displays?: Record<
+    string,
+    {
+      diagonal_in?: number | null
+      ppi_override?: number | null
+    }
+  >
   shortcut_toggle_main?: string | null
   shortcut_toggle_settings?: string | null
   shortcut_toggle_listening?: string | null

@@ -1,4 +1,12 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct MouseDistanceDisplaySettings {
+    pub diagonal_in: Option<f64>,
+    pub ppi_override: Option<u32>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -30,6 +38,7 @@ pub struct Settings {
     pub merit_pop_label: String,
     pub custom_statistics_widgets: Vec<String>,
     pub custom_statistics_range: String,
+    pub mouse_distance_displays: HashMap<String, MouseDistanceDisplaySettings>,
     pub shortcut_toggle_main: Option<String>,
     pub shortcut_toggle_settings: Option<String>,
     pub shortcut_toggle_listening: Option<String>,
@@ -72,6 +81,7 @@ impl Default for Settings {
             merit_pop_label: "功德".to_string(),
             custom_statistics_widgets: vec!["trend".to_string(), "calendar".to_string()],
             custom_statistics_range: "today".to_string(),
+            mouse_distance_displays: HashMap::new(),
             shortcut_toggle_main: None,
             shortcut_toggle_settings: None,
             shortcut_toggle_listening: None,

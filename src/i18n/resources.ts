@@ -9,6 +9,8 @@ export const zhCN = {
     confirm: '确认',
     later: '稍后',
     open: '打开',
+    refresh: '刷新',
+    clear: '清除',
   },
   windows: {
     main: '赛博木鱼',
@@ -47,6 +49,7 @@ export const zhCN = {
       inputListening: { title: '输入监听', description: '全局键盘/鼠标事件监听设置' },
       window: { title: '窗口设置' },
       heatmap: { title: '热力图', description: '统计页热力图显示偏好' },
+      mouseDistance: { title: '鼠标移动距离', description: '用于将像素距离换算为厘米（估算）' },
       appearance: { title: '外观设置' },
       app: { title: '应用设置' },
       animation: { title: '动画设置' },
@@ -118,6 +121,17 @@ export const zhCN = {
       gridDesc: '{{cols}}×{{rows}}（列×行）',
       colsAria: '点击热力图网格列数',
       rowsAria: '点击热力图网格行数',
+    },
+    mouseDistance: {
+      displays: '屏幕校准（按显示器）',
+      displaysDesc: '为每块屏幕选择尺寸（英寸）后，将结合当前分辨率自动推算 PPI，用于厘米换算（估算）。',
+      primary: '主屏',
+      monitorMeta: '{{width}}×{{height}} px · 缩放 {{scale}} · {{ppi}} PPI · 1000px≈{{cmPer1000px}}cm · 今日≈{{todayCm}}cm',
+      diagonalComputed: '已设置 {{diagonal}}" · 推算 {{ppi}} PPI',
+      diagonalPreset: '快速选择屏幕尺寸（对角线）',
+      selectPreset: '选择预设…',
+      presetInches: '{{inches}}"',
+      diagonalSlider: '自定义对角线（{{inches}}"）',
     },
     appearance: {
       woodenFishOpacity: '木鱼透明度',
@@ -255,6 +269,7 @@ export const zhCN = {
     widgets: {
       insights: { title: '统计摘要', description: '连续/本周本月/环比/高峰' },
       trend: { title: '7/30 天趋势', description: '总计/键盘/单击' },
+      mouse_distance: { title: '鼠标移动距离', description: '按天移动距离（厘米，估算）· 7/30 天' },
       weekday_distribution: { title: '周几分布', description: '平均/天 · 7/30/1年' },
       source_share: { title: '输入来源占比', description: '键盘 vs 单击 · 当日/7天/30天/累计' },
       daily_source_bars: { title: '按天堆叠（键盘/单击）', description: '7/30 天 · 直观看构成与峰值' },
@@ -280,6 +295,7 @@ export const zhCN = {
     total: '总计',
     keyboard: '键盘',
     click: '单击',
+    mouseDistance: '移动距离',
   },
   keyboard: {
     layouts: {
@@ -318,7 +334,15 @@ export const zhCN = {
     },
     trend: {
       metrics: '合计 {{sum}} · 日均 {{avg}} · 峰值 {{peak}}',
+      metricsDistance: '合计 {{sum}} cm · 日均 {{avg}} cm · 峰值 {{peak}} cm',
       ariaLabel: '{{days}} 天趋势图',
+    },
+    mouseDistance: {
+      title: '鼠标移动距离',
+      description: '按天/累计统计移动距离（厘米，基于屏幕尺寸估算）',
+      mode: { day: '当天', total: '累计' },
+      summary: { day: '{{date}} ≈ {{cm}} cm', total: '累计 ≈ {{cm}} cm · 日均 {{avg}} cm · 峰值 {{peak}} cm（{{date}}）' },
+      breakdown: { title: '按屏幕统计', display: '屏幕', ppi: 'PPI', distance: '距离' },
     },
     breakdown: {
       keyboard: '键盘 {{value}}',
@@ -602,6 +626,8 @@ export const en: TranslationResource = {
     confirm: 'Confirm',
     later: 'Later',
     open: 'Open',
+    refresh: 'Refresh',
+    clear: 'Clear',
   },
   windows: {
     main: 'CyberZen',
@@ -640,6 +666,7 @@ export const en: TranslationResource = {
       inputListening: { title: 'Input Listening', description: 'Global keyboard/mouse listening settings' },
       window: { title: 'Window' },
       heatmap: { title: 'Heatmap', description: 'Heatmap preferences for statistics' },
+      mouseDistance: { title: 'Mouse Distance', description: 'Calibrate pixels → centimeters (approx.)' },
       appearance: { title: 'Appearance' },
       app: { title: 'App' },
       animation: { title: 'Animation' },
@@ -711,6 +738,17 @@ export const en: TranslationResource = {
       gridDesc: '{{cols}}×{{rows}} (cols×rows)',
       colsAria: 'Click heatmap grid columns',
       rowsAria: 'Click heatmap grid rows',
+    },
+    mouseDistance: {
+      displays: 'Per-Display Calibration',
+      displaysDesc: 'Pick the diagonal size (inches) per display to estimate PPI from current resolution for cm conversion.',
+      primary: 'Primary',
+      monitorMeta: '{{width}}×{{height}} px · Scale {{scale}} · {{ppi}} PPI · 1000px≈{{cmPer1000px}}cm · Today≈{{todayCm}}cm',
+      diagonalComputed: '{{diagonal}}" set · Estimated {{ppi}} PPI',
+      diagonalPreset: 'Quick select diagonal size',
+      selectPreset: 'Select a preset…',
+      presetInches: '{{inches}}"',
+      diagonalSlider: 'Custom diagonal ({{inches}}")',
     },
     appearance: {
       woodenFishOpacity: 'Wooden Fish Opacity',
@@ -849,6 +887,7 @@ export const en: TranslationResource = {
     widgets: {
       insights: { title: 'Insights', description: 'Streaks / week & month / MoM / peaks' },
       trend: { title: '7/30-day Trend', description: 'Total / Keyboard / Click' },
+      mouse_distance: { title: 'Mouse Distance', description: 'Daily distance (cm, estimated) · 7/30 days' },
       weekday_distribution: { title: 'Weekday Distribution', description: 'Avg/day · 7/30/1y' },
       source_share: { title: 'Input Source Share', description: 'Keyboard vs Click · Day/7d/30d/Total' },
       daily_source_bars: { title: 'Daily Stacked (Keyboard/Click)', description: '7/30 days · composition & peaks' },
@@ -874,6 +913,7 @@ export const en: TranslationResource = {
     total: 'Total',
     keyboard: 'Keyboard',
     click: 'Click',
+    mouseDistance: 'Distance',
   },
   keyboard: {
     layouts: {
@@ -912,7 +952,15 @@ export const en: TranslationResource = {
     },
     trend: {
       metrics: 'Total {{sum}} · Avg {{avg}} · Peak {{peak}}',
+      metricsDistance: 'Sum {{sum}} cm · Avg {{avg}} cm · Peak {{peak}} cm',
       ariaLabel: '{{days}}-day trend chart',
+    },
+    mouseDistance: {
+      title: 'Mouse Distance',
+      description: 'Daily/total cursor travel (cm, estimated from display size)',
+      mode: { day: 'Today', total: 'Total' },
+      summary: { day: '{{date}} ≈ {{cm}} cm', total: 'Total ≈ {{cm}} cm · Avg {{avg}} cm · Peak {{peak}} cm ({{date}})' },
+      breakdown: { title: 'By Display', display: 'Display', ppi: 'PPI', distance: 'Distance' },
     },
     breakdown: {
       keyboard: 'Keyboard {{value}}',
@@ -1188,6 +1236,8 @@ export const zhTW: TranslationResource = {
     confirm: '確認',
     later: '稍後',
     open: '打開',
+    refresh: '重新整理',
+    clear: '清除',
   },
   windows: {
     main: '賽博木魚',
@@ -1226,6 +1276,7 @@ export const zhTW: TranslationResource = {
       inputListening: { title: '輸入監聽', description: '全域鍵盤/滑鼠事件監聽設定' },
       window: { title: '視窗設定' },
       heatmap: { title: '熱力圖', description: '統計頁熱力圖顯示偏好' },
+      mouseDistance: { title: '滑鼠移動距離', description: '用於將像素距離換算為公分（估算）' },
       appearance: { title: '外觀設定' },
       app: { title: '應用設定' },
       animation: { title: '動畫設定' },
@@ -1297,6 +1348,17 @@ export const zhTW: TranslationResource = {
       gridDesc: '{{cols}}×{{rows}}（列×行）',
       colsAria: '點擊熱力圖網格列數',
       rowsAria: '點擊熱力圖網格行數',
+    },
+    mouseDistance: {
+      displays: '螢幕校準（按顯示器）',
+      displaysDesc: '為每個螢幕選擇尺寸（英吋）後，將結合目前解析度自動推算 PPI，用於公分換算（估算）。',
+      primary: '主螢幕',
+      monitorMeta: '{{width}}×{{height}} px · 縮放 {{scale}} · {{ppi}} PPI · 1000px≈{{cmPer1000px}}cm · 今日≈{{todayCm}}cm',
+      diagonalComputed: '已設定 {{diagonal}}" · 推算 {{ppi}} PPI',
+      diagonalPreset: '快速選擇螢幕尺寸（對角線）',
+      selectPreset: '選擇預設…',
+      presetInches: '{{inches}}"',
+      diagonalSlider: '自訂對角線（{{inches}}"）',
     },
     appearance: {
       woodenFishOpacity: '木魚透明度',
@@ -1434,6 +1496,7 @@ export const zhTW: TranslationResource = {
     widgets: {
       insights: { title: '統計摘要', description: '連續/本週本月/環比/高峰' },
       trend: { title: '7/30 天趨勢', description: '總計/鍵盤/單擊' },
+      mouse_distance: { title: '滑鼠移動距離', description: '按天移動距離（公分，估算）· 7/30 天' },
       weekday_distribution: { title: '周幾分佈', description: '平均/天 · 7/30/1年' },
       source_share: { title: '輸入來源占比', description: '鍵盤 vs 單擊 · 當日/7天/30天/累計' },
       daily_source_bars: { title: '按天堆疊（鍵盤/單擊）', description: '7/30 天 · 直觀看構成與峰值' },
@@ -1459,6 +1522,7 @@ export const zhTW: TranslationResource = {
     total: '總計',
     keyboard: '鍵盤',
     click: '單擊',
+    mouseDistance: '移動距離',
   },
   keyboard: {
     layouts: {
@@ -1497,7 +1561,15 @@ export const zhTW: TranslationResource = {
     },
     trend: {
       metrics: '合計 {{sum}} · 日均 {{avg}} · 峰值 {{peak}}',
+      metricsDistance: '合計 {{sum}} cm · 日均 {{avg}} cm · 峰值 {{peak}} cm',
       ariaLabel: '{{days}} 天趨勢圖',
+    },
+    mouseDistance: {
+      title: '滑鼠移動距離',
+      description: '按天/累計統計移動距離（cm，基於螢幕尺寸估算）',
+      mode: { day: '當天', total: '累計' },
+      summary: { day: '{{date}} ≈ {{cm}} cm', total: '累計 ≈ {{cm}} cm · 日均 {{avg}} cm · 峰值 {{peak}} cm（{{date}}）' },
+      breakdown: { title: '按螢幕統計', display: '螢幕', ppi: 'PPI', distance: '距離' },
     },
     breakdown: {
       keyboard: '鍵盤 {{value}}',

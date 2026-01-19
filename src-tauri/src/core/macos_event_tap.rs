@@ -14,6 +14,7 @@ pub enum RawInputEvent {
     /// `keycode` is the inferred *logical* keycode (after macOS modifier remaps).
     KeyDown { keycode: u16, flags: u64 },
     MouseDown { button: RawMouseButton, x: f64, y: f64 },
+    MouseMove { x: f64, y: f64 },
 }
 
 // CoreGraphics constants: CGEventFlags (CGEventTypes.h)
@@ -239,6 +240,10 @@ mod imp {
     const K_CG_EVENT_LEFT_MOUSE_DOWN: CGEventType = 1;
     const K_CG_EVENT_RIGHT_MOUSE_DOWN: CGEventType = 3;
     const K_CG_EVENT_OTHER_MOUSE_DOWN: CGEventType = 25;
+    const K_CG_EVENT_MOUSE_MOVED: CGEventType = 5;
+    const K_CG_EVENT_LEFT_MOUSE_DRAGGED: CGEventType = 6;
+    const K_CG_EVENT_RIGHT_MOUSE_DRAGGED: CGEventType = 7;
+    const K_CG_EVENT_OTHER_MOUSE_DRAGGED: CGEventType = 27;
     const K_CG_EVENT_KEY_DOWN: CGEventType = 10;
     const K_CG_EVENT_FLAGS_CHANGED: CGEventType = 12;
 
@@ -379,6 +384,13 @@ mod imp {
                         y: p.y,
                     }
                 }
+                K_CG_EVENT_MOUSE_MOVED
+                | K_CG_EVENT_LEFT_MOUSE_DRAGGED
+                | K_CG_EVENT_RIGHT_MOUSE_DRAGGED
+                | K_CG_EVENT_OTHER_MOUSE_DRAGGED => {
+                    let p = unsafe { CGEventGetLocation(event) };
+                    RawInputEvent::MouseMove { x: p.x, y: p.y }
+                }
                 _ => return,
             };
 
@@ -414,6 +426,10 @@ mod imp {
             K_CG_EVENT_LEFT_MOUSE_DOWN,
             K_CG_EVENT_RIGHT_MOUSE_DOWN,
             K_CG_EVENT_OTHER_MOUSE_DOWN,
+            K_CG_EVENT_MOUSE_MOVED,
+            K_CG_EVENT_LEFT_MOUSE_DRAGGED,
+            K_CG_EVENT_RIGHT_MOUSE_DRAGGED,
+            K_CG_EVENT_OTHER_MOUSE_DRAGGED,
         ]);
 
         let tap = unsafe {

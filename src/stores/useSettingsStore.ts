@@ -42,6 +42,7 @@ const defaultSettings: Settings = {
   merit_pop_label: '功德',
   custom_statistics_widgets: ['trend', 'calendar'],
   custom_statistics_range: 'today',
+  mouse_distance_displays: {},
   keyboard_heatmap_share_hide_numbers: true,
   keyboard_heatmap_share_hide_keys: true,
   keyboard_heatmap_share_show_merit_value: false,

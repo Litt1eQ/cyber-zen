@@ -29,6 +29,7 @@ import { SkinManager } from './SkinManager'
 import { HEAT_LEVEL_COUNT_DEFAULT, HEAT_LEVEL_COUNT_MAX, HEAT_LEVEL_COUNT_MIN } from '../Statistics/heatScale'
 import { KEYBOARD_LAYOUTS, normalizeKeyboardLayoutId } from '@/lib/keyboard'
 import { useAppLocaleSync } from '@/hooks/useAppLocaleSync'
+import { MouseDistanceCalibration } from '@/components/Settings/MouseDistanceCalibration'
 
 type SettingsTab = 'general' | 'shortcuts' | 'statistics' | 'about'
 
@@ -37,7 +38,6 @@ type UpdateInfo = { version: string; body?: string | null; date?: string | null 
 const OPEN_SOURCE_URL = 'https://github.com/Litt1eQ/cyber-zen'
 const MERIT_LABEL_MAX_CHARS = 4
 const DEFAULT_MERIT_LABEL = '功德'
-
 export function Settings() {
   const { t, i18n } = useTranslation()
   const { settings, updateSettings, fetchSettings } = useSettingsStore()
@@ -462,6 +462,13 @@ export function Settings() {
                       <Switch checked={settings.enable_mouse_single} onCheckedChange={(v) => updateSettings({ enable_mouse_single: v })} data-no-drag />
                     }
                   />
+                </SettingsSection>
+
+                <SettingsSection
+                  title={t('settings.sections.mouseDistance.title')}
+                  description={t('settings.sections.mouseDistance.description')}
+                >
+                  <MouseDistanceCalibration settings={settings} stats={stats} updateSettings={updateSettings} />
                 </SettingsSection>
 
                 <SettingsSection title={t('settings.sections.window.title')}>

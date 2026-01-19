@@ -78,6 +78,10 @@ pub struct DailyStats {
     pub keyboard: u64,
     #[serde(default)]
     pub mouse_single: u64,
+    #[serde(default)]
+    pub mouse_move_distance_px: u64,
+    #[serde(default)]
+    pub mouse_move_distance_px_by_display: HashMap<String, u64>,
     #[serde(default = "default_hourly_stats")]
     pub hourly: Vec<HourlyStats>,
     #[serde(default)]
@@ -131,6 +135,8 @@ impl DailyStats {
             total: 0,
             keyboard: 0,
             mouse_single: 0,
+            mouse_move_distance_px: 0,
+            mouse_move_distance_px_by_display: HashMap::new(),
             hourly: default_hourly_stats(),
             key_counts: HashMap::new(),
             key_counts_unshifted: HashMap::new(),
@@ -171,6 +177,31 @@ impl DailyStats {
                 self.mouse_single = self.mouse_single.saturating_add(count);
             }
         }
+    }
+
+    pub fn add_mouse_move_distance_px(&mut self, px: u64) {
+        if px == 0 {
+            return;
+        }
+        self.mouse_move_distance_px = self.mouse_move_distance_px.saturating_add(px);
+    }
+
+    pub fn add_mouse_move_distance_px_for_display(&mut self, display_id: Option<&str>, px: u64) {
+        if px == 0 {
+            return;
+        }
+        self.add_mouse_move_distance_px(px);
+        let Some(id) = display_id else {
+            return;
+        };
+        let trimmed = id.trim();
+        if trimmed.is_empty() {
+            return;
+        }
+        self.mouse_move_distance_px_by_display
+            .entry(trimmed.to_string())
+            .and_modify(|v| *v = v.saturating_add(px))
+            .or_insert(px);
     }
 
     pub fn add_hourly_merit(&mut self, hour: usize, source: InputSource, count: u64) {
@@ -355,6 +386,15 @@ impl MeritStats {
         self.total_merit = self.total_merit.saturating_add(count);
         self.today.add_merit(source, count);
         self.today.add_hourly_merit(hour, source, count);
+    }
+
+    pub fn add_mouse_move_distance_px_for_display(&mut self, display_id: Option<&str>, px: u64) {
+        if px == 0 {
+            return;
+        }
+        self.normalize_today();
+        self.today
+            .add_mouse_move_distance_px_for_display(display_id, px);
     }
 
     pub fn add_app_merit(

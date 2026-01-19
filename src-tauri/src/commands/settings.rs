@@ -1,6 +1,6 @@
 use crate::core::wooden_fish_skins;
 use crate::core::MeritStorage;
-use crate::models::Settings;
+use crate::models::{MouseDistanceDisplaySettings, Settings};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size};
 
 const BASE_WINDOW_SIZE: f64 = 320.0;
@@ -169,6 +169,35 @@ fn normalize_drag_hold_ms(ms: u32) -> u32 {
     ms.min(2_000)
 }
 
+fn normalize_mouse_distance_ppi(ppi: u32) -> u32 {
+    ppi.clamp(50, 400)
+}
+
+fn normalize_mouse_distance_displays(
+    displays: std::collections::HashMap<String, MouseDistanceDisplaySettings>,
+) -> std::collections::HashMap<String, MouseDistanceDisplaySettings> {
+    let mut out = std::collections::HashMap::new();
+    for (id, mut cfg) in displays {
+        let trimmed = id.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        cfg.diagonal_in = cfg
+            .diagonal_in
+            .and_then(|v| (v.is_finite() && v > 0.0).then_some(v))
+            .map(|v| v.clamp(5.0, 80.0));
+        cfg.ppi_override = cfg.ppi_override.map(normalize_mouse_distance_ppi);
+
+        if cfg.diagonal_in.is_none() && cfg.ppi_override.is_none() {
+            continue;
+        }
+
+        out.insert(trimmed.to_string(), cfg);
+    }
+    out
+}
+
 #[tauri::command]
 pub async fn get_settings() -> Result<Settings, String> {
     let storage = MeritStorage::instance();
@@ -199,6 +228,8 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
         normalize_custom_statistics_widgets(settings.custom_statistics_widgets);
     settings.custom_statistics_range =
         normalize_custom_statistics_range(settings.custom_statistics_range);
+    settings.mouse_distance_displays =
+        normalize_mouse_distance_displays(settings.mouse_distance_displays);
     settings.shortcut_toggle_main = normalize_shortcut(settings.shortcut_toggle_main);
     settings.shortcut_toggle_settings = normalize_shortcut(settings.shortcut_toggle_settings);
     settings.shortcut_toggle_listening = normalize_shortcut(settings.shortcut_toggle_listening);
@@ -215,6 +246,8 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     let mut storage = storage.write();
     storage.update_settings(settings.clone());
     drop(storage);
+
+    crate::core::mouse_distance::set_tracking_enabled(settings.enable_mouse_single);
 
     let window = app_handle
         .get_webview_window("main")

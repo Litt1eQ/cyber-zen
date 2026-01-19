@@ -34,6 +34,7 @@ pub async fn update_input_settings(settings: Settings) -> Result<(), String> {
     let storage = MeritStorage::instance();
     let mut storage = storage.write();
     storage.update_settings(settings);
+    crate::core::mouse_distance::set_tracking_enabled(storage.get_settings().enable_mouse_single);
 
     Ok(())
 }

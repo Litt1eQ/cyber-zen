@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { Settings, MeritStats } from '@/types/merit'
 import { Card } from '@/components/ui/card'
 import { TrendPanel } from '@/components/Statistics/TrendPanel'
+import { MouseDistancePanel } from '@/components/Statistics/MouseDistancePanel'
 import { MonthlyHistoryCalendar } from '@/components/Statistics/MonthlyHistoryCalendar'
 import { KeyboardHeatmap } from '@/components/Statistics/KeyboardHeatmap'
 import { MouseButtonsHeatmap } from '@/components/Statistics/MouseButtonsHeatmap'
@@ -28,6 +29,7 @@ import i18n from '@/i18n'
 export type CustomStatisticsWidgetId =
   | 'insights'
   | 'trend'
+  | 'mouse_distance'
   | 'weekday_distribution'
   | 'source_share'
   | 'daily_source_bars'
@@ -91,6 +93,19 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
     render: ({ allDays }) => (
       <Card className="p-4">
         <TrendPanel days={allDays} />
+      </Card>
+    ),
+  },
+  {
+    id: 'mouse_distance',
+    titleKey: 'customStatistics.widgets.mouse_distance.title',
+    descriptionKey: 'customStatistics.widgets.mouse_distance.description',
+    render: ({ stats, settings, allDays }) => (
+      <Card className="p-4">
+        <MouseDistancePanel
+          days={settings.custom_statistics_range === 'all' ? allDays : [stats.today]}
+          settings={settings}
+        />
       </Card>
     ),
   },
