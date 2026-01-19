@@ -62,6 +62,17 @@ impl ModState {
 #[cfg(not(target_os = "macos"))]
 static MOD_STATE: Lazy<Mutex<ModState>> = Lazy::new(|| Mutex::new(ModState::default()));
 
+#[cfg(not(target_os = "macos"))]
+#[derive(Debug, Clone, Copy, Default)]
+struct MouseState {
+    x: f64,
+    y: f64,
+    has_position: bool,
+}
+
+#[cfg(not(target_os = "macos"))]
+static MOUSE_STATE: Lazy<Mutex<MouseState>> = Lazy::new(|| Mutex::new(MouseState::default()));
+
 fn is_letter_code(code: &str) -> bool {
     let bytes = code.as_bytes();
     if bytes.len() != 4 {
@@ -336,12 +347,16 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         return;
                     }
                     EventType::ButtonPress(button) => {
-                        if let Some(pos) = event.position {
+                        let pos = {
+                            let st = MOUSE_STATE.lock();
+                            st.has_position.then_some((st.x, st.y))
+                        };
+                        if let Some((x, y)) = pos {
                             click_heatmap::record_global_click(
                                 &callback_handle,
                                 click_heatmap::CoordinateSpace::Physical,
-                                pos.x,
-                                pos.y,
+                                x,
+                                y,
                             );
                         }
 
@@ -359,6 +374,13 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         };
 
                         (InputSource::MouseSingle, 1u64, code, None, None)
+                    }
+                    EventType::MouseMove { x, y } => {
+                        let mut st = MOUSE_STATE.lock();
+                        st.x = x;
+                        st.y = y;
+                        st.has_position = true;
+                        return;
                     }
                     _ => return,
                 };
