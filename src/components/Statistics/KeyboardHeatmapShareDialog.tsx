@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
+import { useSettingsStore } from '@/stores/useSettingsStore'
 import { renderKeyboardHeatmapSharePng } from './share/renderKeyboardHeatmapShare'
 
 async function copyPngToClipboard(blob: Blob, unsupportedMessage: string) {
@@ -40,6 +41,7 @@ export function KeyboardHeatmapShareDialog({
   meritLabel?: string
 }) {
   const { t, i18n } = useTranslation()
+  const { settings, updateSettings } = useSettingsStore()
   const [open, setOpen] = useState(false)
   const [hideNumbers, setHideNumbers] = useState(true)
   const [hideKeys, setHideKeys] = useState(true)
@@ -52,9 +54,20 @@ export function KeyboardHeatmapShareDialog({
   const [error, setError] = useState<string | null>(null)
   const genIdRef = useRef(0)
 
+  const persistedHideNumbers = settings?.keyboard_heatmap_share_hide_numbers ?? true
+  const persistedHideKeys = settings?.keyboard_heatmap_share_hide_keys ?? true
+  const persistedShowMeritValue = settings?.keyboard_heatmap_share_show_merit_value ?? false
+
   const hasAny = useMemo(() => {
     return totalKeyCount(unshiftedCounts) + totalKeyCount(shiftedCounts) > 0
   }, [shiftedCounts, unshiftedCounts])
+
+  useEffect(() => {
+    if (!open) return
+    setHideNumbers(persistedHideNumbers)
+    setHideKeys(persistedHideKeys)
+    setShowMeritValue(persistedShowMeritValue)
+  }, [open, persistedHideKeys, persistedHideNumbers, persistedShowMeritValue])
 
   useEffect(() => {
     if (!open) return
@@ -141,7 +154,6 @@ export function KeyboardHeatmapShareDialog({
     setError(null)
     setPngBlob(null)
     setSuggestedName('')
-    setShowMeritValue(false)
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev)
       return null
@@ -198,7 +210,13 @@ export function KeyboardHeatmapShareDialog({
                       <Label className="text-sm text-slate-800">{t('statistics.keyboardHeatmapShare.privacy.hideNumbers')}</Label>
                       <div className="text-xs text-slate-500 mt-1">{t('statistics.keyboardHeatmapShare.privacy.hideNumbersDesc')}</div>
                     </div>
-                    <Switch checked={hideNumbers} onCheckedChange={setHideNumbers} />
+                    <Switch
+                      checked={hideNumbers}
+                      onCheckedChange={(v) => {
+                        setHideNumbers(v)
+                        void updateSettings({ keyboard_heatmap_share_hide_numbers: v })
+                      }}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between gap-3">
@@ -206,7 +224,13 @@ export function KeyboardHeatmapShareDialog({
                       <Label className="text-sm text-slate-800">{t('statistics.keyboardHeatmapShare.privacy.hideKeys')}</Label>
                       <div className="text-xs text-slate-500 mt-1">{t('statistics.keyboardHeatmapShare.privacy.hideKeysDesc')}</div>
                     </div>
-                    <Switch checked={hideKeys} onCheckedChange={setHideKeys} />
+                    <Switch
+                      checked={hideKeys}
+                      onCheckedChange={(v) => {
+                        setHideKeys(v)
+                        void updateSettings({ keyboard_heatmap_share_hide_keys: v })
+                      }}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between gap-3">
@@ -214,7 +238,13 @@ export function KeyboardHeatmapShareDialog({
                       <Label className="text-sm text-slate-800">{t('statistics.keyboardHeatmapShare.privacy.showMerit')}</Label>
                       <div className="text-xs text-slate-500 mt-1">{t('statistics.keyboardHeatmapShare.privacy.showMeritDesc')}</div>
                     </div>
-                    <Switch checked={showMeritValue} onCheckedChange={setShowMeritValue} />
+                    <Switch
+                      checked={showMeritValue}
+                      onCheckedChange={(v) => {
+                        setShowMeritValue(v)
+                        void updateSettings({ keyboard_heatmap_share_show_merit_value: v })
+                      }}
+                    />
                   </div>
                 </div>
               </div>

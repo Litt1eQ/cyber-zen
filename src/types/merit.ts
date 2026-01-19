@@ -72,6 +72,9 @@ export interface Settings {
   shortcut_toggle_always_on_top?: string | null
   shortcut_open_custom_statistics?: string | null
   shortcut_close_custom_statistics?: string | null
+  keyboard_heatmap_share_hide_numbers?: boolean
+  keyboard_heatmap_share_hide_keys?: boolean
+  keyboard_heatmap_share_show_merit_value?: boolean
 }
 
 export interface InputEvent {
