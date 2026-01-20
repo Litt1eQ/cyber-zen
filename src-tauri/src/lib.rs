@@ -15,12 +15,44 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .on_menu_event(|app, event| {
             tray_menu::handle_menu_event(app, event);
         })
         .setup(|app| {
             let app_handle = app.handle().clone();
+            core::app_log::install_panic_hook(app_handle.clone());
+            let _ = core::app_log::info(&app_handle, "app", "startup");
+            let notification_env = core::notification_env::detect(&app_handle);
+            if let Err(e) = core::notification_env::configure_once(&notification_env) {
+                let _ = core::app_log::append(
+                    &app_handle,
+                    core::app_log::AppLogRecord {
+                        ts_ms: chrono::Utc::now().timestamp_millis(),
+                        level: "error".to_string(),
+                        scope: "notifications/native".to_string(),
+                        message: "configure_failed".to_string(),
+                        data: Some(serde_json::json!({ "error": e, "app_id": notification_env.app_id })),
+                    },
+                );
+            } else {
+                let _ = core::app_log::append(
+                    &app_handle,
+                    core::app_log::AppLogRecord {
+                        ts_ms: chrono::Utc::now().timestamp_millis(),
+                        level: "info".to_string(),
+                        scope: "notifications/native".to_string(),
+                        message: "configured".to_string(),
+                        data: Some(serde_json::json!({
+                            "app_id": notification_env.app_id,
+                            "is_dev": notification_env.is_dev,
+                            "in_app_bundle": notification_env.in_app_bundle
+                        })),
+                    },
+                );
+            }
+            app.manage(notification_env);
 
             #[cfg(target_os = "macos")]
             {
@@ -111,6 +143,9 @@ pub fn run() {
             commands::window::show_custom_statistics_window,
             commands::window::hide_custom_statistics_window,
             commands::window::toggle_custom_statistics_window,
+            commands::window::show_logs_window,
+            commands::window::hide_logs_window,
+            commands::window::toggle_logs_window,
             commands::window::quit_app,
             commands::updater::check_update,
             commands::updater::download_and_install_update,
@@ -123,6 +158,11 @@ pub fn run() {
             commands::click_heatmap::get_click_heatmap_grid,
             commands::click_heatmap::clear_click_heatmap,
             commands::notifications::open_notification_settings,
+            commands::notifications::send_system_notification,
+            commands::logs::append_log,
+            commands::logs::read_logs,
+            commands::logs::clear_logs,
+            commands::logs::open_logs_directory,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Focused(focused) = event {
@@ -133,6 +173,7 @@ pub fn run() {
                 if label == "main"
                     || label == "settings"
                     || label == "custom_statistics"
+                    || label == "logs"
                 {
                     if let Some(webview_window) = window.app_handle().get_webview_window(label) {
                         core::window_placement::schedule_capture(webview_window);
@@ -143,6 +184,7 @@ pub fn run() {
                 if window.label() == "main"
                     || window.label() == "settings"
                     || window.label() == "custom_statistics"
+                    || window.label() == "logs"
                 {
                     if let Some(webview_window) =
                         window.app_handle().get_webview_window(window.label())

@@ -2,16 +2,17 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main", "settings", "custom_statistics"],
+  "windows": ["main", "settings", "custom_statistics", "logs"],
   "permissions": [
-    "core:default",
-    "core:window:allow-start-dragging",
-    "core:window:allow-set-always-on-top",
-    "opener:default",
-    {
-      "identifier": "opener:allow-open-path",
-      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }]
-    },
+      "core:default",
+      "core:window:allow-start-dragging",
+      "core:window:allow-set-always-on-top",
+      "notification:default",
+      "opener:default",
+      {
+        "identifier": "opener:allow-open-path",
+        "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }]
+      },
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister"

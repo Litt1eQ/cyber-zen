@@ -1,14 +1,14 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './i18n'
-import { CustomStatistics } from './components/CustomStatistics'
+import { Logs } from './components/Logs'
 import './index.css'
 import { setupGlobalErrorLogging } from './lib/logging'
 
-setupGlobalErrorLogging({ page: 'custom_statistics' })
+setupGlobalErrorLogging({ page: 'logs' })
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <CustomStatistics />
+    <Logs />
   </React.StrictMode>
 )

@@ -2,6 +2,7 @@ pub mod autostart;
 pub mod app_icons;
 pub mod achievements;
 pub mod notifications;
+pub mod logs;
 pub mod click_heatmap;
 pub mod input;
 pub mod merit;

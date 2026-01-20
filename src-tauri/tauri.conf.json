@@ -63,6 +63,25 @@
         "shadow": true,
         "acceptFirstMouse": true,
         "url": "custom-statistics.html"
+      },
+      {
+        "label": "logs",
+        "title": "日志 - 赛博木鱼",
+        "width": 900,
+        "height": 640,
+        "minWidth": 720,
+        "minHeight": 520,
+        "resizable": true,
+        "transparent": false,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
+        "visible": false,
+        "shadow": true,
+        "acceptFirstMouse": true,
+        "url": "logs.html"
       }
     ],
     "security": {

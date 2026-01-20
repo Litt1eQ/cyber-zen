@@ -71,6 +71,10 @@ fn tr(locale: AppLocale, key: &str) -> &'static str {
         (AppLocale::ZhCn, "custom_statistics") => "自定义统计",
         (AppLocale::ZhTw, "custom_statistics") => "自訂統計",
 
+        (AppLocale::En, "logs") => "Logs",
+        (AppLocale::ZhCn, "logs") => "日志",
+        (AppLocale::ZhTw, "logs") => "日誌",
+
         (AppLocale::En, "lock_window_position") => "Lock Position",
         (AppLocale::ZhCn, "lock_window_position") => "锁定位置",
         (AppLocale::ZhTw, "lock_window_position") => "鎖定位置",
@@ -194,6 +198,7 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
     let settings_item = MenuItemBuilder::with_id("settings", tr(locale, "settings")).build(app)?;
     let custom_statistics_item =
         MenuItemBuilder::with_id("custom_statistics", tr(locale, "custom_statistics")).build(app)?;
+    let logs_item = MenuItemBuilder::with_id("logs", tr(locale, "logs")).build(app)?;
 
     let lock_window_position = CheckMenuItemBuilder::with_id(
         "lock_window_position",
@@ -246,6 +251,7 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
         .item(&toggle_main)
         .item(&settings_item)
         .item(&custom_statistics_item)
+        .item(&logs_item)
         .separator()
         .item(&lock_window_position)
         .item(&dock)
@@ -308,6 +314,13 @@ pub fn handle_menu_event(app: &AppHandle<Wry>, event: tauri::menu::MenuEvent) {
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
                 let _ = commands::window::show_custom_statistics_window(app.clone()).await;
+                let _ = refresh_tray_menu(&app);
+            });
+        }
+        "logs" => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = commands::window::show_logs_window(app.clone()).await;
                 let _ = refresh_tray_menu(&app);
             });
         }

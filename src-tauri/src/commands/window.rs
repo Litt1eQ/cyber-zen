@@ -287,6 +287,62 @@ pub async fn toggle_custom_statistics_window(app_handle: AppHandle) -> Result<()
 }
 
 #[tauri::command]
+pub async fn show_logs_window(app_handle: AppHandle) -> Result<(), String> {
+    let window = app_handle
+        .get_webview_window("logs")
+        .ok_or_else(|| "Logs window not found".to_string())?;
+
+    window
+        .show()
+        .map_err(|e| format!("Failed to show logs: {}", e))?;
+    window
+        .set_focus()
+        .map_err(|e| format!("Failed to focus logs: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn hide_logs_window(app_handle: AppHandle) -> Result<(), String> {
+    let window = app_handle
+        .get_webview_window("logs")
+        .ok_or_else(|| "Logs window not found".to_string())?;
+
+    window
+        .hide()
+        .map_err(|e| format!("Failed to hide logs: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn toggle_logs_window(app_handle: AppHandle) -> Result<(), String> {
+    let window = app_handle
+        .get_webview_window("logs")
+        .ok_or_else(|| "Logs window not found".to_string())?;
+
+    let visible = window
+        .is_visible()
+        .map_err(|e| format!("Failed to query logs visibility: {}", e))?;
+
+    if visible {
+        window
+            .hide()
+            .map_err(|e| format!("Failed to hide logs: {}", e))?;
+        return Ok(());
+    }
+
+    window
+        .show()
+        .map_err(|e| format!("Failed to show logs: {}", e))?;
+    window
+        .set_focus()
+        .map_err(|e| format!("Failed to focus logs: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn quit_app(app_handle: AppHandle) -> Result<(), String> {
     crate::core::window_placement::capture_all_now(&app_handle);
     crate::core::persistence::flush_now();

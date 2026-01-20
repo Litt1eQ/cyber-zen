@@ -55,4 +55,12 @@ export const COMMANDS = {
   GET_CLICK_HEATMAP_GRID: 'get_click_heatmap_grid',
   CLEAR_CLICK_HEATMAP: 'clear_click_heatmap',
   OPEN_NOTIFICATION_SETTINGS: 'open_notification_settings',
+  SEND_SYSTEM_NOTIFICATION: 'send_system_notification',
+  APPEND_LOG: 'append_log',
+  READ_LOGS: 'read_logs',
+  CLEAR_LOGS: 'clear_logs',
+  OPEN_LOGS_DIRECTORY: 'open_logs_directory',
+  SHOW_LOGS_WINDOW: 'show_logs_window',
+  HIDE_LOGS_WINDOW: 'hide_logs_window',
+  TOGGLE_LOGS_WINDOW: 'toggle_logs_window',
 } as const

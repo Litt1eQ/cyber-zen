@@ -58,7 +58,7 @@ export function Settings() {
   const [achievementNotifyBusy, setAchievementNotifyBusy] = useState(false)
   const [achievementNotifyError, setAchievementNotifyError] = useState<string | null>(null)
   const [achievementNotifyDialogOpen, setAchievementNotifyDialogOpen] = useState(false)
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(() => getSystemNotificationPermission())
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(null)
   const [inputPermissionDialogOpen, setInputPermissionDialogOpen] = useState(false)
   const [inputPermissionDialogBusy, setInputPermissionDialogBusy] = useState(false)
   const inputPermissionPromptShownRef = useRef(false)
@@ -74,6 +74,7 @@ export function Settings() {
   >({ status: 'idle' })
 
   const meritLabelFocusedRef = useRef(false)
+  const logsTapRef = useRef<{ count: number; lastMs: number }>({ count: 0, lastMs: 0 })
   const [meritLabelDraft, setMeritLabelDraft] = useState('')
   const [clickHeatmapColsDraft, setClickHeatmapColsDraft] = useState('')
   const [clickHeatmapRowsDraft, setClickHeatmapRowsDraft] = useState('')
@@ -83,6 +84,17 @@ export function Settings() {
   const autostartSupported = isMac() || isWindows() || isLinux()
 
   useSettingsSync()
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const perm = await getSystemNotificationPermission()
+      if (!cancelled) setNotificationPermission(perm)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -314,6 +326,18 @@ export function Settings() {
       await invoke<void>(COMMANDS.OPEN_NOTIFICATION_SETTINGS)
     } catch (e) {
       setAchievementNotifyError(String(e))
+    }
+  }
+
+  const handleVersionSecretTap = () => {
+    const now = Date.now()
+    const state = logsTapRef.current
+    if (now - state.lastMs > 1500) state.count = 0
+    state.lastMs = now
+    state.count += 1
+    if (state.count >= 5) {
+      state.count = 0
+      void invoke(COMMANDS.SHOW_LOGS_WINDOW)
     }
   }
 
@@ -1035,7 +1059,7 @@ export function Settings() {
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0">
                         <div className="font-semibold text-slate-900">{t('settings.about.appName')}</div>
-                        <div className="text-sm text-slate-500 mt-1">
+                        <div className="text-sm text-slate-500 mt-1 cursor-default select-none" onClick={handleVersionSecretTap} data-no-drag>
                           {appInfo ? `${appInfo.name} v${appInfo.version}` : t('settings.about.loadingVersion')}
                         </div>
                       </div>
@@ -1347,11 +1371,13 @@ function SettingRow({
   title,
   description,
   extra,
+  extraVariant = 'error',
   control,
 }: {
   title: string
   description?: React.ReactNode
   extra?: string
+  extraVariant?: 'error' | 'info'
   control: React.ReactNode
 }) {
   return (
@@ -1359,7 +1385,11 @@ function SettingRow({
       <div className="min-w-0">
         <div className="font-medium text-slate-900">{title}</div>
         {description && <div className="text-sm text-slate-500 mt-1">{description}</div>}
-        {extra && <div className="text-xs text-red-600 mt-1">{extra}</div>}
+        {extra && (
+          <div className={`text-xs mt-1 ${extraVariant === 'info' ? 'text-slate-600' : 'text-red-600'}`}>
+            {extra}
+          </div>
+        )}
       </div>
       <div className="shrink-0" data-no-drag>
         {control}

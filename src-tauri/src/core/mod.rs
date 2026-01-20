@@ -1,5 +1,7 @@
 pub mod active_app;
 pub mod app_icons;
+pub mod app_log;
+pub mod notification_env;
 pub mod click_heatmap;
 pub mod input_listener;
 pub mod key_codes;
