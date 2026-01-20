@@ -47,12 +47,15 @@ pub fn detect(app: &AppHandle) -> NotificationEnv {
     }
 }
 
-pub fn configure_once(env: &NotificationEnv) -> Result<(), String> {
+pub fn configure_once(_env: &NotificationEnv) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        notify_rust::set_application(&env.app_id)
-            .map_err(|e| format!("Failed to set notification app id ({}): {}", env.app_id, e))?;
+        notify_rust::set_application(&_env.app_id).map_err(|e| {
+            format!(
+                "Failed to set notification app id ({}): {}",
+                _env.app_id, e
+            )
+        })?;
     }
     Ok(())
 }
-

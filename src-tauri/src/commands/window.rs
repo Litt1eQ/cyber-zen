@@ -1,22 +1,15 @@
 use crate::core::MeritStorage;
-use tauri::{
-    AppHandle,
-    Manager,
-    Monitor,
-    PhysicalPosition,
-    Position,
-    TitleBarStyle,
-    WebviewUrl,
-    WebviewWindow,
-    WebviewWindowBuilder,
-};
+use tauri::{AppHandle, Manager, Monitor, PhysicalPosition, Position, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+
+#[cfg(target_os = "macos")]
+use tauri::TitleBarStyle;
 
 fn ensure_settings_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
     if let Some(window) = app_handle.get_webview_window("settings") {
         return Ok(window);
     }
 
-    let window = WebviewWindowBuilder::new(
+    let builder = WebviewWindowBuilder::new(
         app_handle,
         "settings",
         WebviewUrl::App("settings.html".into()),
@@ -30,10 +23,12 @@ fn ensure_settings_window(app_handle: &AppHandle) -> Result<WebviewWindow, Strin
     .always_on_top(false)
     .accept_first_mouse(true)
     .inner_size(760.0, 560.0)
-    .min_inner_size(640.0, 520.0)
-    .title_bar_style(TitleBarStyle::Overlay)
-    .hidden_title(true)
-    .build()
+    .min_inner_size(640.0, 520.0);
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.title_bar_style(TitleBarStyle::Overlay);
+
+    let window = builder.hidden_title(true).build()
     .map_err(|e| format!("Failed to create settings window: {}", e))?;
 
     crate::core::window_placement::restore_all(app_handle);
@@ -45,7 +40,7 @@ fn ensure_custom_statistics_window(app_handle: &AppHandle) -> Result<WebviewWind
         return Ok(window);
     }
 
-    let window = WebviewWindowBuilder::new(
+    let builder = WebviewWindowBuilder::new(
         app_handle,
         "custom_statistics",
         WebviewUrl::App("custom-statistics.html".into()),
@@ -59,10 +54,12 @@ fn ensure_custom_statistics_window(app_handle: &AppHandle) -> Result<WebviewWind
     .always_on_top(false)
     .accept_first_mouse(true)
     .inner_size(900.0, 680.0)
-    .min_inner_size(720.0, 560.0)
-    .title_bar_style(TitleBarStyle::Overlay)
-    .hidden_title(true)
-    .build()
+    .min_inner_size(720.0, 560.0);
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.title_bar_style(TitleBarStyle::Overlay);
+
+    let window = builder.hidden_title(true).build()
     .map_err(|e| format!("Failed to create custom statistics window: {}", e))?;
 
     crate::core::window_placement::restore_all(app_handle);
@@ -74,7 +71,7 @@ fn ensure_logs_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
         return Ok(window);
     }
 
-    let window = WebviewWindowBuilder::new(app_handle, "logs", WebviewUrl::App("logs.html".into()))
+    let builder = WebviewWindowBuilder::new(app_handle, "logs", WebviewUrl::App("logs.html".into()))
         .title("日志 - 赛博木鱼")
         .resizable(true)
         .decorations(true)
@@ -84,10 +81,12 @@ fn ensure_logs_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
         .always_on_top(false)
         .accept_first_mouse(true)
         .inner_size(900.0, 640.0)
-        .min_inner_size(720.0, 520.0)
-        .title_bar_style(TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .build()
+        .min_inner_size(720.0, 520.0);
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.title_bar_style(TitleBarStyle::Overlay);
+
+    let window = builder.hidden_title(true).build()
         .map_err(|e| format!("Failed to create logs window: {}", e))?;
 
     crate::core::window_placement::restore_all(app_handle);
