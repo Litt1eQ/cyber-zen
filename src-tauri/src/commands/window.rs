@@ -1,5 +1,98 @@
 use crate::core::MeritStorage;
-use tauri::{AppHandle, Manager, Monitor, PhysicalPosition, Position};
+use tauri::{
+    AppHandle,
+    Manager,
+    Monitor,
+    PhysicalPosition,
+    Position,
+    TitleBarStyle,
+    WebviewUrl,
+    WebviewWindow,
+    WebviewWindowBuilder,
+};
+
+fn ensure_settings_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
+    if let Some(window) = app_handle.get_webview_window("settings") {
+        return Ok(window);
+    }
+
+    let window = WebviewWindowBuilder::new(
+        app_handle,
+        "settings",
+        WebviewUrl::App("settings.html".into()),
+    )
+    .title("设置 - 赛博木鱼")
+    .resizable(true)
+    .decorations(true)
+    .transparent(false)
+    .shadow(true)
+    .skip_taskbar(false)
+    .always_on_top(false)
+    .accept_first_mouse(true)
+    .inner_size(760.0, 560.0)
+    .min_inner_size(640.0, 520.0)
+    .title_bar_style(TitleBarStyle::Overlay)
+    .hidden_title(true)
+    .build()
+    .map_err(|e| format!("Failed to create settings window: {}", e))?;
+
+    crate::core::window_placement::restore_all(app_handle);
+    Ok(window)
+}
+
+fn ensure_custom_statistics_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
+    if let Some(window) = app_handle.get_webview_window("custom_statistics") {
+        return Ok(window);
+    }
+
+    let window = WebviewWindowBuilder::new(
+        app_handle,
+        "custom_statistics",
+        WebviewUrl::App("custom-statistics.html".into()),
+    )
+    .title("自定义统计 - 赛博木鱼")
+    .resizable(true)
+    .decorations(true)
+    .transparent(false)
+    .shadow(true)
+    .skip_taskbar(false)
+    .always_on_top(false)
+    .accept_first_mouse(true)
+    .inner_size(900.0, 680.0)
+    .min_inner_size(720.0, 560.0)
+    .title_bar_style(TitleBarStyle::Overlay)
+    .hidden_title(true)
+    .build()
+    .map_err(|e| format!("Failed to create custom statistics window: {}", e))?;
+
+    crate::core::window_placement::restore_all(app_handle);
+    Ok(window)
+}
+
+fn ensure_logs_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
+    if let Some(window) = app_handle.get_webview_window("logs") {
+        return Ok(window);
+    }
+
+    let window = WebviewWindowBuilder::new(app_handle, "logs", WebviewUrl::App("logs.html".into()))
+        .title("日志 - 赛博木鱼")
+        .resizable(true)
+        .decorations(true)
+        .transparent(false)
+        .shadow(true)
+        .skip_taskbar(false)
+        .always_on_top(false)
+        .accept_first_mouse(true)
+        .inner_size(900.0, 640.0)
+        .min_inner_size(720.0, 520.0)
+        .title_bar_style(TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .build()
+        .map_err(|e| format!("Failed to create logs window: {}", e))?;
+
+    crate::core::window_placement::restore_all(app_handle);
+    Ok(window)
+}
 
 #[tauri::command]
 pub async fn show_main_window(app_handle: AppHandle) -> Result<(), String> {
@@ -176,9 +269,7 @@ fn dock_to_corner(
 
 #[tauri::command]
 pub async fn show_settings_window(app_handle: AppHandle) -> Result<(), String> {
-    let window = app_handle
-        .get_webview_window("settings")
-        .ok_or_else(|| "Settings window not found".to_string())?;
+    let window = ensure_settings_window(&app_handle)?;
 
     window
         .show()
@@ -192,9 +283,9 @@ pub async fn show_settings_window(app_handle: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn hide_settings_window(app_handle: AppHandle) -> Result<(), String> {
-    let window = app_handle
-        .get_webview_window("settings")
-        .ok_or_else(|| "Settings window not found".to_string())?;
+    let Some(window) = app_handle.get_webview_window("settings") else {
+        return Ok(());
+    };
 
     window
         .hide()
@@ -205,9 +296,7 @@ pub async fn hide_settings_window(app_handle: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn toggle_settings_window(app_handle: AppHandle) -> Result<(), String> {
-    let window = app_handle
-        .get_webview_window("settings")
-        .ok_or_else(|| "Settings window not found".to_string())?;
+    let window = ensure_settings_window(&app_handle)?;
 
     let visible = window
         .is_visible()
@@ -232,9 +321,7 @@ pub async fn toggle_settings_window(app_handle: AppHandle) -> Result<(), String>
 
 #[tauri::command]
 pub async fn show_custom_statistics_window(app_handle: AppHandle) -> Result<(), String> {
-    let window = app_handle
-        .get_webview_window("custom_statistics")
-        .ok_or_else(|| "Custom statistics window not found".to_string())?;
+    let window = ensure_custom_statistics_window(&app_handle)?;
 
     window
         .show()
@@ -248,9 +335,9 @@ pub async fn show_custom_statistics_window(app_handle: AppHandle) -> Result<(), 
 
 #[tauri::command]
 pub async fn hide_custom_statistics_window(app_handle: AppHandle) -> Result<(), String> {
-    let window = app_handle
-        .get_webview_window("custom_statistics")
-        .ok_or_else(|| "Custom statistics window not found".to_string())?;
+    let Some(window) = app_handle.get_webview_window("custom_statistics") else {
+        return Ok(());
+    };
 
     window
         .hide()
@@ -261,9 +348,7 @@ pub async fn hide_custom_statistics_window(app_handle: AppHandle) -> Result<(), 
 
 #[tauri::command]
 pub async fn toggle_custom_statistics_window(app_handle: AppHandle) -> Result<(), String> {
-    let window = app_handle
-        .get_webview_window("custom_statistics")
-        .ok_or_else(|| "Custom statistics window not found".to_string())?;
+    let window = ensure_custom_statistics_window(&app_handle)?;
 
     let visible = window
         .is_visible()
@@ -288,9 +373,7 @@ pub async fn toggle_custom_statistics_window(app_handle: AppHandle) -> Result<()
 
 #[tauri::command]
 pub async fn show_logs_window(app_handle: AppHandle) -> Result<(), String> {
-    let window = app_handle
-        .get_webview_window("logs")
-        .ok_or_else(|| "Logs window not found".to_string())?;
+    let window = ensure_logs_window(&app_handle)?;
 
     window
         .show()
@@ -304,9 +387,9 @@ pub async fn show_logs_window(app_handle: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn hide_logs_window(app_handle: AppHandle) -> Result<(), String> {
-    let window = app_handle
-        .get_webview_window("logs")
-        .ok_or_else(|| "Logs window not found".to_string())?;
+    let Some(window) = app_handle.get_webview_window("logs") else {
+        return Ok(());
+    };
 
     window
         .hide()
@@ -317,9 +400,7 @@ pub async fn hide_logs_window(app_handle: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn toggle_logs_window(app_handle: AppHandle) -> Result<(), String> {
-    let window = app_handle
-        .get_webview_window("logs")
-        .ok_or_else(|| "Logs window not found".to_string())?;
+    let window = ensure_logs_window(&app_handle)?;
 
     let visible = window
         .is_visible()

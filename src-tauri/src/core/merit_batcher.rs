@@ -14,7 +14,7 @@ use super::active_app::AppContext;
 
 const MAX_DIGIT: u64 = 9;
 const ANIM_EMIT_INTERVAL: Duration = Duration::from_millis(120);
-const STATS_EMIT_INTERVAL: Duration = Duration::from_millis(80);
+const STATS_EMIT_INTERVAL: Duration = Duration::from_millis(200);
 const IDLE_EVICT_AFTER: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -64,8 +64,19 @@ impl MeritBatcher {
                 let now = Instant::now();
                 let timeout = next_timeout(now, stats_dirty, last_stats_emit, &anim);
 
-                match rx.recv_timeout(timeout) {
-                    Ok(first) => {
+                let first = match timeout {
+                    Some(timeout) => match rx.recv_timeout(timeout) {
+                        Ok(v) => Some(v),
+                        Err(mpsc::RecvTimeoutError::Timeout) => None,
+                        Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                    },
+                    None => match rx.recv() {
+                        Ok(v) => Some(v),
+                        Err(_) => return,
+                    },
+                };
+
+                if let Some(first) = first {
                         let mut triggers = vec![first];
                         while let Ok(next) = rx.try_recv() {
                             triggers.push(next);
@@ -78,9 +89,6 @@ impl MeritBatcher {
                             &mut stats_dirty,
                             &mut stats_handle,
                         );
-                    }
-                    Err(mpsc::RecvTimeoutError::Timeout) => {}
-                    Err(mpsc::RecvTimeoutError::Disconnected) => return,
                 }
 
                 let now = Instant::now();
@@ -384,7 +392,7 @@ fn next_timeout(
     stats_dirty: bool,
     last_stats_emit: Instant,
     anim: &HashMap<Key, AnimState>,
-) -> Duration {
+) -> Option<Duration> {
     let mut next_deadline: Option<Instant> = None;
 
     if stats_dirty {
@@ -397,13 +405,19 @@ fn next_timeout(
                 Some(existing) => existing.min(state.next_emit_at),
                 None => state.next_emit_at,
             });
+        } else {
+            let evict_at = state.last_seen_at + IDLE_EVICT_AFTER;
+            next_deadline = Some(match next_deadline {
+                Some(existing) => existing.min(evict_at),
+                None => evict_at,
+            });
         }
     }
 
     match next_deadline {
-        Some(deadline) if deadline > now => deadline.duration_since(now),
-        Some(_) => Duration::from_millis(0),
-        None => Duration::from_millis(250),
+        Some(deadline) if deadline > now => Some(deadline.duration_since(now)),
+        Some(_) => Some(Duration::from_millis(0)),
+        None => None,
     }
 }
 

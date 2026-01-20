@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
@@ -56,10 +56,22 @@ export function CustomStatistics() {
   const { settings, fetchSettings, updateSettings } = useSettingsStore()
   const { stats, fetchStats, updateStats } = useMeritStore()
   const [customizeOpen, setCustomizeOpen] = useState(false)
+  const visibleRef = useRef(true)
 
   useSettingsSync()
   useDailyReset()
   useAppLocaleSync()
+
+  useEffect(() => {
+    const update = () => {
+      visibleRef.current = !document.hidden
+    }
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => {
+      document.removeEventListener('visibilitychange', update)
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -76,6 +88,7 @@ export function CustomStatistics() {
 
   useEffect(() => {
     const unsubscribe = listen<MeritStats>(EVENTS.MERIT_UPDATED, (event) => {
+      if (!visibleRef.current) return
       updateStats(event.payload)
     })
     return () => {

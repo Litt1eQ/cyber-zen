@@ -181,16 +181,14 @@ pub fn run() {
                 }
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main"
-                    || window.label() == "settings"
-                    || window.label() == "custom_statistics"
-                    || window.label() == "logs"
+                if let Some(webview_window) = window.app_handle().get_webview_window(window.label())
                 {
-                    if let Some(webview_window) =
-                        window.app_handle().get_webview_window(window.label())
-                    {
-                        core::window_placement::capture_immediately(&webview_window);
-                    }
+                    core::window_placement::capture_immediately(&webview_window);
+                }
+
+                // Keep the main window as a tray-style app; auxiliary windows should close to
+                // release their WebView processes and CPU usage.
+                if window.label() == "main" {
                     let _ = window.hide();
                     let _ = tray_menu::refresh_tray_menu(window.app_handle());
                     api.prevent_close();
