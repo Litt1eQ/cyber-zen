@@ -46,6 +46,7 @@ const defaultSettings: Settings = {
   keyboard_heatmap_share_hide_numbers: true,
   keyboard_heatmap_share_hide_keys: true,
   keyboard_heatmap_share_show_merit_value: false,
+  achievement_notifications_enabled: false,
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

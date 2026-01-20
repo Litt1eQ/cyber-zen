@@ -4,6 +4,7 @@ export const EVENTS = {
   CLICK_HEATMAP_UPDATED: 'click-heatmap-updated',
   MERIT_UPDATED: 'merit-updated',
   SETTINGS_UPDATED: 'settings-updated',
+  ACHIEVEMENTS_UPDATED: 'achievements-updated',
   WOODEN_FISH_SKINS_UPDATED: 'wooden-fish-skins-updated',
 } as const
 
@@ -26,6 +27,9 @@ export const COMMANDS = {
   RESET_ALL_MERIT: 'reset_all_merit',
   GET_SETTINGS: 'get_settings',
   UPDATE_SETTINGS: 'update_settings',
+  GET_ACHIEVEMENT_STATE: 'get_achievement_state',
+  APPEND_ACHIEVEMENT_UNLOCKS: 'append_achievement_unlocks',
+  CLEAR_ACHIEVEMENT_HISTORY: 'clear_achievement_history',
   TOGGLE_WINDOW_PASS_THROUGH: 'toggle_window_pass_through',
   TOGGLE_ALWAYS_ON_TOP: 'toggle_always_on_top',
   SHOW_MAIN_WINDOW: 'show_main_window',
@@ -50,4 +54,5 @@ export const COMMANDS = {
   GET_DISPLAY_MONITORS: 'get_display_monitors',
   GET_CLICK_HEATMAP_GRID: 'get_click_heatmap_grid',
   CLEAR_CLICK_HEATMAP: 'clear_click_heatmap',
+  OPEN_NOTIFICATION_SETTINGS: 'open_notification_settings',
 } as const

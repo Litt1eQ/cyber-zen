@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+fn default_false() -> bool {
+    false
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct MouseDistanceDisplaySettings {
@@ -49,6 +53,8 @@ pub struct Settings {
     pub keyboard_heatmap_share_hide_numbers: bool,
     pub keyboard_heatmap_share_hide_keys: bool,
     pub keyboard_heatmap_share_show_merit_value: bool,
+    #[serde(default = "default_false")]
+    pub achievement_notifications_enabled: bool,
 }
 
 impl Default for Settings {
@@ -92,6 +98,7 @@ impl Default for Settings {
             keyboard_heatmap_share_hide_numbers: true,
             keyboard_heatmap_share_hide_keys: true,
             keyboard_heatmap_share_show_merit_value: false,
+            achievement_notifications_enabled: false,
         }
     }
 }

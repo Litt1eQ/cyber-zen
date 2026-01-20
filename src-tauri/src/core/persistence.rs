@@ -1,4 +1,4 @@
-use crate::models::{ClickHeatmapState, MeritStats, Settings, WindowPlacement};
+use crate::models::{AchievementState, ClickHeatmapState, MeritStats, Settings, WindowPlacement};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use super::MeritStorage;
 
-const CURRENT_STATE_VERSION: u32 = 4;
+const CURRENT_STATE_VERSION: u32 = 5;
 
 #[derive(Clone)]
 struct PersistContext {
@@ -29,6 +29,8 @@ struct PersistedState {
     version: u32,
     stats: MeritStats,
     settings: Settings,
+    #[serde(default)]
+    achievements: AchievementState,
     #[serde(default)]
     window_placements: BTreeMap<String, WindowPlacement>,
     #[serde(default)]
@@ -88,7 +90,7 @@ pub fn flush_now() {
 
 pub fn load(
     path: &Path,
-) -> io::Result<Option<(MeritStats, Settings, BTreeMap<String, WindowPlacement>, ClickHeatmapState)>> {
+) -> io::Result<Option<(MeritStats, Settings, AchievementState, BTreeMap<String, WindowPlacement>, ClickHeatmapState)>> {
     if !path.exists() {
         return Ok(None);
     }
@@ -110,6 +112,7 @@ pub fn load(
     Ok(Some((
         state.stats,
         state.settings,
+        state.achievements,
         state.window_placements,
         state.click_heatmap,
     )))
@@ -136,11 +139,12 @@ fn write_snapshot(
     path: &Path,
 ) -> io::Result<()> {
     let _guard = WRITE_LOCK.lock();
-    let (stats, settings, window_placements, click_heatmap) = {
+    let (stats, settings, achievements, window_placements, click_heatmap) = {
         let storage = storage.read();
         (
             storage.get_stats(),
             storage.get_settings(),
+            storage.get_achievements(),
             storage.get_window_placements(),
             storage.get_click_heatmap(),
         )
@@ -150,6 +154,7 @@ fn write_snapshot(
         version: CURRENT_STATE_VERSION,
         stats,
         settings,
+        achievements,
         window_placements,
         click_heatmap,
     };

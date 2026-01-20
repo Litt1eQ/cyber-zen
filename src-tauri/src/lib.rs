@@ -42,13 +42,14 @@ pub fn run() {
                 .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?
                 .join("state.json");
 
-            if let Ok(Some((stats, settings, window_placements, click_heatmap))) =
+            if let Ok(Some((stats, settings, achievements, window_placements, click_heatmap))) =
                 core::persistence::load(&state_path)
             {
                 let storage = MeritStorage::instance();
                 let mut storage = storage.write();
                 storage.set_stats(stats);
                 storage.set_settings(settings.clone());
+                storage.set_achievements(achievements);
                 storage.set_window_placements(window_placements);
                 storage.set_click_heatmap(click_heatmap);
 
@@ -76,6 +77,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::achievements::get_achievement_state,
+            commands::achievements::append_achievement_unlocks,
+            commands::achievements::clear_achievement_history,
             commands::merit::get_merit_stats,
             commands::merit::get_recent_days,
             commands::merit::add_merit,
@@ -118,6 +122,7 @@ pub fn run() {
             commands::click_heatmap::get_display_monitors,
             commands::click_heatmap::get_click_heatmap_grid,
             commands::click_heatmap::clear_click_heatmap,
+            commands::notifications::open_notification_settings,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::Focused(focused) = event {

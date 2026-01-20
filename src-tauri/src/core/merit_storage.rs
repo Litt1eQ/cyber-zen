@@ -1,4 +1,13 @@
-use crate::models::{ClickHeatmapState, InputOrigin, InputSource, MeritStats, Settings, WindowPlacement};
+use crate::models::{
+    AchievementState,
+    AchievementUnlockRecord,
+    ClickHeatmapState,
+    InputOrigin,
+    InputSource,
+    MeritStats,
+    Settings,
+    WindowPlacement,
+};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use std::collections::BTreeMap;
@@ -25,6 +34,7 @@ pub struct MouseCounts<'a> {
 pub struct MeritStorage {
     stats: MeritStats,
     settings: Settings,
+    achievements: AchievementState,
     window_placements: BTreeMap<String, WindowPlacement>,
     click_heatmap: ClickHeatmapState,
 }
@@ -34,6 +44,7 @@ impl MeritStorage {
         Self {
             stats: MeritStats::new(),
             settings: Settings::new(),
+            achievements: AchievementState::default(),
             window_placements: BTreeMap::new(),
             click_heatmap: ClickHeatmapState::default(),
         }
@@ -57,6 +68,85 @@ impl MeritStorage {
 
     pub fn set_settings(&mut self, settings: Settings) {
         self.settings = settings;
+    }
+
+    pub fn get_achievements(&self) -> AchievementState {
+        self.achievements.clone()
+    }
+
+    pub fn set_achievements(&mut self, achievements: AchievementState) {
+        self.achievements = achievements;
+    }
+
+    pub fn append_achievement_unlocks(
+        &mut self,
+        records: Vec<AchievementUnlockRecord>,
+        app_handle: &AppHandle,
+    ) -> Vec<AchievementUnlockRecord> {
+        const MAX_HISTORY: usize = 800;
+        const MAX_INDEX: usize = 1800;
+
+        let mut inserted: Vec<AchievementUnlockRecord> = Vec::new();
+        if records.is_empty() {
+            return inserted;
+        }
+
+        let mut seen = std::collections::HashSet::<(String, crate::models::AchievementCadence, String)>::new();
+        for existing in &self.achievements.unlock_index {
+            seen.insert((
+                existing.achievement_id.clone(),
+                existing.cadence,
+                existing.period_key.clone(),
+            ));
+        }
+
+        for mut rec in records {
+            rec.achievement_id = rec.achievement_id.trim().to_string();
+            rec.period_key = rec.period_key.trim().to_string();
+            if rec.achievement_id.is_empty() || rec.period_key.is_empty() {
+                continue;
+            }
+            if rec.unlocked_at_ms == 0 {
+                continue;
+            }
+
+            let key = (rec.achievement_id.clone(), rec.cadence, rec.period_key.clone());
+            if seen.contains(&key) {
+                continue;
+            }
+            seen.insert(key);
+            inserted.push(rec);
+        }
+
+        if inserted.is_empty() {
+            return inserted;
+        }
+
+        self.achievements.unlock_index.extend(inserted.clone());
+        self.achievements
+            .unlock_index
+            .sort_by(|a, b| b.unlocked_at_ms.cmp(&a.unlocked_at_ms));
+        if self.achievements.unlock_index.len() > MAX_INDEX {
+            self.achievements.unlock_index.truncate(MAX_INDEX);
+        }
+
+        self.achievements.unlock_history.extend(inserted.clone());
+        self.achievements
+            .unlock_history
+            .sort_by(|a, b| b.unlocked_at_ms.cmp(&a.unlocked_at_ms));
+        if self.achievements.unlock_history.len() > MAX_HISTORY {
+            self.achievements.unlock_history.truncate(MAX_HISTORY);
+        }
+
+        let _ = app_handle.emit("achievements-updated", self.achievements.clone());
+        crate::core::persistence::request_save();
+        inserted
+    }
+
+    pub fn clear_achievement_history(&mut self, app_handle: &AppHandle) {
+        self.achievements.unlock_history.clear();
+        let _ = app_handle.emit("achievements-updated", self.achievements.clone());
+        crate::core::persistence::request_save();
     }
 
     pub fn get_window_placements(&self) -> BTreeMap<String, WindowPlacement> {

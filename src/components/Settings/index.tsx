@@ -15,7 +15,7 @@ import { COMMANDS } from '../../types/events'
 import { Statistics } from '../Statistics'
 import { useWindowDragging } from '../../hooks/useWindowDragging'
 import { ShortcutRecorder } from './ShortcutRecorder'
-import { IconChart, IconInfo, IconKeyboard, IconSettings } from './icons'
+import { IconChart, IconInfo, IconKeyboard, IconSettings, IconTrophy } from './icons'
 import { Switch } from '../ui/switch'
 import { Slider } from '../ui/slider'
 import { Button } from '../ui/button'
@@ -30,8 +30,10 @@ import { HEAT_LEVEL_COUNT_DEFAULT, HEAT_LEVEL_COUNT_MAX, HEAT_LEVEL_COUNT_MIN } 
 import { KEYBOARD_LAYOUTS, normalizeKeyboardLayoutId } from '@/lib/keyboard'
 import { useAppLocaleSync } from '@/hooks/useAppLocaleSync'
 import { MouseDistanceCalibration } from '@/components/Settings/MouseDistanceCalibration'
+import { AchievementsTab } from '@/components/Settings/AchievementsTab'
+import { getSystemNotificationPermission, isSystemNotificationSupported, requestSystemNotificationPermission } from '@/lib/notifications'
 
-type SettingsTab = 'general' | 'shortcuts' | 'statistics' | 'about'
+type SettingsTab = 'general' | 'shortcuts' | 'achievements' | 'statistics' | 'about'
 
 type UpdateInfo = { version: string; body?: string | null; date?: string | null }
 
@@ -53,6 +55,10 @@ export function Settings() {
   const [openDataDirError, setOpenDataDirError] = useState<string | null>(null)
   const [autostartBusy, setAutostartBusy] = useState(false)
   const [autostartError, setAutostartError] = useState<string | null>(null)
+  const [achievementNotifyBusy, setAchievementNotifyBusy] = useState(false)
+  const [achievementNotifyError, setAchievementNotifyError] = useState<string | null>(null)
+  const [achievementNotifyDialogOpen, setAchievementNotifyDialogOpen] = useState(false)
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(() => getSystemNotificationPermission())
   const [inputPermissionDialogOpen, setInputPermissionDialogOpen] = useState(false)
   const [inputPermissionDialogBusy, setInputPermissionDialogBusy] = useState(false)
   const inputPermissionPromptShownRef = useRef(false)
@@ -200,6 +206,7 @@ export function Settings() {
       [
         { id: 'general' as const, label: t('settings.tabs.general'), icon: IconSettings },
         { id: 'shortcuts' as const, label: t('settings.tabs.shortcuts'), icon: IconKeyboard },
+        { id: 'achievements' as const, label: t('settings.tabs.achievements'), icon: IconTrophy },
         { id: 'statistics' as const, label: t('settings.tabs.statistics'), icon: IconChart },
         { id: 'about' as const, label: t('settings.tabs.about'), icon: IconInfo },
       ] satisfies Array<{ id: SettingsTab; label: string; icon: React.ComponentType<{ className?: string }> }>,
@@ -299,6 +306,14 @@ export function Settings() {
       await invoke(COMMANDS.DOWNLOAD_AND_INSTALL_UPDATE)
     } catch (error) {
       setUpdateState({ status: 'error', message: String(error) })
+    }
+  }
+
+  const openNotificationSystemSettings = async () => {
+    try {
+      await invoke<void>(COMMANDS.OPEN_NOTIFICATION_SETTINGS)
+    } catch (e) {
+      setAchievementNotifyError(String(e))
     }
   }
 
@@ -847,6 +862,63 @@ export function Settings() {
                       />
                     }
                   />
+                  <SettingRow
+                    title={t('settings.app.achievementNotifications')}
+                    description={
+                      isSystemNotificationSupported()
+                        ? notificationPermission === 'denied'
+                          ? t('settings.app.achievementNotificationsPermissionDenied')
+                          : t('settings.app.achievementNotificationsDesc')
+                        : t('settings.app.achievementNotificationsUnsupported')
+                    }
+                    extra={achievementNotifyError ?? undefined}
+                    control={
+                      <div className="flex items-center gap-2" data-no-drag>
+                        {notificationPermission === 'denied' && (isMac() || isWindows()) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void openNotificationSystemSettings()}
+                            data-no-drag
+                          >
+                            {t('common.openSystemSettings')}
+                          </Button>
+                        )}
+                        <Switch
+                          checked={settings.achievement_notifications_enabled ?? false}
+                          disabled={!isSystemNotificationSupported() || achievementNotifyBusy}
+                          onCheckedChange={(enabled) => {
+                            void (async () => {
+                              setAchievementNotifyError(null)
+                              if (!enabled) {
+                                await updateSettings({ achievement_notifications_enabled: false })
+                                return
+                              }
+                              if (!isSystemNotificationSupported()) {
+                                setAchievementNotifyError(t('settings.app.achievementNotificationsUnsupported'))
+                                return
+                              }
+                              setAchievementNotifyBusy(true)
+                              try {
+                                const perm = await requestSystemNotificationPermission()
+                                setNotificationPermission(perm)
+                                if (perm !== 'granted') {
+                                  setAchievementNotifyError(t('settings.app.achievementNotificationsPermissionDenied'))
+                                  setAchievementNotifyDialogOpen(true)
+                                  await updateSettings({ achievement_notifications_enabled: false })
+                                  return
+                                }
+                                await updateSettings({ achievement_notifications_enabled: true })
+                              } finally {
+                                setAchievementNotifyBusy(false)
+                              }
+                            })()
+                          }}
+                          data-no-drag
+                        />
+                      </div>
+                    }
+                  />
                 </SettingsSection>
 
                 <SettingsSection title={t('settings.sections.animation.title')}>
@@ -919,6 +991,10 @@ export function Settings() {
                   {t('settings.shortcuts.hint')}
                 </div>
               </div>
+            )}
+
+            {activeTab === 'achievements' && (
+              <AchievementsTab stats={stats} />
             )}
 
             {activeTab === 'statistics' && (
@@ -1109,6 +1185,39 @@ export function Settings() {
             >
               {t('settings.inputMonitoring.openSystemSettings')}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={achievementNotifyDialogOpen}
+        onOpenChange={(open) => setAchievementNotifyDialogOpen(open)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('settings.app.achievementNotificationsDialogTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('settings.app.achievementNotificationsDialogBody')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              onClick={() => setAchievementNotifyDialogOpen(false)}
+              variant="outline"
+              className="flex-1"
+              disabled={achievementNotifyBusy}
+            >
+              {t('common.close')}
+            </Button>
+            {(isMac() || isWindows()) && (
+              <Button
+                onClick={() => void openNotificationSystemSettings()}
+                className="flex-1"
+                disabled={achievementNotifyBusy}
+              >
+                {t('common.openSystemSettings')}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

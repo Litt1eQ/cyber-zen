@@ -16,6 +16,7 @@ import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { useAutoFade } from './hooks/useAutoFade'
 import { useMeritStore } from './stores/useMeritStore'
 import { useSettingsStore } from './stores/useSettingsStore'
+import { useAchievementUnlocker } from './hooks/useAchievementUnlocker'
 import { showMainQuickMenu } from './utils/quickMenu'
 import type { InputEvent } from './types/merit'
 import { COMMANDS, EVENTS } from './types/events'
@@ -29,6 +30,7 @@ function App() {
   const settings = useSettingsStore((s) => s.settings)
   useInputListener()
   useAppLocaleSync()
+  useAchievementUnlocker()
   const inputMonitoring = useInputMonitoringPermission()
   useGlobalShortcuts(settings)
 

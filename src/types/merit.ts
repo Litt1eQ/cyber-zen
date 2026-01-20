@@ -84,6 +84,7 @@ export interface Settings {
   keyboard_heatmap_share_hide_numbers?: boolean
   keyboard_heatmap_share_hide_keys?: boolean
   keyboard_heatmap_share_show_merit_value?: boolean
+  achievement_notifications_enabled?: boolean
 }
 
 export interface InputEvent {
