@@ -15,23 +15,9 @@ fn current_settings() -> Settings {
 }
 
 fn normalize_scale(scale: u32) -> u32 {
-    match scale {
-        50 | 75 | 100 | 125 | 150 => scale,
-        _ => {
-            // snap to nearest supported option
-            let options = [50u32, 75u32, 100u32, 125u32, 150u32];
-            let mut best = 100u32;
-            let mut best_delta = u32::MAX;
-            for &opt in &options {
-                let delta = opt.abs_diff(scale);
-                if delta < best_delta {
-                    best = opt;
-                    best_delta = delta;
-                }
-            }
-            best
-        }
-    }
+    // Settings UI supports a fine-grained slider; tray/quick menus may still emit fixed options.
+    // Clamp to the supported range to keep behavior predictable and forward-compatible.
+    scale.clamp(50, 150)
 }
 
 fn normalize_skin_id(app_handle: &AppHandle, id: String) -> String {

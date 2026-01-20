@@ -75,9 +75,11 @@ export function Settings() {
 
   const meritLabelFocusedRef = useRef(false)
   const logsTapRef = useRef<{ count: number; lastMs: number }>({ count: 0, lastMs: 0 })
+  const windowScaleCommitTokenRef = useRef(0)
   const [meritLabelDraft, setMeritLabelDraft] = useState('')
   const [clickHeatmapColsDraft, setClickHeatmapColsDraft] = useState('')
   const [clickHeatmapRowsDraft, setClickHeatmapRowsDraft] = useState('')
+  const [windowScaleDraft, setWindowScaleDraft] = useState<number | null>(null)
 
   const canToggleListening = isListening || !inputMonitoring.supported || inputMonitoring.authorized
 
@@ -257,6 +259,7 @@ export function Settings() {
   }
 
   const keyboardLayoutId = normalizeKeyboardLayoutId(settings.keyboard_layout)
+  const windowScaleValue = windowScaleDraft ?? settings.window_scale
 
   const handleToggleAutostart = async (enabled: boolean) => {
     if (!autostartSupported) return
@@ -561,20 +564,27 @@ export function Settings() {
 
                   <SettingRow
                     title={t('settings.window.scale')}
-                    description={t('settings.window.scaleDesc')}
+                    description={`${windowScaleValue}% · ${t('settings.window.scaleDesc')}`}
                     control={
-                      <Select value={String(settings.window_scale)} onValueChange={(v) => updateSettings({ window_scale: Number(v) })}>
-                        <SelectTrigger className="w-28" data-no-drag>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="50">50%</SelectItem>
-                          <SelectItem value="75">75%</SelectItem>
-                          <SelectItem value="100">100%</SelectItem>
-                          <SelectItem value="125">125%</SelectItem>
-                          <SelectItem value="150">150%</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Slider
+                        min={50}
+                        max={150}
+                        step={1}
+                        value={[windowScaleValue]}
+                        onValueChange={([v]) => setWindowScaleDraft(Math.round(v))}
+                        onValueCommit={([v]) => {
+                          const next = Math.round(v)
+                          const token = (windowScaleCommitTokenRef.current += 1)
+                          setWindowScaleDraft(next)
+                          void updateSettings({ window_scale: next }).finally(() => {
+                            if (windowScaleCommitTokenRef.current === token) {
+                              setWindowScaleDraft(null)
+                            }
+                          })
+                        }}
+                        className="w-56"
+                        data-no-drag
+                      />
                     }
                   />
 

@@ -139,6 +139,9 @@ pub async fn show_main_window(app_handle: AppHandle) -> Result<(), String> {
         .set_focus()
         .map_err(|e| format!("Failed to focus window: {}", e))?;
 
+    crate::core::main_window_bounds::set_visible(true);
+    crate::core::main_window_bounds::schedule_refresh(window.clone());
+
     let _ = crate::tray_menu::refresh_tray_menu(&app_handle);
     Ok(())
 }
@@ -160,6 +163,8 @@ pub async fn hide_main_window(app_handle: AppHandle) -> Result<(), String> {
             .hide()
             .map_err(|e| format!("Failed to hide window: {}", e))?;
     }
+
+    crate::core::main_window_bounds::set_visible(false);
 
     let _ = crate::tray_menu::refresh_tray_menu(&app_handle);
     Ok(())
@@ -188,6 +193,8 @@ pub async fn toggle_main_window(app_handle: AppHandle) -> Result<(), String> {
                 .map_err(|e| format!("Failed to hide window: {}", e))?;
         }
 
+        crate::core::main_window_bounds::set_visible(false);
+
         let _ = crate::tray_menu::refresh_tray_menu(&app_handle);
         return Ok(());
     }
@@ -207,6 +214,9 @@ pub async fn toggle_main_window(app_handle: AppHandle) -> Result<(), String> {
     window
         .set_focus()
         .map_err(|e| format!("Failed to focus window: {}", e))?;
+
+    crate::core::main_window_bounds::set_visible(true);
+    crate::core::main_window_bounds::schedule_refresh(window.clone());
 
     let _ = crate::tray_menu::refresh_tray_menu(&app_handle);
     Ok(())

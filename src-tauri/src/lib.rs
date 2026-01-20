@@ -182,7 +182,7 @@ pub fn run() {
                 {
                     if let Some(webview_window) = window.app_handle().get_webview_window(label) {
                         if label == "main" {
-                            core::main_window_bounds::refresh_from_window(&webview_window);
+                            core::main_window_bounds::schedule_refresh(webview_window.clone());
                         }
                         core::window_placement::schedule_capture(webview_window);
                     }
@@ -198,6 +198,7 @@ pub fn run() {
                 // release their WebView processes and CPU usage.
                 if window.label() == "main" {
                     let _ = window.hide();
+                    core::main_window_bounds::set_visible(false);
                     let _ = tray_menu::refresh_tray_menu(window.app_handle());
                     api.prevent_close();
                 }

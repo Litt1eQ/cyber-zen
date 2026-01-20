@@ -4,6 +4,7 @@ import { Keyboard, Mouse } from 'lucide-react'
 import type { MeritStats } from '@/types/merit'
 import { cn } from '@/lib/utils'
 import { Card } from '../ui/card'
+import { MeritLevelPanel } from './MeritLevelPanel'
 
 type BreakdownItem = {
   label: string
@@ -157,6 +158,8 @@ export function TodayOverviewPanel({ stats }: { stats: MeritStats | null | undef
             {(stats?.total_merit ?? 0).toLocaleString()}
           </div>
         </div>
+
+        <MeritLevelPanel totalMerit={stats?.total_merit ?? 0} />
       </Card>
     </div>
   )

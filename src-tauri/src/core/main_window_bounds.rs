@@ -1,6 +1,8 @@
 use crate::core::click_heatmap::CoordinateSpace;
 use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 use parking_lot::RwLock;
+use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager, WebviewWindow};
 
@@ -36,6 +38,8 @@ struct BoundsState {
 }
 
 static STATE: Lazy<RwLock<BoundsState>> = Lazy::new(|| RwLock::new(BoundsState::default()));
+
+static REFRESH_TOKENS: Lazy<Mutex<HashMap<String, u64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn now_ms() -> u64 {
     SystemTime::now()
@@ -94,6 +98,45 @@ fn update_from_window(state: &mut BoundsState, window: &WebviewWindow) {
 pub fn refresh_from_window(window: &WebviewWindow) {
     let mut state = STATE.write();
     update_from_window(&mut state, window);
+}
+
+pub fn set_visible(visible: bool) {
+    let mut state = STATE.write();
+    state.visible = visible;
+    state.last_refresh_ms = now_ms();
+}
+
+fn next_token(label: &str) -> u64 {
+    let mut guard = REFRESH_TOKENS.lock();
+    let entry = guard.entry(label.to_string()).or_insert(0);
+    *entry = entry.wrapping_add(1);
+    *entry
+}
+
+fn token_matches(label: &str, token: u64) -> bool {
+    REFRESH_TOKENS
+        .lock()
+        .get(label)
+        .copied()
+        .is_some_and(|current| current == token)
+}
+
+pub fn schedule_refresh(window: WebviewWindow) {
+    if window.label() != "main" {
+        return;
+    }
+    let label = window.label().to_string();
+    let token = next_token(&label);
+
+    // Avoid calling into window APIs on every resize/move event. Coalesce bursts and refresh once
+    // after the event stream settles.
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        if !token_matches(&label, token) {
+            return;
+        }
+        refresh_from_window(&window);
+    });
 }
 
 pub fn refresh_from_app_handle(app_handle: &AppHandle) {
