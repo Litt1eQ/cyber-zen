@@ -272,6 +272,7 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
         width: size,
         height: size,
     }));
+    crate::core::main_window_bounds::refresh_from_window(&window);
 
     let _ = app_handle.emit("settings-updated", settings.clone());
     let _ = crate::tray_menu::refresh_tray_menu(&app_handle);

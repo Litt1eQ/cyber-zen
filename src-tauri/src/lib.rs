@@ -105,6 +105,14 @@ pub fn run() {
             core::window_placement::restore_all(&app_handle);
             core::init_input_listener(app_handle.clone())
                 .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+            core::main_window_bounds::refresh_from_app_handle(&app_handle);
+            {
+                let app_handle = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+                    core::main_window_bounds::refresh_from_app_handle(&app_handle);
+                });
+            }
 
             Ok(())
         })
@@ -165,9 +173,6 @@ pub fn run() {
             commands::logs::open_logs_directory,
         ])
         .on_window_event(|window, event| {
-            if let WindowEvent::Focused(focused) = event {
-                core::set_ignore_mouse_when_app_focused(*focused);
-            }
             if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
                 let label = window.label();
                 if label == "main"
@@ -176,6 +181,9 @@ pub fn run() {
                     || label == "logs"
                 {
                     if let Some(webview_window) = window.app_handle().get_webview_window(label) {
+                        if label == "main" {
+                            core::main_window_bounds::refresh_from_window(&webview_window);
+                        }
                         core::window_placement::schedule_capture(webview_window);
                     }
                 }

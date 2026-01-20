@@ -28,6 +28,7 @@ pub fn setup_panel(app_handle: &AppHandle, main_window: WebviewWindow) -> Result
     });
     delegate.set_listener(Box::new(move |name: String| match name.as_str() {
         "window_did_resize" | "window_did_move" => {
+            crate::core::main_window_bounds::refresh_from_window(&capture_window);
             crate::core::window_placement::schedule_capture(capture_window.clone());
         }
         _ => {}

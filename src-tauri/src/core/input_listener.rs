@@ -14,15 +14,15 @@ use tauri::{AppHandle, Emitter};
 
 use crate::core::key_codes;
 use crate::core::click_heatmap;
+use crate::core::main_window_bounds;
 use crate::core::mouse_distance;
 use crate::core::merit_batcher::enqueue_merit_trigger;
+use crate::core::MeritStorage;
 use crate::models::InputOrigin;
 use crate::core::active_app;
 
 static THREAD_STARTED: AtomicBool = AtomicBool::new(false);
 static IS_ENABLED: AtomicBool = AtomicBool::new(true);
-// Default to true to avoid double counting before the first focus event arrives.
-static IGNORE_MOUSE_WHEN_APP_FOCUSED: AtomicBool = AtomicBool::new(true);
 static SUPPRESS_MOUSE_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
 
 static LAST_ERROR: Lazy<RwLock<Option<InputListenerError>>> = Lazy::new(|| RwLock::new(None));
@@ -150,6 +150,29 @@ fn should_suppress_mouse_press() -> bool {
     now_ms() < SUPPRESS_MOUSE_UNTIL_MS.load(Ordering::SeqCst)
 }
 
+fn should_ignore_global_mouse_click(
+    app_handle: &AppHandle,
+    space: click_heatmap::CoordinateSpace,
+    x: f64,
+    y: f64,
+) -> bool {
+    let settings = {
+        let storage = MeritStorage::instance();
+        let storage = storage.read();
+        storage.get_settings()
+    };
+
+    if settings.window_pass_through {
+        return false;
+    }
+
+    // Avoid calling into window APIs on every click; keep a short refresh interval and fall back
+    // to counting if bounds are unavailable.
+    main_window_bounds::refresh_if_stale(app_handle, std::time::Duration::from_secs(2));
+
+    main_window_bounds::contains_point(space, x, y)
+}
+
 pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
     if THREAD_STARTED.swap(true, Ordering::SeqCst) {
         return Ok(());
@@ -238,7 +261,12 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             if should_suppress_mouse_press() {
                                 continue;
                             }
-                            if IGNORE_MOUSE_WHEN_APP_FOCUSED.load(Ordering::SeqCst) {
+                            if should_ignore_global_mouse_click(
+                                &worker_handle,
+                                click_heatmap::CoordinateSpace::Logical,
+                                x,
+                                y,
+                            ) {
                                 continue;
                             }
 
@@ -374,8 +402,15 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         if should_suppress_mouse_press() {
                             return;
                         }
-                        if IGNORE_MOUSE_WHEN_APP_FOCUSED.load(Ordering::SeqCst) {
-                            return;
+                        if let Some((x, y)) = pos {
+                            if should_ignore_global_mouse_click(
+                                &callback_handle,
+                                click_heatmap::CoordinateSpace::Physical,
+                                x,
+                                y,
+                            ) {
+                                return;
+                            }
                         }
 
                         let code = match button {
@@ -437,10 +472,6 @@ pub fn set_listening_enabled(enabled: bool) {
 
 pub fn is_listening_enabled() -> bool {
     IS_ENABLED.load(Ordering::SeqCst)
-}
-
-pub fn set_ignore_mouse_when_app_focused(ignore: bool) {
-    IGNORE_MOUSE_WHEN_APP_FOCUSED.store(ignore, Ordering::SeqCst);
 }
 
 pub fn suppress_mouse_for(ms: u64) {
