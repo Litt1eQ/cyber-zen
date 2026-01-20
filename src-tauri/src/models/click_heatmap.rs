@@ -5,7 +5,7 @@ pub const CLICK_HEATMAP_BASE_COLS: usize = 256;
 pub const CLICK_HEATMAP_BASE_ROWS: usize = 256;
 pub const CLICK_HEATMAP_BASE_LEN: usize = CLICK_HEATMAP_BASE_COLS * CLICK_HEATMAP_BASE_ROWS;
 
-const CURRENT_VERSION: u32 = 1;
+const CURRENT_VERSION: u32 = 2;
 
 fn default_version() -> u32 {
     CURRENT_VERSION
@@ -18,12 +18,30 @@ pub struct ClickHeatmapState {
     pub version: u32,
     #[serde(default)]
     pub displays: BTreeMap<String, DisplayClickHeatmap>,
+    #[serde(default)]
+    pub daily: BTreeMap<String, DailyClickHeatmapState>,
 }
 
 impl Default for ClickHeatmapState {
     fn default() -> Self {
         Self {
             version: CURRENT_VERSION,
+            displays: BTreeMap::new(),
+            daily: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DailyClickHeatmapState {
+    #[serde(default)]
+    pub displays: BTreeMap<String, DisplayClickHeatmap>,
+}
+
+impl Default for DailyClickHeatmapState {
+    fn default() -> Self {
+        Self {
             displays: BTreeMap::new(),
         }
     }
@@ -91,4 +109,3 @@ mod sparse_grid {
         Ok(grid)
     }
 }
-

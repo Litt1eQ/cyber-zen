@@ -41,17 +41,23 @@ function clampGrid(v: number | undefined | null, min: number, max: number, fallb
 
 export function ClickPositionHeatmap({
   settings,
+  todayKey,
+  defaultMode = 'total',
 }: {
   settings: Settings
+  todayKey?: string
+  defaultMode?: 'day' | 'total'
 }) {
   const { t } = useTranslation()
   const [monitors, setMonitors] = useState<MonitorInfo[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
+  const [mode, setMode] = useState<'day' | 'total'>(defaultMode)
   const [grid, setGrid] = useState<ClickHeatmapGrid | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refreshTokenRef = useRef<number | null>(null)
 
   const enabled = !!settings.enable_mouse_single
+  const dayModeAvailable = Boolean(todayKey)
 
   const gridCols = useMemo(() => clampGrid(settings.click_heatmap_grid_cols, 8, 240, 64), [settings.click_heatmap_grid_cols])
   const gridRows = useMemo(() => clampGrid(settings.click_heatmap_grid_rows, 6, 180, 36), [settings.click_heatmap_grid_rows])
@@ -76,16 +82,19 @@ export function ClickPositionHeatmap({
     if (!selectedId) return
     setError(null)
     try {
-      const next = await invoke<ClickHeatmapGrid>(COMMANDS.GET_CLICK_HEATMAP_GRID, {
+      const args: Record<string, unknown> = {
         monitorId: selectedId,
         cols: gridCols,
         rows: gridRows,
-      })
+      }
+      if (mode === 'day' && todayKey) args.dateKey = todayKey
+
+      const next = await invoke<ClickHeatmapGrid>(COMMANDS.GET_CLICK_HEATMAP_GRID, args)
       setGrid(next)
     } catch (e) {
       setError(String(e))
     }
-  }, [gridCols, gridRows, selectedId])
+  }, [gridCols, gridRows, mode, selectedId, todayKey])
 
   const scheduleRefresh = useCallback(() => {
     if (refreshTokenRef.current) window.clearTimeout(refreshTokenRef.current)
@@ -102,6 +111,10 @@ export function ClickPositionHeatmap({
   useEffect(() => {
     void fetchGrid()
   }, [fetchGrid])
+
+  useEffect(() => {
+    if (mode === 'day' && !todayKey) setMode('total')
+  }, [mode, todayKey])
 
   useEffect(() => {
     const unsubscribe = listen<InputEvent>(EVENTS.INPUT_EVENT, (event) => {
@@ -155,12 +168,14 @@ export function ClickPositionHeatmap({
     if (!selectedId) return
     setError(null)
     try {
-      await invoke(COMMANDS.CLEAR_CLICK_HEATMAP, { displayId: selectedId })
+      const args: Record<string, unknown> = { displayId: selectedId }
+      if (mode === 'day' && todayKey) args.dateKey = todayKey
+      await invoke(COMMANDS.CLEAR_CLICK_HEATMAP, args)
       await fetchGrid()
     } catch (e) {
       setError(String(e))
     }
-  }, [fetchGrid, selectedId])
+  }, [fetchGrid, mode, selectedId, todayKey])
 
   if (!enabled) {
     return (
@@ -177,11 +192,34 @@ export function ClickPositionHeatmap({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-slate-900 tracking-wide">{t('statistics.clickHeatmap.title')}</div>
-            <div className="mt-1 text-xs text-slate-500 tabular-nums">
+            <div className="mt-1 text-xs text-slate-500 tabular-nums flex flex-wrap items-center gap-x-2">
+              <span className="tabular-nums">
+                {mode === 'day' ? t('customStatistics.mode.daily') : t('customStatistics.mode.cumulative')}
+                {mode === 'day' && todayKey ? ` · ${todayKey}` : ''}
+              </span>
               {t('statistics.clickHeatmap.summary', { total: totalClicks.toLocaleString(), max: maxCell.toLocaleString() })}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0" data-no-drag>
+            <Button
+              type="button"
+              variant={mode === 'day' ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => setMode('day')}
+              disabled={!dayModeAvailable}
+              data-no-drag
+            >
+              {t('customStatistics.mode.daily')}
+            </Button>
+            <Button
+              type="button"
+              variant={mode === 'total' ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => setMode('total')}
+              data-no-drag
+            >
+              {t('customStatistics.mode.cumulative')}
+            </Button>
             <Button variant="secondary" size="sm" onClick={handleClear} disabled={!selectedId}>
               {t('statistics.clickHeatmap.clear')}
             </Button>

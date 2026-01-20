@@ -239,7 +239,13 @@ export const CUSTOM_STATISTICS_WIDGETS: WidgetDefinition[] = [
     id: 'click_heatmap',
     titleKey: 'customStatistics.widgets.click_heatmap.title',
     descriptionKey: 'customStatistics.widgets.click_heatmap.description',
-    render: ({ settings }) => <ClickPositionHeatmap settings={settings} />,
+    render: ({ stats, settings }) => (
+      <ClickPositionHeatmap
+        settings={settings}
+        todayKey={stats.today.date}
+        defaultMode={settings.custom_statistics_range === 'all' ? 'total' : 'day'}
+      />
+    ),
   },
   {
     id: 'calendar',

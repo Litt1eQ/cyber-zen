@@ -73,6 +73,7 @@ pub async fn get_click_heatmap_grid(
     monitor_id: String,
     cols: u32,
     rows: u32,
+    date_key: Option<String>,
 ) -> Result<ClickHeatmapGrid, String> {
     let cols = clamp_grid_dim(cols, 8, 240, 64) as usize;
     let rows = clamp_grid_dim(rows, 6, 180, 36) as usize;
@@ -83,7 +84,10 @@ pub async fn get_click_heatmap_grid(
     let total_clicks = {
         let storage = MeritStorage::instance();
         let storage = storage.read();
-        let display = storage.click_heatmap_display(&monitor_id);
+        let display = match date_key.as_deref() {
+            Some(key) => storage.click_heatmap_display_for_date(&monitor_id, key),
+            None => storage.click_heatmap_display(&monitor_id),
+        };
         let total = display.map(|d| d.total_clicks).unwrap_or(0);
 
         if let Some(display) = display {
@@ -120,9 +124,9 @@ pub async fn get_click_heatmap_grid(
 }
 
 #[tauri::command]
-pub async fn clear_click_heatmap(display_id: Option<String>) -> Result<(), String> {
+pub async fn clear_click_heatmap(display_id: Option<String>, date_key: Option<String>) -> Result<(), String> {
     let storage = MeritStorage::instance();
     let mut storage = storage.write();
-    storage.clear_click_heatmap(display_id.as_deref());
+    storage.clear_click_heatmap(display_id.as_deref(), date_key.as_deref());
     Ok(())
 }

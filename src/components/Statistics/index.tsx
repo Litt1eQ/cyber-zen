@@ -156,7 +156,7 @@ export function Statistics() {
             <MouseButtonStructure days={allDays} endKey={anchorKey ?? stats.today.date} defaultRange="30" />
           </Card>
 
-          {settings ? <ClickPositionHeatmap settings={settings} /> : null}
+          {settings ? <ClickPositionHeatmap settings={settings} todayKey={stats.today.date} /> : null}
 
           <Card className="p-4">
             <AppConcentration days={allDays} endKey={anchorKey ?? stats.today.date} defaultRange="30" />

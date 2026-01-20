@@ -26,29 +26,65 @@ function ceilToStep(value: number, step: number): number {
   return Math.ceil(value / step) * step
 }
 
-function buildPowerThresholds(
+function roundingStepForSpan(span: number): number {
+  if (!Number.isFinite(span) || span <= 0) return 1
+  if (span < 150_000) return 108
+  if (span < 1_000_000) return 1080
+  if (span < 5_000_000) return 10800
+  return 108000
+}
+
+function buildNineStageThresholds(
   count: number,
-  {
-    baseStep,
-    power,
-    roundingStep,
-  }: { baseStep: number; power: number; roundingStep: number }
+  milestones: readonly number[],
+  { baseGamma, gammaStep }: { baseGamma: number; gammaStep: number }
 ): number[] {
   const safeCount = Number.isFinite(count) ? Math.max(1, Math.floor(count)) : 1
+  if (safeCount !== 81) return [0]
+  if (milestones.length !== 10) return [0]
+
   const out = new Array<number>(safeCount)
-  out[0] = 0
+  const groupSize = 9
+  const groups = 9
+  const safeBaseGamma = Number.isFinite(baseGamma) ? Math.max(1, baseGamma) : 1.3
+  const safeGammaStep = Number.isFinite(gammaStep) ? Math.max(0, gammaStep) : 0.12
 
-  const safeBase = Number.isFinite(baseStep) ? Math.max(1, baseStep) : 1
-  const safePower = Number.isFinite(power) ? Math.max(1, power) : 1
-  const safeRoundingStep = Number.isFinite(roundingStep) ? Math.max(1, roundingStep) : 1
+  for (let groupIndex = 0; groupIndex < groups; groupIndex++) {
+    const gamma = safeBaseGamma + (groups <= 1 ? 0 : groupIndex * safeGammaStep)
+    const start = milestones[groupIndex]
+    const end = milestones[groupIndex + 1]
+    const span = end - start
+    const step = roundingStepForSpan(span)
 
-  for (let i = 1; i < safeCount; i++) {
-    const prev = out[i - 1]
-    const raw = safeBase * Math.pow(i, safePower)
-    let next = ceilToStep(raw, safeRoundingStep)
-    if (next <= prev) next = prev + 1
-    out[i] = next
+    for (let offset = 0; offset < groupSize; offset++) {
+      const levelIndex = groupIndex * groupSize + offset
+      const prev = levelIndex > 0 ? out[levelIndex - 1] : -Infinity
+
+      let value = start
+      if (offset > 0) {
+        const u = offset / (groupSize - 1)
+        const f = Math.pow(u, gamma)
+        const cap =
+          groupIndex === groups - 1
+            ? end
+            : Math.max(start, end - step)
+        const raw = start + (span * f)
+        value = ceilToStep(raw, step)
+        if (value > cap) value = cap
+      }
+
+      if (value <= prev) {
+        const cap =
+          groupIndex === groups - 1
+            ? end
+            : Math.max(start, end - step)
+        value = ceilToStep(prev + 1, step)
+        if (value > cap) value = cap
+      }
+      out[levelIndex] = value
+    }
   }
+
   return out
 }
 
@@ -167,8 +203,21 @@ const DEFAULT_LEVEL_NAMES: ReadonlyArray<string> = [
   '归一',
 ]
 
+const DEFAULT_MERIT_MILESTONES: readonly number[] = [
+  0,
+  21600,
+  108000,
+  432000,
+  840000,
+  2160000,
+  4320000,
+  6480000,
+  8640000,
+  10800000,
+]
+
 function buildDefaultMeritLevels(): MeritLevelDefinition[] {
-  const thresholds = buildPowerThresholds(DEFAULT_LEVEL_NAMES.length, { baseStep: 200, power: 3, roundingStep: 100 })
+  const thresholds = buildNineStageThresholds(DEFAULT_LEVEL_NAMES.length, DEFAULT_MERIT_MILESTONES, { baseGamma: 1.3, gammaStep: 0.12 })
   return DEFAULT_LEVEL_NAMES.map((meta, index) => {
     const n = index + 1
     const id = `l${String(n).padStart(2, '0')}`

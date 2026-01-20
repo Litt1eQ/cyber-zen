@@ -8,6 +8,7 @@ use crate::models::{
     Settings,
     WindowPlacement,
 };
+use chrono::Local;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use std::collections::BTreeMap;
@@ -172,6 +173,17 @@ impl MeritStorage {
         self.click_heatmap.displays.get(display_id)
     }
 
+    pub fn click_heatmap_display_for_date(
+        &self,
+        display_id: &str,
+        date_key: &str,
+    ) -> Option<&crate::models::click_heatmap::DisplayClickHeatmap> {
+        self.click_heatmap
+            .daily
+            .get(date_key)
+            .and_then(|day| day.displays.get(display_id))
+    }
+
     pub fn set_click_heatmap(&mut self, heatmap: ClickHeatmapState) {
         self.click_heatmap = heatmap;
     }
@@ -290,17 +302,54 @@ impl MeritStorage {
             *cell = cell.saturating_add(1);
         }
         entry.total_clicks = entry.total_clicks.saturating_add(1);
+
+        let date_key = Local::now().date_naive().to_string();
+        let daily_entry = self
+            .click_heatmap
+            .daily
+            .entry(date_key)
+            .or_default()
+            .displays
+            .entry(display_id.to_string())
+            .or_default();
+        if let Some(cell) = daily_entry.grid.get_mut(idx) {
+            *cell = cell.saturating_add(1);
+        }
+        daily_entry.total_clicks = daily_entry.total_clicks.saturating_add(1);
+
+        const MAX_DAILY_DAYS: usize = 60;
+        while self.click_heatmap.daily.len() > MAX_DAILY_DAYS {
+            let Some(oldest) = self.click_heatmap.daily.keys().next().cloned() else {
+                break;
+            };
+            self.click_heatmap.daily.remove(&oldest);
+        }
+
         crate::core::persistence::request_save();
     }
 
-    pub fn clear_click_heatmap(&mut self, display_id: Option<&str>) {
-        match display_id {
-            Some(id) => {
-                self.click_heatmap.displays.remove(id);
+    pub fn clear_click_heatmap(&mut self, display_id: Option<&str>, date_key: Option<&str>) {
+        match date_key {
+            Some(key) => {
+                if let Some(id) = display_id {
+                    if let Some(day) = self.click_heatmap.daily.get_mut(key) {
+                        day.displays.remove(id);
+                        if day.displays.is_empty() {
+                            self.click_heatmap.daily.remove(key);
+                        }
+                    }
+                } else {
+                    self.click_heatmap.daily.remove(key);
+                }
             }
-            None => {
-                self.click_heatmap.displays.clear();
-            }
+            None => match display_id {
+                Some(id) => {
+                    self.click_heatmap.displays.remove(id);
+                }
+                None => {
+                    self.click_heatmap.displays.clear();
+                }
+            },
         }
         crate::core::persistence::request_save();
     }
