@@ -1,8 +1,34 @@
 use crate::core::MeritStorage;
-use tauri::{AppHandle, Manager, Monitor, PhysicalPosition, Position, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle,
+    Manager,
+    Monitor,
+    PhysicalPosition,
+    Position,
+    Runtime,
+    WebviewUrl,
+    WebviewWindow,
+    WebviewWindowBuilder,
+};
 
 #[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
+
+fn apply_platform_window_chrome<'a, R: Runtime, M: Manager<R>>(
+    builder: WebviewWindowBuilder<'a, R, M>,
+) -> WebviewWindowBuilder<'a, R, M> {
+    #[cfg(target_os = "macos")]
+    {
+        builder
+            .title_bar_style(TitleBarStyle::Overlay)
+            .hidden_title(true)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder
+    }
+}
 
 fn ensure_settings_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
     if let Some(window) = app_handle.get_webview_window("settings") {
@@ -25,11 +51,9 @@ fn ensure_settings_window(app_handle: &AppHandle) -> Result<WebviewWindow, Strin
     .inner_size(760.0, 560.0)
     .min_inner_size(640.0, 520.0);
 
-    #[cfg(target_os = "macos")]
-    let builder = builder.title_bar_style(TitleBarStyle::Overlay);
-
-    let window = builder.hidden_title(true).build()
-    .map_err(|e| format!("Failed to create settings window: {}", e))?;
+    let window = apply_platform_window_chrome(builder)
+        .build()
+        .map_err(|e| format!("Failed to create settings window: {}", e))?;
 
     crate::core::window_placement::restore_all(app_handle);
     Ok(window)
@@ -56,11 +80,9 @@ fn ensure_custom_statistics_window(app_handle: &AppHandle) -> Result<WebviewWind
     .inner_size(900.0, 680.0)
     .min_inner_size(720.0, 560.0);
 
-    #[cfg(target_os = "macos")]
-    let builder = builder.title_bar_style(TitleBarStyle::Overlay);
-
-    let window = builder.hidden_title(true).build()
-    .map_err(|e| format!("Failed to create custom statistics window: {}", e))?;
+    let window = apply_platform_window_chrome(builder)
+        .build()
+        .map_err(|e| format!("Failed to create custom statistics window: {}", e))?;
 
     crate::core::window_placement::restore_all(app_handle);
     Ok(window)
@@ -71,7 +93,11 @@ fn ensure_logs_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
         return Ok(window);
     }
 
-    let builder = WebviewWindowBuilder::new(app_handle, "logs", WebviewUrl::App("logs.html".into()))
+    let builder = WebviewWindowBuilder::new(
+        app_handle,
+        "logs",
+        WebviewUrl::App("logs.html".into()),
+    )
         .title("日志 - 赛博木鱼")
         .resizable(true)
         .decorations(true)
@@ -83,10 +109,8 @@ fn ensure_logs_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
         .inner_size(900.0, 640.0)
         .min_inner_size(720.0, 520.0);
 
-    #[cfg(target_os = "macos")]
-    let builder = builder.title_bar_style(TitleBarStyle::Overlay);
-
-    let window = builder.hidden_title(true).build()
+    let window = apply_platform_window_chrome(builder)
+        .build()
         .map_err(|e| format!("Failed to create logs window: {}", e))?;
 
     crate::core::window_placement::restore_all(app_handle);
