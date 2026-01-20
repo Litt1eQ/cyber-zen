@@ -43,6 +43,10 @@ function resetHintKeyForCadence(cadence: AchievementCadence) {
       return 'settings.achievements.resetHint.weekly'
     case 'monthly':
       return 'settings.achievements.resetHint.monthly'
+    case 'yearly':
+      return 'settings.achievements.resetHint.yearly'
+    case 'total':
+      return 'settings.achievements.resetHint.total'
   }
 }
 
@@ -125,6 +129,8 @@ export function AchievementsTab({ stats }: { stats: MeritStats | null }) {
             <TabsTrigger value="daily">{t('settings.achievements.cadence.daily')}</TabsTrigger>
             <TabsTrigger value="weekly">{t('settings.achievements.cadence.weekly')}</TabsTrigger>
             <TabsTrigger value="monthly">{t('settings.achievements.cadence.monthly')}</TabsTrigger>
+            <TabsTrigger value="yearly">{t('settings.achievements.cadence.yearly')}</TabsTrigger>
+            <TabsTrigger value="total">{t('settings.achievements.cadence.total')}</TabsTrigger>
           </TabsList>
           <div className="text-xs text-slate-500">{t(resetHintKeyForCadence(cadence))}</div>
         </div>
@@ -137,6 +143,12 @@ export function AchievementsTab({ stats }: { stats: MeritStats | null }) {
         </TabsContent>
         <TabsContent value="monthly" className="mt-4">
           <AchievementGrid items={vm.byCadence.monthly} />
+        </TabsContent>
+        <TabsContent value="yearly" className="mt-4">
+          <AchievementGrid items={vm.byCadence.yearly} />
+        </TabsContent>
+        <TabsContent value="total" className="mt-4">
+          <AchievementGrid items={vm.byCadence.total} />
         </TabsContent>
       </Tabs>
 

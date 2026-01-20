@@ -1,4 +1,4 @@
-export type AchievementCadence = 'daily' | 'weekly' | 'monthly'
+export type AchievementCadence = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'total'
 
 export type AchievementUnlockRecord = {
   achievement_id: string

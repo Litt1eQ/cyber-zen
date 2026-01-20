@@ -3,6 +3,7 @@ import {
   addDaysToNaiveDateKey,
   startOfMonthFromNaiveDateKey,
   startOfWeekFromNaiveDateKey,
+  startOfYearFromNaiveDateKey,
   weekdayIndexMon0FromNaiveDateKey,
 } from '@/lib/date'
 
@@ -209,6 +210,20 @@ export function monthToDate(index: Map<string, DailyStats>, endKey: string): { s
   return { startKey, sum: acc }
 }
 
+export function yearToDate(index: Map<string, DailyStats>, endKey: string): { startKey: string; sum: PeriodCounters } | null {
+  const startKey = startOfYearFromNaiveDateKey(endKey)
+  if (!startKey) return null
+
+  let acc: PeriodCounters = { total: 0, keyboard: 0, mouse_single: 0 }
+  for (let i = 0; i < 400; i++) {
+    const key = addDaysToNaiveDateKey(endKey, -i)
+    if (!key) break
+    if (key < startKey) break
+    acc = addCounters(acc, countersForDay(index.get(key)))
+  }
+  return { startKey, sum: acc }
+}
+
 export function weekdayDistribution(index: Map<string, DailyStats>, endKey: string, days: number): WeekdayBucket[] {
   const buckets: WeekdayBucket[] = Array.from({ length: 7 }, (_, weekdayIndexMon0) => ({
     weekdayIndexMon0,
@@ -287,4 +302,3 @@ export function bestDay(index: Map<string, DailyStats>, endKey: string, days: nu
   }
   return best
 }
-

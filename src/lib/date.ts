@@ -103,6 +103,12 @@ export function startOfMonthFromNaiveDateKey(dateKey: string): string | null {
   return formatNaiveDateKey({ year: parts.year, month: parts.month, day: 1 })
 }
 
+export function startOfYearFromNaiveDateKey(dateKey: string): string | null {
+  const parts = parseNaiveDate(dateKey)
+  if (!parts) return null
+  return formatNaiveDateKey({ year: parts.year, month: 1, day: 1 })
+}
+
 export function weekdayIndexMon0FromNaiveDateKey(dateKey: string): number | null {
   const parts = parseNaiveDate(dateKey)
   if (!parts) return null

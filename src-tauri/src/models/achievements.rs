@@ -6,6 +6,8 @@ pub enum AchievementCadence {
     Daily,
     Weekly,
     Monthly,
+    Yearly,
+    Total,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]

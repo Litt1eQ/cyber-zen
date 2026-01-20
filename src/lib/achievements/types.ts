@@ -1,4 +1,4 @@
-export type AchievementCadence = 'daily' | 'weekly' | 'monthly'
+export type AchievementCadence = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'total'
 
 export type AchievementIcon =
   | 'sparkles'
@@ -43,6 +43,7 @@ export type AchievementMetrics = {
   todayKey: string
   weekStartKey: string
   monthStartKey: string
+  yearStartKey: string
   todayTotal: number
   todayKeyboard: number
   todayMouse: number
@@ -59,5 +60,11 @@ export type AchievementMetrics = {
   monthMouse: number
   monthActiveDays: number
   monthMouseMoveCm: number
+  yearTotal: number
+  yearKeyboard: number
+  yearMouse: number
+  yearActiveDays: number
+  yearMouseMoveCm: number
+  allTimeTotal: number
   currentStreakDays: number
 }

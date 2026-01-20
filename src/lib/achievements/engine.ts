@@ -1,6 +1,6 @@
 import type { DailyStats, MeritStats, Settings } from '@/types/merit'
 import { addDaysToNaiveDateKey } from '@/lib/date'
-import { buildDayIndex, computeStreaks, monthToDate, peakHour, weekToDate } from '@/lib/statisticsInsights'
+import { buildDayIndex, computeStreaks, monthToDate, peakHour, weekToDate, yearToDate } from '@/lib/statisticsInsights'
 import type { MonitorInfo } from '@/types/clickHeatmap'
 import { effectivePpiForDisplay, pixelsToCentimeters } from '@/lib/mouseDistance'
 import type { AchievementCadence, AchievementComputed, AchievementDefinition, AchievementMetrics, AchievementSummary } from './types'
@@ -99,20 +99,24 @@ export function computeAchievementMetrics(
   const streak = computeStreaks(index, todayKey)
   const week = weekToDate(index, todayKey)
   const month = monthToDate(index, todayKey)
+  const year = yearToDate(index, todayKey)
   const peak7 = peakHour(index, todayKey, 7)
 
   const today = stats.today
   const weekStartKey = week?.startKey ?? todayKey
   const monthStartKey = month?.startKey ?? todayKey
+  const yearStartKey = year?.startKey ?? todayKey
 
   const todayMouseMoveCm = sumMouseMoveCmInRange(moveIndex, todayKey, todayKey, 1, opts)
   const weekMouseMoveCm = sumMouseMoveCmInRange(moveIndex, weekStartKey, todayKey, 14, opts)
   const monthMouseMoveCm = sumMouseMoveCmInRange(moveIndex, monthStartKey, todayKey, 370, opts)
+  const yearMouseMoveCm = sumMouseMoveCmInRange(moveIndex, yearStartKey, todayKey, 400, opts)
 
   return {
     todayKey,
     weekStartKey,
     monthStartKey,
+    yearStartKey,
     todayTotal: today?.total ?? 0,
     todayKeyboard: today?.keyboard ?? 0,
     todayMouse: today?.mouse_single ?? 0,
@@ -129,6 +133,12 @@ export function computeAchievementMetrics(
     monthMouse: month?.sum.mouse_single ?? 0,
     monthActiveDays: countActiveDaysInRange(index, monthStartKey, todayKey, 370),
     monthMouseMoveCm,
+    yearTotal: year?.sum.total ?? 0,
+    yearKeyboard: year?.sum.keyboard ?? 0,
+    yearMouse: year?.sum.mouse_single ?? 0,
+    yearActiveDays: countActiveDaysInRange(index, yearStartKey, todayKey, 400),
+    yearMouseMoveCm,
+    allTimeTotal: stats.total_merit ?? 0,
     currentStreakDays: streak.current,
   }
 }
@@ -151,6 +161,10 @@ export function periodKeyForCadence(cadence: AchievementCadence, m: AchievementM
       return m.weekStartKey
     case 'monthly':
       return m.monthStartKey
+    case 'yearly':
+      return m.yearStartKey
+    case 'total':
+      return 'all_time'
   }
 }
 
@@ -158,7 +172,7 @@ export function computeAchievementsByCadence(
   defs: AchievementDefinition[],
   metrics: AchievementMetrics
 ): Record<AchievementCadence, AchievementComputed[]> {
-  const out: Record<AchievementCadence, AchievementComputed[]> = { daily: [], weekly: [], monthly: [] }
+  const out: Record<AchievementCadence, AchievementComputed[]> = { daily: [], weekly: [], monthly: [], yearly: [], total: [] }
   for (const def of defs) {
     out[def.cadence].push({ ...def, progress: def.compute(metrics) })
   }

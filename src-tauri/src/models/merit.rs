@@ -362,6 +362,8 @@ impl Default for MeritStats {
 }
 
 impl MeritStats {
+    const MAX_HISTORY_DAYS: usize = 400;
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -470,8 +472,8 @@ impl MeritStats {
             self.history.push(self.today.clone());
             self.history.sort_by(|a, b| b.date.cmp(&a.date));
 
-            if self.history.len() > 365 {
-                self.history.truncate(365);
+            if self.history.len() > Self::MAX_HISTORY_DAYS {
+                self.history.truncate(Self::MAX_HISTORY_DAYS);
             }
         }
     }

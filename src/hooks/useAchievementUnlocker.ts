@@ -49,7 +49,7 @@ export function useAchievementUnlocker() {
 
     const metrics = computeAchievementMetrics(stats, { settings, monitors: monitors.monitors })
     const byCadence = computeAchievementsByCadence(ACHIEVEMENT_DEFINITIONS, metrics)
-    const all = [...byCadence.daily, ...byCadence.weekly, ...byCadence.monthly]
+    const all = [...byCadence.daily, ...byCadence.weekly, ...byCadence.monthly, ...byCadence.yearly, ...byCadence.total]
 
     const now = Date.now()
     const candidates: AchievementUnlockRecord[] = []
