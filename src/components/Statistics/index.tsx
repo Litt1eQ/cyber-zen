@@ -22,6 +22,15 @@ import { KeyPareto } from './KeyPareto'
 import { MouseButtonStructure } from './MouseButtonStructure'
 import { ClickPositionHeatmap } from './ClickPositionHeatmap'
 import { MouseDistanceStatistics } from './MouseDistanceStatistics'
+import { PeriodSummaryPanel } from './PeriodSummaryPanel'
+import { isLinux, isMac, isWindows } from '@/utils/platform'
+
+function platformForKeyboard(): 'mac' | 'windows' | 'linux' {
+  if (isMac()) return 'mac'
+  if (isWindows()) return 'windows'
+  if (isLinux()) return 'linux'
+  return 'windows'
+}
 
 export function Statistics() {
   const { t } = useTranslation()
@@ -98,6 +107,14 @@ export function Statistics() {
       <h3 className="text-slate-600 text-sm mb-2">{t('statistics.title')}</h3>
       {stats ? (
         <div className="space-y-4">
+          <PeriodSummaryPanel
+            allDays={allDays}
+            todayKey={stats.today.date}
+            heatLevelCount={heatLevelCount}
+            layoutId={keyboardLayoutId}
+            platform={platformForKeyboard()}
+          />
+
           <Card className="p-4">
             <InsightsPanel days={allDays} endKey={anchorKey ?? stats.today.date} />
           </Card>

@@ -1,36 +1,41 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Copy, Loader2, Share2 } from 'lucide-react'
-import { totalKeyCount, type KeyCounts } from '@/lib/keyboard'
+import type { DailyStats } from '@/types/merit'
+import type { PeriodSummaryRange } from '@/lib/periodSummary'
+import { computePeriodSummary } from '@/lib/periodSummary'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/useSettingsStore'
-import { renderKeyboardHeatmapSharePng } from './share/renderKeyboardHeatmapShare'
+import { renderPeriodSummarySharePng } from './share/renderPeriodSummaryShare'
 import { copyPngToClipboard } from '@/lib/copyPngToClipboard'
 
-export function KeyboardHeatmapShareDialog({
-  unshiftedCounts,
-  shiftedCounts,
+function rangeLabelKey(range: PeriodSummaryRange) {
+  if (range === 'today') return 'statistics.periodSummaryShare.ranges.today'
+  if (range === 'yesterday') return 'statistics.periodSummaryShare.ranges.yesterday'
+  if (range === 'last7') return 'statistics.periodSummaryShare.ranges.lastWeek'
+  return 'statistics.periodSummaryShare.ranges.lastMonth'
+}
+
+export function PeriodSummaryShareDialog({
+  allDays,
+  todayKey,
   heatLevelCount,
   layoutId,
   platform,
-  dateKey,
-  modeLabel,
-  meritValue,
-  meritLabel,
+  range,
+  onRangeChange,
 }: {
-  unshiftedCounts: KeyCounts
-  shiftedCounts: KeyCounts
+  allDays: DailyStats[]
+  todayKey: string
   heatLevelCount?: number | null
   layoutId?: string | null
   platform: 'mac' | 'windows' | 'linux'
-  dateKey?: string | null
-  modeLabel?: string
-  meritValue?: number | null
-  meritLabel?: string
+  range: PeriodSummaryRange
+  onRangeChange: (range: PeriodSummaryRange) => void
 }) {
   const { t, i18n } = useTranslation()
   const { settings, updateSettings } = useSettingsStore()
@@ -50,9 +55,11 @@ export function KeyboardHeatmapShareDialog({
   const persistedHideKeys = settings?.keyboard_heatmap_share_hide_keys ?? true
   const persistedShowMeritValue = settings?.keyboard_heatmap_share_show_merit_value ?? false
 
-  const hasAny = useMemo(() => {
-    return totalKeyCount(unshiftedCounts) + totalKeyCount(shiftedCounts) > 0
-  }, [shiftedCounts, unshiftedCounts])
+  const summary = useMemo(() => {
+    return computePeriodSummary(allDays, todayKey, range)
+  }, [allDays, range, todayKey])
+
+  const hasAny = (summary?.totals.total ?? 0) > 0
 
   useEffect(() => {
     if (!open) return
@@ -63,6 +70,7 @@ export function KeyboardHeatmapShareDialog({
 
   useEffect(() => {
     if (!open) return
+    if (!summary) return
     setError(null)
     setCopied(false)
     setIsGenerating(true)
@@ -70,30 +78,46 @@ export function KeyboardHeatmapShareDialog({
     const myId = genIdRef.current
 
     const run = async () => {
-      const { blob, suggestedName: nextName } = await renderKeyboardHeatmapSharePng({
-        unshiftedCounts,
-        shiftedCounts,
+      const dateRangeLabel =
+        summary.expectedDays <= 1 || summary.startKey === summary.endKey
+          ? summary.endKey
+          : `${summary.startKey} ~ ${summary.endKey}`
+      const coverageLine = t('statistics.periodSummary.coverage', {
+        covered: summary.days.length,
+        expected: summary.expectedDays,
+      })
+      const { blob, suggestedName: nextName } = await renderPeriodSummarySharePng({
+        summary,
+        unshiftedCounts: summary.aggregates.keyCountsUnshifted,
+        shiftedCounts: summary.aggregates.keyCountsShifted,
         heatLevelCount,
         layoutId,
         platform,
         options: {
           hideNumbers,
           hideKeys,
-          dateKey,
-          modeLabel,
-          appName: t('app.name'),
-          meritValue,
-          meritLabel,
           showMeritValue,
+          appName: t('app.name'),
           locale: i18n.language,
           strings: {
-            subtitle: t('statistics.keyboardHeatmapShare.subtitle'),
+            title: t(rangeLabelKey(range)),
+            subtitle: t('statistics.periodSummaryShare.subtitle'),
+            dateRangeLabel,
+            dateLine: dateRangeLabel,
+            coverageLine,
+            totalMeritTitle: t('statistics.periodSummaryShare.totalMeritTitle'),
+            sourceDistributionTitle: t('statistics.todayOverview.sourceDistribution'),
+            keyboardLabel: t('statistics.periodSummaryShare.labels.keyboard'),
+            mouseLabel: t('statistics.periodSummaryShare.labels.mouse'),
+            firstEventLabel: t('statistics.periodSummaryShare.labels.firstEvent'),
+            lastEventLabel: t('statistics.periodSummaryShare.labels.lastEvent'),
+            heatmapTitle: t('statistics.periodSummaryShare.heatmapTitle'),
             unshiftedSectionTitle: t('statistics.keyboardHeatmap.sections.unshifted'),
             shiftedSectionTitle: t('statistics.keyboardHeatmap.sections.shifted'),
             legendLow: t('statistics.heat.low'),
             legendHigh: t('statistics.heat.high'),
             generatedBy: t('statistics.keyboardHeatmapShare.generatedBy', { appName: t('app.name') }),
-            totalLabel: t('statistics.keyboardHeatmapShare.totalLabel'),
+            noData: t('statistics.noData'),
           },
         },
       })
@@ -123,19 +147,17 @@ export function KeyboardHeatmapShareDialog({
         setIsGenerating(false)
       })
   }, [
-    dateKey,
     heatLevelCount,
     hideKeys,
     hideNumbers,
+    i18n.language,
     layoutId,
-    meritLabel,
-    meritValue,
-    modeLabel,
     open,
     platform,
-    shiftedCounts,
+    range,
     showMeritValue,
-    unshiftedCounts,
+    summary,
+    t,
   ])
 
   useEffect(() => {
@@ -178,7 +200,7 @@ export function KeyboardHeatmapShareDialog({
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm" className="gap-2" data-no-drag>
           <Share2 className="h-4 w-4" />
-          {t('statistics.keyboardHeatmapShare.share')}
+          {t('statistics.periodSummaryShare.share')}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl p-0">
@@ -186,21 +208,70 @@ export function KeyboardHeatmapShareDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Share2 className="h-5 w-5 text-slate-700" />
-              {t('statistics.keyboardHeatmapShare.title')}
+              {t('statistics.periodSummaryShare.title')}
             </DialogTitle>
-            <DialogDescription>{t('statistics.keyboardHeatmapShare.description')}</DialogDescription>
+            <DialogDescription>{t('statistics.periodSummaryShare.description')}</DialogDescription>
           </DialogHeader>
 
           <div className="mt-5 grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5">
             <div className="space-y-4">
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="text-sm font-semibold text-slate-900">{t('statistics.keyboardHeatmapShare.privacy.title')}</div>
+                <div className="text-sm font-semibold text-slate-900">{t('statistics.periodSummaryShare.rangeTitle')}</div>
+                <div className="mt-3 flex flex-wrap gap-2" data-no-drag>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={range === 'today' ? 'secondary' : 'outline'}
+                    onClick={() => onRangeChange('today')}
+                    data-no-drag
+                  >
+                    {t(rangeLabelKey('today'))}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={range === 'yesterday' ? 'secondary' : 'outline'}
+                    onClick={() => onRangeChange('yesterday')}
+                    data-no-drag
+                  >
+                    {t(rangeLabelKey('yesterday'))}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={range === 'last7' ? 'secondary' : 'outline'}
+                    onClick={() => onRangeChange('last7')}
+                    data-no-drag
+                  >
+                    {t(rangeLabelKey('last7'))}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={range === 'last30' ? 'secondary' : 'outline'}
+                    onClick={() => onRangeChange('last30')}
+                    data-no-drag
+                  >
+                    {t(rangeLabelKey('last30'))}
+                  </Button>
+                </div>
+                <div className="mt-3 text-xs text-slate-500 tabular-nums">
+                  {summary
+                    ? summary.startKey === summary.endKey
+                      ? summary.endKey
+                      : `${summary.startKey} ~ ${summary.endKey}`
+                    : t('statistics.noData')}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="text-sm font-semibold text-slate-900">{t('statistics.periodSummaryShare.privacy.title')}</div>
 
                 <div className="mt-4 space-y-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <Label className="text-sm text-slate-800">{t('statistics.keyboardHeatmapShare.privacy.hideNumbers')}</Label>
-                      <div className="text-xs text-slate-500 mt-1">{t('statistics.keyboardHeatmapShare.privacy.hideNumbersDesc')}</div>
+                      <Label className="text-sm text-slate-800">{t('statistics.periodSummaryShare.privacy.hideNumbers')}</Label>
+                      <div className="text-xs text-slate-500 mt-1">{t('statistics.periodSummaryShare.privacy.hideNumbersDesc')}</div>
                     </div>
                     <Switch
                       checked={hideNumbers}
@@ -213,8 +284,8 @@ export function KeyboardHeatmapShareDialog({
 
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <Label className="text-sm text-slate-800">{t('statistics.keyboardHeatmapShare.privacy.hideKeys')}</Label>
-                      <div className="text-xs text-slate-500 mt-1">{t('statistics.keyboardHeatmapShare.privacy.hideKeysDesc')}</div>
+                      <Label className="text-sm text-slate-800">{t('statistics.periodSummaryShare.privacy.hideKeys')}</Label>
+                      <div className="text-xs text-slate-500 mt-1">{t('statistics.periodSummaryShare.privacy.hideKeysDesc')}</div>
                     </div>
                     <Switch
                       checked={hideKeys}
@@ -227,8 +298,8 @@ export function KeyboardHeatmapShareDialog({
 
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <Label className="text-sm text-slate-800">{t('statistics.keyboardHeatmapShare.privacy.showMerit')}</Label>
-                      <div className="text-xs text-slate-500 mt-1">{t('statistics.keyboardHeatmapShare.privacy.showMeritDesc')}</div>
+                      <Label className="text-sm text-slate-800">{t('statistics.periodSummaryShare.privacy.showMerit')}</Label>
+                      <div className="text-xs text-slate-500 mt-1">{t('statistics.periodSummaryShare.privacy.showMeritDesc')}</div>
                     </div>
                     <Switch
                       checked={showMeritValue}
@@ -263,7 +334,7 @@ export function KeyboardHeatmapShareDialog({
                     {copied ? t('statistics.keyboardHeatmapShare.copy.copied') : t('statistics.keyboardHeatmapShare.copy.copy')}
                   </Button>
                   {error && <div className="text-xs text-rose-600 break-words">{error}</div>}
-                  {!hasAny && <div className="text-xs text-slate-500">{t('statistics.keyboardHeatmapShare.noData')}</div>}
+                  {!hasAny && <div className="text-xs text-slate-500">{t('statistics.periodSummaryShare.noData')}</div>}
                 </div>
               </div>
             </div>

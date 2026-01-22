@@ -1,4 +1,4 @@
-use chrono::{Local, NaiveDate, Timelike};
+use chrono::{Local, NaiveDate, Timelike, Utc};
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
@@ -79,6 +79,10 @@ pub struct DailyStats {
     #[serde(default)]
     pub mouse_single: u64,
     #[serde(default)]
+    pub first_event_at_ms: Option<u64>,
+    #[serde(default)]
+    pub last_event_at_ms: Option<u64>,
+    #[serde(default)]
     pub mouse_move_distance_px: u64,
     #[serde(default)]
     pub mouse_move_distance_px_by_display: HashMap<String, u64>,
@@ -135,6 +139,8 @@ impl DailyStats {
             total: 0,
             keyboard: 0,
             mouse_single: 0,
+            first_event_at_ms: None,
+            last_event_at_ms: None,
             mouse_move_distance_px: 0,
             mouse_move_distance_px_by_display: HashMap::new(),
             hourly: default_hourly_stats(),
@@ -163,10 +169,27 @@ impl DailyStats {
         self.hourly = next;
     }
 
-    pub fn add_merit(&mut self, source: InputSource, count: u64) {
+    fn record_event_at_ms(&mut self, event_at_ms: u64) {
+        if event_at_ms == 0 {
+            return;
+        }
+
+        self.first_event_at_ms = Some(match self.first_event_at_ms {
+            Some(existing) => existing.min(event_at_ms),
+            None => event_at_ms,
+        });
+        self.last_event_at_ms = Some(match self.last_event_at_ms {
+            Some(existing) => existing.max(event_at_ms),
+            None => event_at_ms,
+        });
+    }
+
+    pub fn add_merit(&mut self, source: InputSource, count: u64, event_at_ms: u64) {
         if count == 0 {
             return;
         }
+
+        self.record_event_at_ms(event_at_ms);
 
         self.total = self.total.saturating_add(count);
         match source {
@@ -190,6 +213,7 @@ impl DailyStats {
         if px == 0 {
             return;
         }
+        self.record_event_at_ms(u64::try_from(Utc::now().timestamp_millis()).unwrap_or(0));
         self.add_mouse_move_distance_px(px);
         let Some(id) = display_id else {
             return;
@@ -385,8 +409,10 @@ impl MeritStats {
         }
 
         let hour = Local::now().hour() as usize;
+        let now_ms = Utc::now().timestamp_millis();
+        let event_at_ms = u64::try_from(now_ms).unwrap_or(0);
         self.total_merit = self.total_merit.saturating_add(count);
-        self.today.add_merit(source, count);
+        self.today.add_merit(source, count, event_at_ms);
         self.today.add_hourly_merit(hour, source, count);
     }
 

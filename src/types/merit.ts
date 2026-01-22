@@ -10,6 +10,8 @@ export interface DailyStats {
   total: number
   keyboard: number
   mouse_single: number
+  first_event_at_ms?: number | null
+  last_event_at_ms?: number | null
   mouse_move_distance_px?: number
   mouse_move_distance_px_by_display?: Record<string, number>
   hourly?: Array<{

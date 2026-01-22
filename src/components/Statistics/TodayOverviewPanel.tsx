@@ -1,6 +1,6 @@
 import { useId, useMemo, type ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Keyboard, Mouse } from 'lucide-react'
+import { Clock, Keyboard, Mouse } from 'lucide-react'
 import type { MeritStats } from '@/types/merit'
 import { cn } from '@/lib/utils'
 import { Card } from '../ui/card'
@@ -97,8 +97,29 @@ function BreakdownTile({ item, total }: { item: BreakdownItem; total: number }) 
 }
 
 export function TodayOverviewPanel({ stats }: { stats: MeritStats | null | undefined }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const todayTotal = stats?.today.total ?? 0
+  const timeFmt = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat(i18n.resolvedLanguage ?? undefined, { timeStyle: 'short' })
+    } catch {
+      return null
+    }
+  }, [i18n.resolvedLanguage])
+
+  const firstEventText = useMemo(() => {
+    const ms = stats?.today.first_event_at_ms ?? null
+    if (!ms || ms <= 0) return '—'
+    if (!timeFmt) return '—'
+    return timeFmt.format(new Date(ms))
+  }, [stats?.today.first_event_at_ms, timeFmt])
+
+  const lastEventText = useMemo(() => {
+    const ms = stats?.today.last_event_at_ms ?? null
+    if (!ms || ms <= 0) return '—'
+    if (!timeFmt) return '—'
+    return timeFmt.format(new Date(ms))
+  }, [stats?.today.last_event_at_ms, timeFmt])
   const breakdownItems = useMemo<BreakdownItem[]>(
     () => [
       {
@@ -129,6 +150,30 @@ export function TodayOverviewPanel({ stats }: { stats: MeritStats | null | undef
           <div className="min-w-0">
             <div className="text-sm font-medium text-slate-700">{t('statistics.todayOverview.todayTotal')}</div>
             <div className="mt-1 text-xs text-slate-500 tabular-nums">{stats?.today.date ?? ''}</div>
+            <div className="mt-3 grid grid-cols-2 gap-2 tabular-nums">
+              <div className="rounded-xl border border-amber-200/50 bg-white/70 px-3 py-2 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-200/50 bg-white/90 text-slate-700">
+                    <Clock className="h-4 w-4" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-slate-500">{t('statistics.todayOverview.firstInput')}</div>
+                    <div className="mt-0.5 text-sm font-semibold text-slate-900">{firstEventText}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-amber-200/50 bg-white/70 px-3 py-2 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-200/50 bg-white/90 text-slate-700">
+                    <Clock className="h-4 w-4" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-slate-500">{t('statistics.todayOverview.lastInput')}</div>
+                    <div className="mt-0.5 text-sm font-semibold text-slate-900">{lastEventText}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="mt-4 text-sm text-slate-600">{t('statistics.todayOverview.sourceDistribution')}</div>
           </div>
           <div className="text-5xl font-semibold leading-none tabular-nums bg-gradient-to-r from-amber-700 to-amber-500 bg-clip-text text-transparent">
