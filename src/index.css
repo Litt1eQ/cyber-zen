@@ -12,7 +12,7 @@ html, body, #root {
 :root {
   --cz-titlebar-height: env(titlebar-area-height, 28px);
   --cz-sidebar-padding-top: 32px;
-  --cz-main-padding-top: 0px;
+  --cz-main-padding-top: 24px;
 }
 
 body {

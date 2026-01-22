@@ -180,7 +180,7 @@ export function CustomStatistics() {
   return (
     <div className="w-full h-full bg-slate-50 text-slate-900 flex flex-col">
       <div className="border-b border-slate-200/60 bg-white/70 backdrop-blur" data-tauri-drag-region onPointerDown={startDragging}>
-        <div className="mx-auto w-full max-w-4xl px-6 pt-5 pb-4">
+        <div className="mx-auto w-full max-w-4xl px-6 pt-6 pb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h1 className="text-lg font-bold text-slate-900">{t('customStatistics.title')}</h1>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { listen } from '@tauri-apps/api/event'
@@ -98,7 +98,8 @@ function App() {
     }, pulseTimeoutMs)
   }
 
-  const { active: floating, enqueue } = useMeritPopQueue(() => ({ x: window.innerWidth / 2, y: window.innerHeight / 2 }))
+  const getPopOrigin = useCallback(() => ({ x: window.innerWidth / 2, y: window.innerHeight / 2 }), [])
+  const { active: floating, enqueue } = useMeritPopQueue(getPopOrigin)
 
   const debugEnabled = useMemo(() => {
     try {
@@ -118,6 +119,12 @@ function App() {
       unlisten.then((fn) => fn())
     }
   }, [enqueue])
+
+  useEffect(() => {
+    return () => {
+      if (pulseTimeoutRef.current != null) window.clearTimeout(pulseTimeoutRef.current)
+    }
+  }, [])
 
   const handleHit = async () => {
     pulse()

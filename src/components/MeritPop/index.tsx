@@ -6,6 +6,7 @@ const DEFAULT_MERIT_LABEL = '功德'
 const DEFAULT_MERIT_ALPHA = 0.82
 const STROKE_ALPHA_RATIO = 0.26 / DEFAULT_MERIT_ALPHA
 const GLOW_ALPHA_RATIO = 0.28 / DEFAULT_MERIT_ALPHA
+const OUTLINE_ALPHA_RATIO = 0.62 / DEFAULT_MERIT_ALPHA
 
 export function MeritPop({
   x,
@@ -31,8 +32,9 @@ export function MeritPop({
   })()
   const label = `${baseLabel}+${value}`
   const a = clamp01(opacity)
-  const fillColor = `rgba(255, 222, 160, ${a})`
-  const strokeColor = `rgba(255, 236, 180, ${a * STROKE_ALPHA_RATIO})`
+  const fillColor = `rgba(255, 242, 214, ${a})`
+  const strokeColor = `rgba(255, 226, 150, ${a * STROKE_ALPHA_RATIO})`
+  const outlineColor = `rgba(10, 8, 6, ${clamp01(a * OUTLINE_ALPHA_RATIO)})`
   const glowHighlight = `rgba(255, 214, 102, ${a * GLOW_ALPHA_RATIO})`
   const glowTransparent = `rgba(255, 214, 102, 0)`
   const textGlowShadow = `rgba(255, 214, 102, ${a * GLOW_ALPHA_RATIO})`
@@ -43,6 +45,10 @@ export function MeritPop({
     source === 'keyboard'
       ? 'rgba(120,255,214,0.14)'
       : 'rgba(255,214,102,0.10)'
+  const fontSizePx = Math.round(36 * scale)
+  const strokeWidthPx = Math.max(1, Math.round(1.35 * scale))
+  const outlineWidthPx = Math.max(1, Math.round(2.25 * scale))
+  const outlineShadow = createOutlineShadow(outlineWidthPx, outlineColor)
 
   return (
     <div
@@ -70,15 +76,19 @@ export function MeritPop({
         />
 
         <div
-          className="relative leading-none font-black tracking-[0.10em] whitespace-nowrap"
+          className="relative leading-none font-black tracking-[0.04em] whitespace-nowrap"
           style={{
             fontFamily:
               '"SF Pro Rounded","PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",system-ui,-apple-system,Segoe UI,Roboto,sans-serif',
             color: fillColor,
-            fontSize: `${Math.round(36 * scale)}px`,
-            WebkitTextStroke: `${Math.max(0.5, 1 * scale)}px ${strokeColor}`,
+            fontSize: `${fontSizePx}px`,
+            WebkitTextStroke: `${strokeWidthPx}px ${strokeColor}`,
             textShadow:
-              `0 0 30px ${textGlowShadow}, 0 18px 40px rgba(0,0,0,0.18)`,
+              [
+                outlineShadow,
+                `0 0 26px ${textGlowShadow}`,
+                '0 18px 42px rgba(0,0,0,0.28)',
+              ].filter(Boolean).join(', '),
             whiteSpace: 'nowrap',
           }}
         >
@@ -92,4 +102,17 @@ export function MeritPop({
 function clamp01(value: number) {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.min(1, value))
+}
+
+function createOutlineShadow(widthPx: number, color: string) {
+  const w = Math.max(1, Math.round(widthPx))
+  const parts: string[] = []
+  for (const dx of [-w, 0, w]) {
+    for (const dy of [-w, 0, w]) {
+      if (dx === 0 && dy === 0) continue
+      parts.push(`${dx}px ${dy}px 0 ${color}`)
+    }
+  }
+  parts.push(`0 0 ${Math.max(2, Math.round(w * 1.4))}px ${color}`)
+  return parts.join(', ')
 }
