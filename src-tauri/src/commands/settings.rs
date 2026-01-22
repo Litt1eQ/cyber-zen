@@ -1,12 +1,32 @@
 use crate::core::wooden_fish_skins;
 use crate::core::MeritStorage;
-use crate::models::{MouseDistanceDisplaySettings, Settings};
+use crate::models::{MouseDistanceDisplaySettings, Settings, StatisticsBlockState};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, Size};
 
 const BASE_WINDOW_SIZE: f64 = 320.0;
 const DEFAULT_MERIT_POP_LABEL: &str = "功德";
 const DEFAULT_CUSTOM_STATISTICS_WIDGETS: [&str; 2] = ["trend", "calendar"];
 const MAX_CUSTOM_STATISTICS_WIDGETS: usize = 24;
+const DEFAULT_STATISTICS_BLOCKS: [&str; 17] = [
+    "period_summary",
+    "insights",
+    "weekday_distribution",
+    "hourly_weekday_heatmap",
+    "input_source_share",
+    "trend",
+    "mouse_distance",
+    "daily_source_bars",
+    "shortcut_usage_trend",
+    "key_diversity_bars",
+    "shift_usage",
+    "key_pareto",
+    "mouse_button_structure",
+    "click_position_heatmap",
+    "app_concentration",
+    "app_input_ranking",
+    "monthly_calendar",
+];
+const MAX_STATISTICS_BLOCKS: usize = 64;
 
 fn current_settings() -> Settings {
     let storage = MeritStorage::instance();
@@ -128,6 +148,51 @@ fn normalize_custom_statistics_range(range: String) -> String {
     }
 }
 
+fn normalize_statistics_blocks(blocks: Vec<StatisticsBlockState>) -> Vec<StatisticsBlockState> {
+    let mut out: Vec<StatisticsBlockState> = Vec::new();
+    for raw in blocks {
+        if out.len() >= MAX_STATISTICS_BLOCKS {
+            break;
+        }
+        let trimmed = raw.id.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !DEFAULT_STATISTICS_BLOCKS.iter().any(|s| s == &trimmed) {
+            continue;
+        }
+        if out.iter().any(|b| b.id == trimmed) {
+            continue;
+        }
+        out.push(StatisticsBlockState {
+            id: trimmed.to_string(),
+            collapsed: raw.collapsed,
+        });
+    }
+
+    if out.is_empty() {
+        return DEFAULT_STATISTICS_BLOCKS
+            .iter()
+            .map(|s| StatisticsBlockState {
+                id: s.to_string(),
+                collapsed: false,
+            })
+            .collect();
+    }
+
+    for id in DEFAULT_STATISTICS_BLOCKS {
+        if out.iter().any(|b| b.id == id) {
+            continue;
+        }
+        out.push(StatisticsBlockState {
+            id: id.to_string(),
+            collapsed: false,
+        });
+    }
+
+    out
+}
+
 fn normalize_shortcut(value: Option<String>) -> Option<String> {
     value.and_then(|s| {
         let trimmed = s.trim();
@@ -216,6 +281,7 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
         normalize_custom_statistics_range(settings.custom_statistics_range);
     settings.mouse_distance_displays =
         normalize_mouse_distance_displays(settings.mouse_distance_displays);
+    settings.statistics_blocks = normalize_statistics_blocks(settings.statistics_blocks);
     settings.shortcut_toggle_main = normalize_shortcut(settings.shortcut_toggle_main);
     settings.shortcut_toggle_settings = normalize_shortcut(settings.shortcut_toggle_settings);
     settings.shortcut_toggle_listening = normalize_shortcut(settings.shortcut_toggle_listening);

@@ -12,6 +12,13 @@ pub struct MouseDistanceDisplaySettings {
     pub ppi_override: Option<u32>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct StatisticsBlockState {
+    pub id: String,
+    pub collapsed: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -55,6 +62,7 @@ pub struct Settings {
     pub keyboard_heatmap_share_show_merit_value: bool,
     #[serde(default = "default_false")]
     pub achievement_notifications_enabled: bool,
+    pub statistics_blocks: Vec<StatisticsBlockState>,
 }
 
 impl Default for Settings {
@@ -99,6 +107,76 @@ impl Default for Settings {
             keyboard_heatmap_share_hide_keys: true,
             keyboard_heatmap_share_show_merit_value: false,
             achievement_notifications_enabled: false,
+            statistics_blocks: vec![
+                StatisticsBlockState {
+                    id: "period_summary".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "insights".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "weekday_distribution".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "hourly_weekday_heatmap".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "input_source_share".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "trend".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "mouse_distance".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "daily_source_bars".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "shortcut_usage_trend".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "key_diversity_bars".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "shift_usage".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "key_pareto".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "mouse_button_structure".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "click_position_heatmap".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "app_concentration".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "app_input_ranking".to_string(),
+                    collapsed: false,
+                },
+                StatisticsBlockState {
+                    id: "monthly_calendar".to_string(),
+                    collapsed: false,
+                },
+            ],
         }
     }
 }

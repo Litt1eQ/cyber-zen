@@ -47,6 +47,25 @@ const defaultSettings: Settings = {
   keyboard_heatmap_share_hide_keys: true,
   keyboard_heatmap_share_show_merit_value: false,
   achievement_notifications_enabled: false,
+  statistics_blocks: [
+    { id: 'period_summary', collapsed: false },
+    { id: 'insights', collapsed: false },
+    { id: 'weekday_distribution', collapsed: false },
+    { id: 'hourly_weekday_heatmap', collapsed: false },
+    { id: 'input_source_share', collapsed: false },
+    { id: 'trend', collapsed: false },
+    { id: 'mouse_distance', collapsed: false },
+    { id: 'daily_source_bars', collapsed: false },
+    { id: 'shortcut_usage_trend', collapsed: false },
+    { id: 'key_diversity_bars', collapsed: false },
+    { id: 'shift_usage', collapsed: false },
+    { id: 'key_pareto', collapsed: false },
+    { id: 'mouse_button_structure', collapsed: false },
+    { id: 'click_position_heatmap', collapsed: false },
+    { id: 'app_concentration', collapsed: false },
+    { id: 'app_input_ranking', collapsed: false },
+    { id: 'monthly_calendar', collapsed: false },
+  ],
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

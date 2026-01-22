@@ -426,6 +426,16 @@ export const zhCN = {
   statistics: {
     title: '统计增强',
     noData: '暂无数据',
+    layout: {
+      collapse: '折叠',
+      expand: '展开',
+      collapsed: '已折叠',
+      moveUp: '上移',
+      moveDown: '下移',
+      collapseAll: '全部折叠',
+      expandAll: '全部展开',
+      reset: '恢复默认布局',
+    },
     untilDate: '截止 {{date}}',
     avgPerDayUntil: '平均/天（截止 {{date}}）',
     times: '{{value}} 次',
@@ -488,6 +498,7 @@ export const zhCN = {
       legend: '颜色：{{metric}} 平均/天',
     },
     insights: {
+      title: '统计摘要',
       streak: {
         title: '连续功德',
         current: '当前连续',
@@ -1275,6 +1286,16 @@ export const en: TranslationResource = {
   statistics: {
     title: 'Statistics',
     noData: 'No data',
+    layout: {
+      collapse: 'Collapse',
+      expand: 'Expand',
+      collapsed: 'Collapsed',
+      moveUp: 'Move Up',
+      moveDown: 'Move Down',
+      collapseAll: 'Collapse All',
+      expandAll: 'Expand All',
+      reset: 'Reset Layout',
+    },
     untilDate: 'Until {{date}}',
     avgPerDayUntil: 'Avg/day (until {{date}})',
     times: '{{value}} times',
@@ -1337,6 +1358,7 @@ export const en: TranslationResource = {
       legend: 'Colors: {{metric}} avg/day',
     },
     insights: {
+      title: 'Insights',
       streak: {
         title: 'Streak',
         current: 'Current',
@@ -2115,6 +2137,16 @@ export const zhTW: TranslationResource = {
   statistics: {
     title: '統計增強',
     noData: '暫無資料',
+    layout: {
+      collapse: '摺疊',
+      expand: '展開',
+      collapsed: '已摺疊',
+      moveUp: '上移',
+      moveDown: '下移',
+      collapseAll: '全部摺疊',
+      expandAll: '全部展開',
+      reset: '恢復預設版面',
+    },
     untilDate: '截止 {{date}}',
     avgPerDayUntil: '平均/天（截止 {{date}}）',
     times: '{{value}} 次',
@@ -2177,6 +2209,7 @@ export const zhTW: TranslationResource = {
       legend: '顏色：{{metric}} 平均/天',
     },
     insights: {
+      title: '統計摘要',
       streak: {
         title: '連續功德',
         current: '目前連續',
