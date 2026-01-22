@@ -279,6 +279,7 @@ export function PeriodSummaryShareDialog({
                         setHideNumbers(v)
                         void updateSettings({ keyboard_heatmap_share_hide_numbers: v })
                       }}
+                      data-no-drag
                     />
                   </div>
 
@@ -293,6 +294,7 @@ export function PeriodSummaryShareDialog({
                         setHideKeys(v)
                         void updateSettings({ keyboard_heatmap_share_hide_keys: v })
                       }}
+                      data-no-drag
                     />
                   </div>
 
@@ -307,6 +309,7 @@ export function PeriodSummaryShareDialog({
                         setShowMeritValue(v)
                         void updateSettings({ keyboard_heatmap_share_show_merit_value: v })
                       }}
+                      data-no-drag
                     />
                   </div>
                 </div>

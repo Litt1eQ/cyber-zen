@@ -35,6 +35,90 @@ function platformForKeyboard(): 'mac' | 'windows' | 'linux' {
   return 'windows'
 }
 
+function StatisticsBlockShell({
+  id,
+  title,
+  collapsed,
+  index,
+  total,
+  onMove,
+  onToggleCollapsed,
+  children,
+}: {
+  id: StatisticsBlockId
+  title: string
+  collapsed: boolean
+  index: number
+  total: number
+  onMove: (from: number, to: number) => Promise<void>
+  onToggleCollapsed: (id: StatisticsBlockId) => Promise<void>
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
+  const canMoveUp = index > 0
+  const canMoveDown = index < total - 1
+
+  return (
+    <div className="relative group">
+      <div
+        className={cn(
+          'absolute -top-3 -right-3 z-10 flex items-center gap-1 rounded-lg border border-slate-200/60 bg-white/80 backdrop-blur px-1 py-1 shadow-sm',
+          'opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity',
+        )}
+        data-no-drag
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 px-0 pointer-events-auto"
+          disabled={!canMoveUp}
+          onClick={() => void onMove(index, index - 1)}
+          title={t('statistics.layout.moveUp')}
+          aria-label={t('statistics.layout.moveUp')}
+          data-no-drag
+        >
+          <ArrowUp className="h-4 w-4" aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 px-0 pointer-events-auto"
+          disabled={!canMoveDown}
+          onClick={() => void onMove(index, index + 1)}
+          title={t('statistics.layout.moveDown')}
+          aria-label={t('statistics.layout.moveDown')}
+          data-no-drag
+        >
+          <ArrowDown className="h-4 w-4" aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 px-0 pointer-events-auto"
+          onClick={() => void onToggleCollapsed(id)}
+          title={collapsed ? t('statistics.layout.expand') : t('statistics.layout.collapse')}
+          aria-label={collapsed ? t('statistics.layout.expand') : t('statistics.layout.collapse')}
+          data-no-drag
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
+        </Button>
+      </div>
+
+      {collapsed ? (
+        <Card className="p-4 cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => void onToggleCollapsed(id)} data-no-drag>
+          <div className="text-sm font-semibold text-slate-900 tracking-wide">{title}</div>
+          <div className="mt-1 text-xs text-slate-500">{t('statistics.layout.collapsed')}</div>
+        </Card>
+      ) : (
+        children
+      )}
+    </div>
+  )
+}
+
 export function Statistics() {
   const { t } = useTranslation()
   const stats = useMeritStore((state) => state.stats)
@@ -394,88 +478,6 @@ export function Statistics() {
     [],
   )
 
-  function StatisticsBlock({
-    id,
-    collapsed,
-    index,
-    total,
-    children,
-  }: {
-    id: StatisticsBlockId
-    collapsed: boolean
-    index: number
-    total: number
-    children: ReactNode
-  }) {
-    const title = t(titleKeyForBlock(id))
-    const canMoveUp = index > 0
-    const canMoveDown = index < total - 1
-
-    return (
-      <div className="relative group">
-        <div
-          className={cn(
-            'absolute -top-3 right-2 z-10 flex items-center gap-1 rounded-lg border border-slate-200/60 bg-white/80 backdrop-blur px-1 py-1 shadow-sm',
-            'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity',
-          )}
-          data-no-drag
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 px-0"
-            disabled={!canMoveUp}
-            onClick={() => void move(index, index - 1)}
-            title={t('statistics.layout.moveUp')}
-            aria-label={t('statistics.layout.moveUp')}
-            data-no-drag
-          >
-            <ArrowUp className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 px-0"
-            disabled={!canMoveDown}
-            onClick={() => void move(index, index + 1)}
-            title={t('statistics.layout.moveDown')}
-            aria-label={t('statistics.layout.moveDown')}
-            data-no-drag
-          >
-            <ArrowDown className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 px-0"
-            onClick={() => void toggleCollapsed(id)}
-            title={collapsed ? t('statistics.layout.expand') : t('statistics.layout.collapse')}
-            aria-label={collapsed ? t('statistics.layout.expand') : t('statistics.layout.collapse')}
-            data-no-drag
-          >
-            {collapsed ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
-          </Button>
-        </div>
-
-        {collapsed ? (
-          <Card
-            className="p-4 cursor-pointer hover:bg-slate-50 transition-colors"
-            onClick={() => void toggleCollapsed(id)}
-            data-no-drag
-          >
-            <div className="text-sm font-semibold text-slate-900 tracking-wide">{title}</div>
-            <div className="mt-1 text-xs text-slate-500">{t('statistics.layout.collapsed')}</div>
-          </Card>
-        ) : (
-          children
-        )}
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
@@ -495,9 +497,18 @@ export function Statistics() {
       {stats ? (
         <div className="space-y-4">
           {blocks.map((b, idx) => (
-            <StatisticsBlock key={b.id} id={b.id} collapsed={!!b.collapsed} index={idx} total={blocks.length}>
+            <StatisticsBlockShell
+              key={b.id}
+              id={b.id}
+              title={t(titleKeyForBlock(b.id))}
+              collapsed={!!b.collapsed}
+              index={idx}
+              total={blocks.length}
+              onMove={move}
+              onToggleCollapsed={toggleCollapsed}
+            >
               {renderBlock(b.id)}
-            </StatisticsBlock>
+            </StatisticsBlockShell>
           ))}
         </div>
       ) : (
