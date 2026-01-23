@@ -1,4 +1,11 @@
-use crate::models::{AchievementState, ClickHeatmapState, MeritStats, Settings, WindowPlacement};
+use crate::models::{
+    AchievementState,
+    ClickHeatmapState,
+    CustomStatisticsTemplate,
+    MeritStats,
+    Settings,
+    WindowPlacement,
+};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -11,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use super::MeritStorage;
 
-const CURRENT_STATE_VERSION: u32 = 5;
+const CURRENT_STATE_VERSION: u32 = 6;
 
 #[derive(Clone)]
 struct PersistContext {
@@ -35,6 +42,8 @@ struct PersistedState {
     window_placements: BTreeMap<String, WindowPlacement>,
     #[serde(default)]
     click_heatmap: ClickHeatmapState,
+    #[serde(default)]
+    custom_statistics_templates: Vec<CustomStatisticsTemplate>,
 }
 
 static SAVE_TX: Lazy<Mutex<Option<Sender<()>>>> = Lazy::new(|| Mutex::new(None));
@@ -90,7 +99,16 @@ pub fn flush_now() {
 
 pub fn load(
     path: &Path,
-) -> io::Result<Option<(MeritStats, Settings, AchievementState, BTreeMap<String, WindowPlacement>, ClickHeatmapState)>> {
+) -> io::Result<
+    Option<(
+        MeritStats,
+        Settings,
+        AchievementState,
+        BTreeMap<String, WindowPlacement>,
+        ClickHeatmapState,
+        Vec<CustomStatisticsTemplate>,
+    )>,
+> {
     if !path.exists() {
         return Ok(None);
     }
@@ -115,6 +133,7 @@ pub fn load(
         state.achievements,
         state.window_placements,
         state.click_heatmap,
+        state.custom_statistics_templates,
     )))
 }
 
@@ -139,7 +158,7 @@ fn write_snapshot(
     path: &Path,
 ) -> io::Result<()> {
     let _guard = WRITE_LOCK.lock();
-    let (stats, settings, achievements, window_placements, click_heatmap) = {
+    let (stats, settings, achievements, window_placements, click_heatmap, custom_statistics_templates) = {
         let storage = storage.read();
         (
             storage.get_stats(),
@@ -147,6 +166,7 @@ fn write_snapshot(
             storage.get_achievements(),
             storage.get_window_placements(),
             storage.get_click_heatmap(),
+            storage.get_custom_statistics_templates(),
         )
     };
 
@@ -157,6 +177,7 @@ fn write_snapshot(
         achievements,
         window_placements,
         click_heatmap,
+        custom_statistics_templates,
     };
 
     write_state_atomically(path, &state)

@@ -18,21 +18,38 @@ import { buildStatisticsAggregates } from '@/lib/statisticsAggregates'
 import {
   CUSTOM_STATISTICS_WIDGETS,
   DEFAULT_CUSTOM_STATISTICS_WIDGETS,
-  isKnownWidgetId,
+  customTemplateIdFromWidgetId,
+  isBuiltinWidgetId,
+  isCustomTemplateWidgetId,
   type CustomStatisticsWidgetId,
 } from './registry'
 import { KeyboardHeatmapShareDialog } from '@/components/Statistics/KeyboardHeatmapShareDialog'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 import { MonthlyHistoryCalendar } from '@/components/Statistics/MonthlyHistoryCalendar'
 import { KeyboardHeatmap } from '@/components/Statistics/KeyboardHeatmap'
+import { useCustomStatisticsTemplatesStore } from '@/stores/useCustomStatisticsTemplatesStore'
+import { CustomWidgetSandbox } from '@/components/CustomStatistics/CustomWidgetSandbox'
+import { CustomTemplateEditorDialog } from '@/components/CustomStatistics/CustomTemplateEditorDialog'
+import { CustomTemplateImportDialog } from '@/components/CustomStatistics/CustomTemplateImportDialog'
+import { CustomTemplateExportDialog } from '@/components/CustomStatistics/CustomTemplateExportDialog'
+import type { CustomStatisticsTemplate } from '@/types/customStatisticsTemplates'
 
-function normalizeWidgetList(ids: Array<string | null | undefined> | null | undefined): CustomStatisticsWidgetId[] {
+function normalizeWidgetList(
+  ids: Array<string | null | undefined> | null | undefined,
+  customTemplateIds: Set<string>,
+): CustomStatisticsWidgetId[] {
   const out: CustomStatisticsWidgetId[] = []
   const seen = new Set<string>()
   for (const raw of ids ?? []) {
     const id = raw?.trim()
     if (!id) continue
-    if (!isKnownWidgetId(id)) continue
+    if (isBuiltinWidgetId(id)) {
+      // ok
+    } else if (isCustomTemplateWidgetId(id) && customTemplateIds.has(customTemplateIdFromWidgetId(id))) {
+      // ok
+    } else {
+      continue
+    }
     if (seen.has(id)) continue
     out.push(id)
     seen.add(id)
@@ -55,7 +72,14 @@ export function CustomStatistics() {
   const startDragging = useWindowDragging()
   const { settings, fetchSettings, updateSettings } = useSettingsStore()
   const { stats, fetchStats, updateStats } = useMeritStore()
+  const { templates, fetchTemplates, upsertTemplate, deleteTemplate, error: templatesError } = useCustomStatisticsTemplatesStore()
   const [customizeOpen, setCustomizeOpen] = useState(false)
+  const [templateEditorOpen, setTemplateEditorOpen] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<CustomStatisticsTemplate | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<CustomStatisticsTemplate | null>(null)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [exportSelection, setExportSelection] = useState<CustomStatisticsTemplate[]>([])
   const visibleRef = useRef(true)
 
   useSettingsSync()
@@ -84,7 +108,8 @@ export function CustomStatistics() {
   useEffect(() => {
     fetchSettings()
     fetchStats()
-  }, [fetchSettings, fetchStats])
+    fetchTemplates()
+  }, [fetchSettings, fetchStats, fetchTemplates])
 
   useEffect(() => {
     const unsubscribe = listen<MeritStats>(EVENTS.MERIT_UPDATED, (event) => {
@@ -131,9 +156,17 @@ export function CustomStatistics() {
 
   const allDays = useMemo(() => (stats ? [stats.today, ...stats.history] : []), [stats])
 
+  const templateMap = useMemo(() => {
+    const map = new Map<string, CustomStatisticsTemplate>()
+    for (const tpl of templates) map.set(tpl.id, tpl)
+    return map
+  }, [templates])
+
+  const templateIds = useMemo(() => new Set(Array.from(templateMap.keys())), [templateMap])
+
   const enabledWidgets = useMemo(
-    () => normalizeWidgetList(settings?.custom_statistics_widgets),
-    [settings?.custom_statistics_widgets],
+    () => normalizeWidgetList(settings?.custom_statistics_widgets, templateIds),
+    [settings?.custom_statistics_widgets, templateIds],
   )
 
   const setEnabledWidgets = useCallback(
@@ -163,11 +196,16 @@ export function CustomStatistics() {
   )
 
   const platform = isMac() ? 'mac' : isWindows() ? 'windows' : isLinux() ? 'linux' : 'windows'
-  const range = settings?.custom_statistics_range === 'all' ? 'all' : 'today'
+  const range: 'today' | 'all' = settings?.custom_statistics_range === 'all' ? 'all' : 'today'
   const scopedAggregates = useMemo(() => {
     const scopedDays = range === 'all' ? allDays : stats ? [stats.today] : []
     return buildStatisticsAggregates(scopedDays)
   }, [allDays, range, stats])
+
+  const widgetCtx = useMemo(
+    () => ({ stats: stats!, settings: settings!, allDays, aggregates: scopedAggregates, range }),
+    [allDays, range, scopedAggregates, settings, stats],
+  )
 
   if (!settings || !stats) {
     return (
@@ -206,14 +244,18 @@ export function CustomStatistics() {
             <Card className="p-5 text-slate-500">{t('customStatistics.empty')}</Card>
           ) : (
             enabledWidgets.map((id) => {
-              const widget = CUSTOM_STATISTICS_WIDGETS.find((w) => w.id === id)
-              if (!widget) return null
-              const isHeatmap = id === 'keyboard_heatmap_total'
-              const isCalendar = id === 'calendar'
+              const isBuiltin = isBuiltinWidgetId(id)
+              const widget = isBuiltin ? CUSTOM_STATISTICS_WIDGETS.find((w) => w.id === id) : null
+              const template = isCustomTemplateWidgetId(id) ? templateMap.get(customTemplateIdFromWidgetId(id)) : null
+              if (!widget && !template) return null
+              const isHeatmap = isBuiltin && id === 'keyboard_heatmap_total'
+              const isCalendar = isBuiltin && id === 'calendar'
               return (
                 <div key={id}>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm font-semibold text-slate-900">{t(widget.titleKey)}</div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      {widget ? t(widget.titleKey) : template?.name ?? id}
+                    </div>
                     {isHeatmap ? (
                       <div className="flex items-center gap-2" data-no-drag>
                         <div className="text-xs text-slate-500">
@@ -242,7 +284,7 @@ export function CustomStatistics() {
                         />
                       </div>
                     ) : (
-                      widget.descriptionKey && <div className="text-xs text-slate-500">{t(widget.descriptionKey)}</div>
+                      widget?.descriptionKey ? <div className="text-xs text-slate-500">{t(widget.descriptionKey)}</div> : null
                     )}
                   </div>
                   <div className="w-full overflow-x-auto">
@@ -284,9 +326,11 @@ export function CustomStatistics() {
                           layoutId={settings.keyboard_layout}
                         />
                       </Card>
-                    ) : (
+                    ) : template ? (
+                      <CustomWidgetSandbox template={template} ctx={widgetCtx} />
+                    ) : widget ? (
                       widget.render({ stats, settings, allDays, aggregates: scopedAggregates })
-                    )}
+                    ) : null}
                   </div>
                 </div>
               )
@@ -296,19 +340,19 @@ export function CustomStatistics() {
       </div>
 
       <Dialog open={customizeOpen} onOpenChange={setCustomizeOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>{t('customStatistics.customizeDialog.title')}</DialogTitle>
             <DialogDescription>{t('customStatistics.customizeDialog.description')}</DialogDescription>
           </DialogHeader>
 
           <Card className="p-4">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="min-w-0">
                 <div className="font-medium text-slate-900">{t('customStatistics.customizeDialog.range.title')}</div>
                 <div className="text-sm text-slate-500 mt-1">{t('customStatistics.customizeDialog.range.description')}</div>
               </div>
-              <div className="flex items-center gap-2 shrink-0" data-no-drag>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end" data-no-drag>
                 <Button
                   type="button"
                   size="sm"
@@ -337,12 +381,12 @@ export function CustomStatistics() {
               const idx = enabledWidgets.indexOf(w.id)
               return (
                 <Card key={w.id} className="p-4">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="min-w-0">
                       <div className="font-medium text-slate-900">{t(w.titleKey)}</div>
                       {w.descriptionKey && <div className="text-sm text-slate-500 mt-1">{t(w.descriptionKey)}</div>}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0" data-no-drag>
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end" data-no-drag>
                       {enabled && (
                         <>
                           <Button
@@ -375,6 +419,130 @@ export function CustomStatistics() {
             })}
           </div>
 
+          <Card className="p-4 mt-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-medium text-slate-900">{t('customStatistics.customTemplates.title')}</div>
+                <div className="text-sm text-slate-500 mt-1">{t('customStatistics.customTemplates.subtitle')}</div>
+                {templatesError && <div className="text-xs text-red-600 mt-2">{templatesError}</div>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end" data-no-drag>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingTemplate(null)
+                    setTemplateEditorOpen(true)
+                  }}
+                  data-no-drag
+                >
+                  {t('customStatistics.customTemplates.create')}
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setImportDialogOpen(true)} data-no-drag>
+                  {t('customStatistics.customTemplates.transfer.import')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={templates.length === 0}
+                  onClick={() => {
+                    setExportSelection([...templates])
+                    setExportDialogOpen(true)
+                  }}
+                  data-no-drag
+                >
+                  {t('customStatistics.customTemplates.transfer.exportAll')}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3" data-no-drag>
+              {templates.length === 0 ? (
+                <div className="text-sm text-slate-500">{t('customStatistics.customTemplates.empty')}</div>
+              ) : (
+                templates.map((tpl) => {
+                  const widgetId = `custom:${tpl.id}` as const
+                  const enabled = enabledWidgets.includes(widgetId)
+                  const idx = enabledWidgets.indexOf(widgetId)
+                  return (
+                    <Card key={tpl.id} className="p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="font-medium text-slate-900 truncate">{tpl.name}</div>
+                          <div className="text-xs text-slate-500 mt-1 tabular-nums">
+                            {t('customStatistics.customTemplates.updatedAt', { time: new Date(tpl.updated_at_ms).toLocaleString() })}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:justify-end" data-no-drag>
+                          {enabled && (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={idx <= 0}
+                                onClick={() => void moveWidget(widgetId, -1)}
+                                data-no-drag
+                              >
+                                {t('customStatistics.customizeDialog.moveUp')}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={idx < 0 || idx >= enabledWidgets.length - 1}
+                                onClick={() => void moveWidget(widgetId, 1)}
+                                data-no-drag
+                              >
+                                {t('customStatistics.customizeDialog.moveDown')}
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setExportSelection([tpl])
+                              setExportDialogOpen(true)
+                            }}
+                            data-no-drag
+                          >
+                            {t('customStatistics.customTemplates.transfer.exportOne')}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingTemplate(tpl)
+                              setTemplateEditorOpen(true)
+                            }}
+                            data-no-drag
+                          >
+                            {t('customStatistics.customTemplates.edit')}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => setDeleteConfirm(tpl)}
+                            data-no-drag
+                          >
+                            {t('customStatistics.customTemplates.delete')}
+                          </Button>
+                          <Switch checked={enabled} onCheckedChange={(v) => void toggleWidget(widgetId, v)} data-no-drag />
+                        </div>
+                      </div>
+                    </Card>
+                  )
+                })
+              )}
+            </div>
+          </Card>
+
           <DialogFooter className="flex items-center justify-between gap-3">
             <Button type="button" variant="outline" onClick={() => void setEnabledWidgets([...DEFAULT_CUSTOM_STATISTICS_WIDGETS])} data-no-drag>
               {t('customStatistics.customizeDialog.resetDefault')}
@@ -384,6 +552,72 @@ export function CustomStatistics() {
                 {t('common.close')}
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <CustomTemplateEditorDialog
+        open={templateEditorOpen}
+        onOpenChange={setTemplateEditorOpen}
+        initial={editingTemplate}
+        ctx={widgetCtx}
+        onSave={async (tpl) => {
+          const saved = await upsertTemplate(tpl)
+          const widgetId = `custom:${saved.id}` as const
+          if (!enabledWidgets.includes(widgetId)) {
+            await setEnabledWidgets([...enabledWidgets, widgetId])
+          }
+          return saved
+        }}
+      />
+
+      <CustomTemplateImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        existingTemplates={templates}
+        upsertTemplate={upsertTemplate}
+      />
+
+      <CustomTemplateExportDialog
+        open={exportDialogOpen}
+        onOpenChange={(open) => {
+          setExportDialogOpen(open)
+          if (!open) setExportSelection([])
+        }}
+        templates={exportSelection}
+      />
+
+      <Dialog
+        open={deleteConfirm != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirm(null)
+        }}
+      >
+        <DialogContent className="max-w-md" data-no-drag>
+          <DialogHeader>
+            <DialogTitle>{t('customStatistics.customTemplates.deleteDialog.title')}</DialogTitle>
+            <DialogDescription>
+              {t('customStatistics.customTemplates.deleteDialog.description')}{' '}
+              <span className="font-medium text-slate-900">{deleteConfirm?.name ?? ''}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDeleteConfirm(null)} data-no-drag>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!deleteConfirm}
+              onClick={() => {
+                const tpl = deleteConfirm
+                setDeleteConfirm(null)
+                if (!tpl) return
+                void deleteTemplate(tpl.id)
+              }}
+              data-no-drag
+            >
+              {t('customStatistics.customTemplates.delete')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

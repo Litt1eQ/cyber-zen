@@ -322,10 +322,13 @@ function KeyboardView({
                           style={{ padding: `${Math.max(1, Math.round(paddingY * 0.75))}px ${Math.max(1, Math.round(paddingX * 0.75))}px` }}
                         >
                           {keyContentMode === 'keysAndCounts' ? (
-                            <div className="flex items-center justify-center gap-1 tabular-nums">
+                            <div className="flex items-center justify-center gap-1">
                               <span style={{ fontSize: fittedArrowLabelFontPx, lineHeight: 1.05 }}>{glyph}</span>
                               <span
-                                className={cn(isHeatDark(subLevel, heatLevelCount) ? 'text-white/90' : 'text-slate-700')}
+                                className={cn(
+                                  'tabular-nums',
+                                  isHeatDark(subLevel, heatLevelCount) ? 'text-white/90' : 'text-slate-700',
+                                )}
                                 style={{ fontSize: fittedArrowCountFontPx, lineHeight: 1.05 }}
                               >
                                 {countText}

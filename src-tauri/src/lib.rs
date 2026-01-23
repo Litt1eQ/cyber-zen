@@ -74,7 +74,14 @@ pub fn run() {
                 .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?
                 .join("state.json");
 
-            if let Ok(Some((stats, settings, achievements, window_placements, click_heatmap))) =
+            if let Ok(Some((
+                stats,
+                settings,
+                achievements,
+                window_placements,
+                click_heatmap,
+                custom_statistics_templates,
+            ))) =
                 core::persistence::load(&state_path)
             {
                 let storage = MeritStorage::instance();
@@ -84,6 +91,7 @@ pub fn run() {
                 storage.set_achievements(achievements);
                 storage.set_window_placements(window_placements);
                 storage.set_click_heatmap(click_heatmap);
+                storage.set_custom_statistics_templates(custom_statistics_templates);
 
                 if let Some(main_window) = app_handle.get_webview_window("main") {
                     let size = 320.0 * (settings.window_scale as f64 / 100.0);
@@ -165,6 +173,9 @@ pub fn run() {
             commands::click_heatmap::get_display_monitors,
             commands::click_heatmap::get_click_heatmap_grid,
             commands::click_heatmap::clear_click_heatmap,
+            commands::custom_statistics_templates::get_custom_statistics_templates,
+            commands::custom_statistics_templates::upsert_custom_statistics_template,
+            commands::custom_statistics_templates::delete_custom_statistics_template,
             commands::notifications::open_notification_settings,
             commands::notifications::send_system_notification,
             commands::logs::append_log,

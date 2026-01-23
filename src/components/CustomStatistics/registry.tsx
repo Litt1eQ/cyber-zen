@@ -26,7 +26,7 @@ import { isLinux, isMac, isWindows } from '@/utils/platform'
 import type { StatisticsAggregates } from '@/lib/statisticsAggregates'
 import i18n from '@/i18n'
 
-export type CustomStatisticsWidgetId =
+export type BuiltinCustomStatisticsWidgetId =
   | 'insights'
   | 'trend'
   | 'mouse_distance'
@@ -49,7 +49,9 @@ export type CustomStatisticsWidgetId =
   | 'hourly_total'
   | 'app_ranking_total'
 
-export const DEFAULT_CUSTOM_STATISTICS_WIDGETS: CustomStatisticsWidgetId[] = ['trend', 'calendar']
+export type CustomStatisticsWidgetId = BuiltinCustomStatisticsWidgetId | `custom:${string}`
+
+export const DEFAULT_CUSTOM_STATISTICS_WIDGETS: BuiltinCustomStatisticsWidgetId[] = ['trend', 'calendar']
 
 export type WidgetRenderContext = {
   stats: MeritStats
@@ -59,7 +61,7 @@ export type WidgetRenderContext = {
 }
 
 type WidgetDefinition = {
-  id: CustomStatisticsWidgetId
+  id: BuiltinCustomStatisticsWidgetId
   titleKey: string
   descriptionKey?: string
   render: (ctx: WidgetRenderContext) => ReactNode
@@ -350,6 +352,14 @@ export function widgetTitle(id: string): string {
   return i18n.t(widget.titleKey) as string
 }
 
-export function isKnownWidgetId(id: string): id is CustomStatisticsWidgetId {
+export function isBuiltinWidgetId(id: string): id is BuiltinCustomStatisticsWidgetId {
   return CUSTOM_STATISTICS_WIDGETS.some((w) => w.id === id)
+}
+
+export function isCustomTemplateWidgetId(id: string): id is `custom:${string}` {
+  return id.startsWith('custom:') && id.length > 'custom:'.length
+}
+
+export function customTemplateIdFromWidgetId(id: `custom:${string}`): string {
+  return id.slice('custom:'.length)
 }

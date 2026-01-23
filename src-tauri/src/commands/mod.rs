@@ -11,3 +11,4 @@ pub mod settings;
 pub mod skins;
 pub mod updater;
 pub mod window;
+pub mod custom_statistics_templates;

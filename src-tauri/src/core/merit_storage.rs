@@ -2,6 +2,7 @@ use crate::models::{
     AchievementState,
     AchievementUnlockRecord,
     ClickHeatmapState,
+    CustomStatisticsTemplate,
     InputOrigin,
     InputSource,
     MeritStats,
@@ -38,6 +39,7 @@ pub struct MeritStorage {
     achievements: AchievementState,
     window_placements: BTreeMap<String, WindowPlacement>,
     click_heatmap: ClickHeatmapState,
+    custom_statistics_templates: Vec<CustomStatisticsTemplate>,
 }
 
 impl MeritStorage {
@@ -48,6 +50,7 @@ impl MeritStorage {
             achievements: AchievementState::default(),
             window_placements: BTreeMap::new(),
             click_heatmap: ClickHeatmapState::default(),
+            custom_statistics_templates: Vec::new(),
         }
     }
 
@@ -186,6 +189,14 @@ impl MeritStorage {
 
     pub fn set_click_heatmap(&mut self, heatmap: ClickHeatmapState) {
         self.click_heatmap = heatmap;
+    }
+
+    pub fn get_custom_statistics_templates(&self) -> Vec<CustomStatisticsTemplate> {
+        self.custom_statistics_templates.clone()
+    }
+
+    pub fn set_custom_statistics_templates(&mut self, templates: Vec<CustomStatisticsTemplate>) {
+        self.custom_statistics_templates = templates;
     }
 
     pub fn update_window_placement(&mut self, label: String, placement: WindowPlacement) {
