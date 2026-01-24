@@ -13,6 +13,7 @@ use std::thread;
 use tauri::{AppHandle, Emitter};
 
 use crate::core::key_codes;
+use crate::core::keyboard_piano;
 use crate::core::click_heatmap;
 use crate::core::main_window_bounds;
 use crate::core::mouse_distance;
@@ -211,6 +212,9 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         crate::core::macos_event_tap::RawInputEvent::KeyDown { keycode, flags } => {
                             let code = key_codes::from_macos_virtual_keycode(keycode)
                                 .map(|v| key_codes::normalize_macos_key_code(v).to_string());
+                            if let Some(code) = code.clone() {
+                                keyboard_piano::emit_key(&worker_handle, code);
+                            }
                             let (is_shifted, shortcut) = if let Some(code) = code.as_deref() {
                                 const MASK_ALPHA_SHIFT: u64 = 1 << 16;
                                 const MASK_SHIFT: u64 = 1 << 17;
@@ -344,6 +348,9 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             }
                             (*state, key_codes::from_rdev_key(key))
                         };
+                        if let Some(code) = code.clone() {
+                            keyboard_piano::emit_key(&callback_handle, code);
+                        }
 
                         let (is_shifted, shortcut) = if let Some(code) = code.as_deref() {
                             let shift_down = snapshot.shift();

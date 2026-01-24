@@ -45,6 +45,10 @@ export interface Settings {
   app_locale?: 'system' | 'en' | 'zh-CN' | 'zh-TW'
   enable_keyboard: boolean
   enable_mouse_single: boolean
+  keyboard_piano_enabled?: boolean
+  keyboard_piano_volume?: number
+  keyboard_piano_scale?: 'pentatonic_major' | 'major' | 'chromatic'
+  keyboard_piano_wave?: 'sine' | 'triangle' | 'square' | 'sawtooth'
   always_on_top: boolean
   window_pass_through: boolean
   show_taskbar_icon: boolean

@@ -3,6 +3,7 @@ pub mod app_icons;
 pub mod app_log;
 pub mod notification_env;
 pub mod click_heatmap;
+pub mod keyboard_piano;
 pub mod input_listener;
 pub mod key_codes;
 pub mod macos_event_tap;

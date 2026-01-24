@@ -109,6 +109,12 @@ pub fn run() {
                 }
             }
 
+            {
+                let storage = MeritStorage::instance();
+                let storage = storage.read();
+                core::keyboard_piano::apply_settings(&storage.get_settings());
+            }
+
             core::persistence::init(MeritStorage::instance(), state_path);
             core::window_placement::restore_all(&app_handle);
             core::init_input_listener(app_handle.clone())

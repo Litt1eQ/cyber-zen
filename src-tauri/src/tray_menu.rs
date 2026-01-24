@@ -107,6 +107,10 @@ fn tr(locale: AppLocale, key: &str) -> &'static str {
         (AppLocale::ZhCn, "listening") => "开启全局监听",
         (AppLocale::ZhTw, "listening") => "開啟全域監聽",
 
+        (AppLocale::En, "keyboard_piano") => "Keyboard Piano",
+        (AppLocale::ZhCn, "keyboard_piano") => "键盘钢琴",
+        (AppLocale::ZhTw, "keyboard_piano") => "鍵盤鋼琴",
+
         (AppLocale::En, "always_on_top") => "Always on Top",
         (AppLocale::ZhCn, "always_on_top") => "总在最前",
         (AppLocale::ZhTw, "always_on_top") => "總在最前",
@@ -211,6 +215,11 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
         .checked(listening_enabled)
         .build(app)?;
 
+    let keyboard_piano =
+        CheckMenuItemBuilder::with_id("keyboard_piano", tr(locale, "keyboard_piano"))
+            .checked(settings.keyboard_piano_enabled)
+            .build(app)?;
+
     let always_on_top = CheckMenuItemBuilder::with_id("always_on_top", tr(locale, "always_on_top"))
         .checked(settings.always_on_top)
         .build(app)?;
@@ -258,6 +267,7 @@ fn build_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>
         .item(&auto_fade)
         .separator()
         .item(&listening)
+        .item(&keyboard_piano)
         .separator()
         .item(&always_on_top)
         .item(&window_pass_through)
@@ -341,6 +351,15 @@ pub fn handle_menu_event(app: &AppHandle<Wry>, event: tauri::menu::MenuEvent) {
                 } else {
                     let _ = commands::input::start_input_listening(app.clone()).await;
                 }
+                let _ = refresh_tray_menu(&app);
+            });
+        }
+        "keyboard_piano" => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut settings = current_settings();
+                settings.keyboard_piano_enabled = !settings.keyboard_piano_enabled;
+                let _ = commands::settings::update_settings(app.clone(), settings).await;
                 let _ = refresh_tray_menu(&app);
             });
         }

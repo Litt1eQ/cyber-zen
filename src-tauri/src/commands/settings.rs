@@ -80,7 +80,7 @@ fn normalize_keyboard_layout(id: String) -> String {
     match id.as_str() {
         "full_100" | "full_104" => "full_104".to_string(),
         "full_108" | "compact_98" | "compact_96" | "tkl_80" | "compact_75" | "compact_65"
-        | "compact_60" | "hhkb" | "macbook_pro" => id,
+        | "compact_60" | "hhkb" | "macbook_pro" | "macbook_pro_no_touchbar" => id,
         _ => "tkl_80".to_string(),
     }
 }
@@ -112,6 +112,24 @@ fn normalize_merit_pop_label(label: String) -> String {
         DEFAULT_MERIT_POP_LABEL.to_string()
     } else {
         out
+    }
+}
+
+fn normalize_keyboard_piano_volume(volume: f64) -> f64 {
+    volume.clamp(0.0, 1.0)
+}
+
+fn normalize_keyboard_piano_scale(scale: String) -> String {
+    match scale.as_str() {
+        "pentatonic_major" | "major" | "chromatic" => scale,
+        _ => "pentatonic_major".to_string(),
+    }
+}
+
+fn normalize_keyboard_piano_wave(wave: String) -> String {
+    match wave.as_str() {
+        "sine" | "triangle" | "square" | "sawtooth" => wave,
+        _ => "triangle".to_string(),
     }
 }
 
@@ -266,6 +284,9 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     settings.heatmap_levels = normalize_heatmap_levels(settings.heatmap_levels);
     settings.opacity = normalize_opacity(settings.opacity);
     settings.wooden_fish_opacity = normalize_wooden_fish_opacity(settings.wooden_fish_opacity);
+    settings.keyboard_piano_volume = normalize_keyboard_piano_volume(settings.keyboard_piano_volume);
+    settings.keyboard_piano_scale = normalize_keyboard_piano_scale(settings.keyboard_piano_scale);
+    settings.keyboard_piano_wave = normalize_keyboard_piano_wave(settings.keyboard_piano_wave);
     settings.dock_margin_px = normalize_dock_margin_px(settings.dock_margin_px);
     settings.auto_fade_delay_ms = normalize_auto_fade_delay_ms(settings.auto_fade_delay_ms);
     settings.auto_fade_duration_ms =
@@ -300,6 +321,7 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     drop(storage);
 
     crate::core::mouse_distance::set_tracking_enabled(settings.enable_mouse_single);
+    crate::core::keyboard_piano::apply_settings(&settings);
 
     let window = app_handle
         .get_webview_window("main")

@@ -507,6 +507,80 @@ export function Settings() {
                 </SettingsSection>
 
                 <SettingsSection
+                  title={t('settings.keyboardPiano.title')}
+                  description={t('settings.keyboardPiano.description')}
+                >
+                  <SettingRow
+                    title={t('settings.keyboardPiano.enabled')}
+                    control={
+                      <Switch
+                        checked={settings.keyboard_piano_enabled ?? false}
+                        onCheckedChange={(v) => updateSettings({ keyboard_piano_enabled: v })}
+                        data-no-drag
+                      />
+                    }
+                  />
+
+                  <SettingRow
+                    title={t('settings.keyboardPiano.volume')}
+                    description={`${Math.round((settings.keyboard_piano_volume ?? 0.25) * 100)}%`}
+                    control={
+                      <Slider
+                        min={0}
+                        max={100}
+                        step={1}
+                        disabled={!(settings.keyboard_piano_enabled ?? false)}
+                        value={[Math.round((settings.keyboard_piano_volume ?? 0.25) * 100)]}
+                        onValueChange={([v]) => updateSettings({ keyboard_piano_volume: Math.round(v) / 100 })}
+                        className="w-56"
+                        data-no-drag
+                      />
+                    }
+                  />
+
+                  <SettingRow
+                    title={t('settings.keyboardPiano.scale')}
+                    control={
+                      <Select
+                        value={settings.keyboard_piano_scale ?? 'pentatonic_major'}
+                        onValueChange={(v) => updateSettings({ keyboard_piano_scale: v as 'pentatonic_major' | 'major' | 'chromatic' })}
+                        disabled={!(settings.keyboard_piano_enabled ?? false)}
+                      >
+                        <SelectTrigger className="w-56" data-no-drag>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pentatonic_major">{t('settings.keyboardPiano.scales.pentatonic_major')}</SelectItem>
+                          <SelectItem value="major">{t('settings.keyboardPiano.scales.major')}</SelectItem>
+                          <SelectItem value="chromatic">{t('settings.keyboardPiano.scales.chromatic')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+
+                  <SettingRow
+                    title={t('settings.keyboardPiano.wave')}
+                    control={
+                      <Select
+                        value={settings.keyboard_piano_wave ?? 'triangle'}
+                        onValueChange={(v) => updateSettings({ keyboard_piano_wave: v as 'sine' | 'triangle' | 'square' | 'sawtooth' })}
+                        disabled={!(settings.keyboard_piano_enabled ?? false)}
+                      >
+                        <SelectTrigger className="w-56" data-no-drag>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="triangle">{t('settings.keyboardPiano.waves.triangle')}</SelectItem>
+                          <SelectItem value="sine">{t('settings.keyboardPiano.waves.sine')}</SelectItem>
+                          <SelectItem value="square">{t('settings.keyboardPiano.waves.square')}</SelectItem>
+                          <SelectItem value="sawtooth">{t('settings.keyboardPiano.waves.sawtooth')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+                </SettingsSection>
+
+                <SettingsSection
                   title={t('settings.sections.mouseDistance.title')}
                   description={t('settings.sections.mouseDistance.description')}
                 >

@@ -76,6 +76,11 @@ export async function showMainQuickMenu() {
           : invoke(COMMANDS.START_INPUT_LISTENING))
       },
     }),
+    CheckMenuItem.new({
+      text: t('quickMenu.keyboardPiano'),
+      checked: settings.keyboard_piano_enabled ?? false,
+      action: () => void updateSettings({ keyboard_piano_enabled: !(settings.keyboard_piano_enabled ?? false) }),
+    }),
     PredefinedMenuItem.new({ item: 'Separator' }),
     CheckMenuItem.new({
       text: t('quickMenu.alwaysOnTop'),

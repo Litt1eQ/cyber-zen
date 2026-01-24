@@ -17,6 +17,7 @@ import { useAutoFade } from './hooks/useAutoFade'
 import { useMeritStore } from './stores/useMeritStore'
 import { useSettingsStore } from './stores/useSettingsStore'
 import { useAchievementUnlocker } from './hooks/useAchievementUnlocker'
+import { useKeyboardPiano } from './hooks/useKeyboardPiano'
 import { showMainQuickMenu } from './utils/quickMenu'
 import type { InputEvent } from './types/merit'
 import { COMMANDS, EVENTS } from './types/events'
@@ -31,6 +32,7 @@ function App() {
   useInputListener()
   useAppLocaleSync()
   useAchievementUnlocker()
+  useKeyboardPiano(settings)
   const inputMonitoring = useInputMonitoringPermission()
   useGlobalShortcuts(settings)
 

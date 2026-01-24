@@ -1,6 +1,7 @@
 export const EVENTS = {
   INPUT_EVENT: 'input-event',
   INPUT_LISTENER_ERROR: 'input-listener-error',
+  KEYBOARD_PIANO_KEY: 'keyboard-piano-key',
   CLICK_HEATMAP_UPDATED: 'click-heatmap-updated',
   MERIT_UPDATED: 'merit-updated',
   SETTINGS_UPDATED: 'settings-updated',

@@ -5,6 +5,18 @@ fn default_false() -> bool {
     false
 }
 
+fn default_keyboard_piano_volume() -> f64 {
+    0.25
+}
+
+fn default_keyboard_piano_scale() -> String {
+    "pentatonic_major".to_string()
+}
+
+fn default_keyboard_piano_wave() -> String {
+    "triangle".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct MouseDistanceDisplaySettings {
@@ -25,6 +37,14 @@ pub struct Settings {
     pub app_locale: String,
     pub enable_keyboard: bool,
     pub enable_mouse_single: bool,
+    #[serde(default = "default_false")]
+    pub keyboard_piano_enabled: bool,
+    #[serde(default = "default_keyboard_piano_volume")]
+    pub keyboard_piano_volume: f64,
+    #[serde(default = "default_keyboard_piano_scale")]
+    pub keyboard_piano_scale: String,
+    #[serde(default = "default_keyboard_piano_wave")]
+    pub keyboard_piano_wave: String,
     pub always_on_top: bool,
     pub window_pass_through: bool,
     pub show_taskbar_icon: bool,
@@ -71,6 +91,10 @@ impl Default for Settings {
             app_locale: "system".to_string(),
             enable_keyboard: true,
             enable_mouse_single: true,
+            keyboard_piano_enabled: false,
+            keyboard_piano_volume: default_keyboard_piano_volume(),
+            keyboard_piano_scale: default_keyboard_piano_scale(),
+            keyboard_piano_wave: default_keyboard_piano_wave(),
             always_on_top: true,
             window_pass_through: false,
             show_taskbar_icon: false,
