@@ -1,6 +1,6 @@
 [package]
 name = "cyber-zen"
-version = "0.1.31"
+version = "0.1.32"
 description = "一个基于 Tauri 2 + React + Vite 的桌面悬浮「木鱼」应用"
 authors = ["Litt1eQ"]
 license = "GPL-3.0-only"
@@ -24,7 +24,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset", "tray-icon", "macos-private-api"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "macos-private-api", "image-png"] }
 tauri-plugin-opener = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-global-shortcut = "2"

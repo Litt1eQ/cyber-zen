@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CyberZen",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "identifier": "com.littleq.cyberzen",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -34,11 +34,6 @@
         "enable": true,
         "scope": ["**"]
       }
-    },
-    "trayIcon": {
-      "id": "main",
-      "iconPath": "icons/32x32.png",
-      "menuOnLeftClick": true
     }
   },
   "bundle": {

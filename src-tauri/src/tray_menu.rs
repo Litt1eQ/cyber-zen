@@ -6,6 +6,18 @@ use tauri::{
 
 const TRAY_ID: &str = "main";
 
+#[cfg(target_os = "macos")]
+fn tray_icon_macos_template() -> tauri::Result<tauri::image::Image<'static>> {
+    // Use a single monochrome template icon on macOS; the system will tint it automatically
+    // based on appearance and menu bar background (best practice for status bar icons).
+    tauri::image::Image::from_bytes(include_bytes!("../icons/tray_black.png"))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn tray_icon_default() -> tauri::Result<tauri::image::Image<'static>> {
+    tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))
+}
+
 #[derive(Clone, Copy)]
 enum AppLocale {
     En,
@@ -287,10 +299,50 @@ pub fn refresh_tray_menu(app: &AppHandle<Wry>) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Tray icon itself is created via `tauri.conf.json` (`app.trayIcon`).
-/// This function only ensures our menu is attached/updated.
+/// Create the tray icon (if needed) and ensure our menu is attached/updated.
 pub fn create_tray(app: &AppHandle<Wry>) -> tauri::Result<()> {
-    refresh_tray_menu(app)
+    let menu = build_tray_menu(app)?;
+
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        tray.set_menu(Some(menu))?;
+
+        #[cfg(target_os = "macos")]
+        {
+            let _ = tray.set_icon_as_template(true);
+            if let Err(e) = tray_icon_macos_template().and_then(|icon| tray.set_icon(Some(icon))) {
+                let _ = crate::core::app_log::append(
+                    app,
+                    crate::core::app_log::AppLogRecord {
+                        ts_ms: chrono::Utc::now().timestamp_millis(),
+                        level: "error".to_string(),
+                        scope: "tray/icon".to_string(),
+                        message: "set_failed".to_string(),
+                        data: Some(serde_json::json!({ "error": e.to_string() })),
+                    },
+                );
+            }
+        }
+
+        return Ok(());
+    }
+
+    let mut builder =
+        tauri::tray::TrayIconBuilder::with_id(TRAY_ID).menu(&menu).show_menu_on_left_click(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .icon_as_template(true)
+            .icon(tray_icon_macos_template()?);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.icon(tray_icon_default()?);
+    }
+
+    builder.build(app)?;
+    Ok(())
 }
 
 pub fn handle_menu_event(app: &AppHandle<Wry>, event: tauri::menu::MenuEvent) {
