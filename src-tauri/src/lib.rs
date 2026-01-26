@@ -66,8 +66,6 @@ pub fn run() {
                 }
             }
 
-            tray_menu::create_tray(&app_handle)?;
-
             let state_path = app_handle
                 .path()
                 .app_data_dir()
@@ -108,6 +106,8 @@ pub fn run() {
                     }
                 }
             }
+
+            tray_menu::create_tray(&app_handle)?;
 
             {
                 let storage = MeritStorage::instance();
