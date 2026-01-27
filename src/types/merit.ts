@@ -43,6 +43,7 @@ export interface MeritStats {
 
 export interface Settings {
   app_locale?: 'system' | 'en' | 'zh-CN' | 'zh-TW'
+  auto_update_enabled?: boolean
   enable_keyboard: boolean
   enable_mouse_single: boolean
   keyboard_piano_enabled?: boolean

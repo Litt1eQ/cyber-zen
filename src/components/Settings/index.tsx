@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getName, getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { appDataDir } from '@tauri-apps/api/path'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { openPath, openUrl } from '@tauri-apps/plugin-opener'
@@ -11,7 +12,7 @@ import { useInputMonitoringPermission } from '../../hooks/useInputMonitoringPerm
 import { useSettingsSync } from '../../hooks/useSettingsSync'
 import { useMeritStore } from '../../stores/useMeritStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
-import { COMMANDS } from '../../types/events'
+import { COMMANDS, EVENTS } from '../../types/events'
 import { Statistics } from '../Statistics'
 import { useWindowDragging } from '../../hooks/useWindowDragging'
 import { ShortcutRecorder } from './ShortcutRecorder'
@@ -36,10 +37,22 @@ import { getSystemNotificationPermission, isSystemNotificationSupported, request
 type SettingsTab = 'general' | 'shortcuts' | 'achievements' | 'statistics' | 'about'
 
 type UpdateInfo = { version: string; body?: string | null; date?: string | null }
+type UpdateDownloadEventPayload =
+  | { type: 'started'; downloaded: number; total: number | null }
+  | { type: 'progress'; downloaded: number; total: number | null }
+  | { type: 'finished'; downloaded: number; total: number | null }
 
 const OPEN_SOURCE_URL = 'https://github.com/Litt1eQ/cyber-zen'
 const MERIT_LABEL_MAX_CHARS = 4
 const DEFAULT_MERIT_LABEL = '功德'
+const formatBytes = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'] as const
+  const idx = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)))
+  const value = bytes / 1024 ** idx
+  const precision = idx === 0 ? 0 : value >= 100 ? 0 : value >= 10 ? 1 : 2
+  return `${value.toFixed(precision)} ${units[idx]}`
+}
 export function Settings() {
   const { t, i18n } = useTranslation()
   const { settings, updateSettings, fetchSettings } = useSettingsStore()
@@ -72,6 +85,7 @@ export function Settings() {
     | { status: 'installing'; update: UpdateInfo }
     | { status: 'error'; message: string }
   >({ status: 'idle' })
+  const [updateDownload, setUpdateDownload] = useState<UpdateDownloadEventPayload | null>(null)
 
   const meritLabelFocusedRef = useRef(false)
   const logsTapRef = useRef<{ count: number; lastMs: number }>({ count: 0, lastMs: 0 })
@@ -250,6 +264,16 @@ export function Settings() {
     }
   }, [autostartSupported, settings?.launch_on_startup, updateSettings])
 
+  useEffect(() => {
+    if (!updateDialogOpen) return
+    const unlisten = listen<UpdateDownloadEventPayload>(EVENTS.APP_UPDATE_DOWNLOAD, (event) => {
+      setUpdateDownload(event.payload)
+    })
+    return () => {
+      unlisten.then((fn) => fn()).catch(() => {})
+    }
+  }, [updateDialogOpen])
+
   if (!settings) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-white">
@@ -301,6 +325,7 @@ export function Settings() {
 
   const handleCheckUpdate = async () => {
     setUpdateDialogOpen(true)
+    setUpdateDownload(null)
     setUpdateState({ status: 'checking' })
     try {
       const update = await invoke<UpdateInfo | null>(COMMANDS.CHECK_UPDATE)
@@ -317,6 +342,7 @@ export function Settings() {
   const handleInstallUpdate = async () => {
     if (updateState.status !== 'available') return
     setUpdateState({ status: 'installing', update: updateState.update })
+    setUpdateDownload({ type: 'started', downloaded: 0, total: null })
     try {
       await invoke(COMMANDS.DOWNLOAD_AND_INSTALL_UPDATE)
     } catch (error) {
@@ -1157,6 +1183,22 @@ export function Settings() {
                       </div>
                     </div>
                   </SettingCard>
+
+                  <SettingCard>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-900">{t('settings.about.autoUpdate.title')}</div>
+                        <div className="text-sm text-slate-500 mt-1">{t('settings.about.autoUpdate.description')}</div>
+                      </div>
+                      <div data-no-drag>
+                        <Switch
+                          checked={settings.auto_update_enabled ?? false}
+                          onCheckedChange={(v) => updateSettings({ auto_update_enabled: v })}
+                          data-no-drag
+                        />
+                      </div>
+                    </div>
+                  </SettingCard>
                 </SettingsSection>
 
                 <SettingsSection title={t('settings.sections.openSource.title')}>
@@ -1367,7 +1409,10 @@ export function Settings() {
         open={updateDialogOpen}
         onOpenChange={(open) => {
           setUpdateDialogOpen(open)
-          if (!open) setUpdateState({ status: 'idle' })
+          if (!open) {
+            setUpdateState({ status: 'idle' })
+            setUpdateDownload(null)
+          }
         }}
       >
         <DialogContent>
@@ -1396,7 +1441,48 @@ export function Settings() {
                 )}
                 {updateState.status === 'latest' && t('settings.about.update.latestBody')}
                 {updateState.status === 'checking' && t('settings.about.update.checkingBody')}
-                {updateState.status === 'installing' && t('settings.about.update.installingBody')}
+                {updateState.status === 'installing' && (
+                  <div className="space-y-3">
+                    <div>{t('settings.about.update.installingBody')}</div>
+                    <div className="space-y-2">
+                      {updateDownload?.total ? (
+                        <>
+                          <div className="h-2 w-full rounded bg-slate-200 overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  Math.round((updateDownload.downloaded / updateDownload.total) * 100)
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {t('settings.about.update.progress', {
+                              percent: Math.min(100, Math.round((updateDownload.downloaded / updateDownload.total) * 100)),
+                              downloaded: formatBytes(updateDownload.downloaded),
+                              total: formatBytes(updateDownload.total),
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="h-2 w-full rounded bg-slate-200 overflow-hidden">
+                            <div className="h-full w-1/3 bg-blue-500 animate-pulse" />
+                          </div>
+                          {updateDownload?.downloaded ? (
+                            <div className="text-xs text-slate-500">
+                              {t('settings.about.update.progressUnknownTotal', {
+                                downloaded: formatBytes(updateDownload.downloaded),
+                              })}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {updateState.status === 'error' && updateState.message}
               </div>
             </DialogDescription>

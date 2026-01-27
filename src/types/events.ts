@@ -7,6 +7,7 @@ export const EVENTS = {
   SETTINGS_UPDATED: 'settings-updated',
   ACHIEVEMENTS_UPDATED: 'achievements-updated',
   WOODEN_FISH_SKINS_UPDATED: 'wooden-fish-skins-updated',
+  APP_UPDATE_DOWNLOAD: 'app-update-download',
 } as const
 
 export const COMMANDS = {

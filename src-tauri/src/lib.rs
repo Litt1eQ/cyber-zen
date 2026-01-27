@@ -22,6 +22,7 @@ pub fn run() {
         })
         .setup(|app| {
             let app_handle = app.handle().clone();
+            core::activity::init();
             core::app_log::install_panic_hook(app_handle.clone());
             let _ = core::app_log::info(&app_handle, "app", "startup");
             let notification_env = core::notification_env::detect(&app_handle);
@@ -120,6 +121,7 @@ pub fn run() {
             core::init_input_listener(app_handle.clone())
                 .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
             core::main_window_bounds::refresh_from_app_handle(&app_handle);
+            core::auto_updater::init(app_handle.clone());
             {
                 let app_handle = app_handle.clone();
                 tauri::async_runtime::spawn(async move {

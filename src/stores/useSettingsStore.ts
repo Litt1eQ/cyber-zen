@@ -16,6 +16,7 @@ interface SettingsState {
 
 const defaultSettings: Settings = {
   app_locale: 'system',
+  auto_update_enabled: false,
   enable_keyboard: true,
   enable_mouse_single: true,
   keyboard_piano_enabled: false,

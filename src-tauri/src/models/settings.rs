@@ -35,6 +35,8 @@ pub struct StatisticsBlockState {
 #[serde(default)]
 pub struct Settings {
     pub app_locale: String,
+    #[serde(default = "default_false")]
+    pub auto_update_enabled: bool,
     pub enable_keyboard: bool,
     pub enable_mouse_single: bool,
     #[serde(default = "default_false")]
@@ -89,6 +91,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             app_locale: "system".to_string(),
+            auto_update_enabled: false,
             enable_keyboard: true,
             enable_mouse_single: true,
             keyboard_piano_enabled: false,

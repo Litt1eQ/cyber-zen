@@ -146,6 +146,7 @@ pub fn enqueue_merit_trigger(
     shortcut: Option<String>,
     app: Option<AppContext>,
 ) {
+    crate::core::activity::touch();
     BATCHER.enqueue(
         app_handle, origin, source, count, key_code, is_shifted, shortcut, app,
     );
