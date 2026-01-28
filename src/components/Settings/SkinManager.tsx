@@ -9,6 +9,7 @@ import { Button } from '../ui/button'
 import { Card } from '../ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { WoodenFish } from '../WoodenFish'
+import { SpriteSheetCanvas } from '@/components/SpriteSheet/SpriteSheetCanvas'
 import i18n from '@/i18n'
 
 const DEFAULT_PREVIEW_WINDOW_SCALE = 100
@@ -143,7 +144,7 @@ export function SkinManager({
           <Button
             variant="secondary"
             disabled={exportBusy}
-            onClick={() => void handleDownloadZip('rosewood', 'wooden-fish-skin-template.zip')}
+            onClick={() => void handleDownloadZip('rosewood', 'wooden-fish-skin-template.czs')}
           >
             {t('settings.skins.downloadTemplate')}
           </Button>
@@ -153,7 +154,7 @@ export function SkinManager({
             onClick={() =>
               void handleDownloadZip(
                 effectiveSelectedId,
-                sanitizeFileName(`wooden-fish-skin-${selectedOption.title}-${effectiveSelectedId}.zip`)
+                sanitizeFileName(`wooden-fish-skin-${selectedOption.title}-${effectiveSelectedId}.czs`)
               )
             }
           >
@@ -165,7 +166,7 @@ export function SkinManager({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".zip,application/zip"
+            accept=".czs,.zip,application/zip"
             className="hidden"
             onChange={(e) => {
               const f = e.currentTarget.files?.[0]
@@ -272,11 +273,21 @@ function SkinPreviewCard({
   onPreview: (id: WoodenFishSkinId) => void
 }) {
   const { t } = useTranslation()
+  const [hovered, setHovered] = useState(false)
+  const sprite = skin.sprite_sheet
+  const spriteMode = sprite?.mode ?? 'replace'
+  const showSpritePreview = !!sprite?.src && (selected || hovered)
+  const showReplacePreview = showSpritePreview && spriteMode === 'replace'
+  const showOverlayPreview = showSpritePreview && spriteMode === 'overlay'
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={() => onSelect(id)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
       onKeyDown={(e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return
         e.preventDefault()
@@ -303,29 +314,88 @@ function SkinPreviewCard({
 
       <div className="relative aspect-[4/3] w-full rounded-lg overflow-hidden border border-slate-200/60 bg-white">
         <div className="absolute left-2 top-2 z-10">
-          <span
-            className={[
-              'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-none',
-              badgeKind === 'custom'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                : 'border-slate-200 bg-slate-50 text-slate-600',
-            ].join(' ')}
-          >
-            {badgeText}
-          </span>
+          <div className="flex flex-wrap items-center gap-1">
+            <span
+              className={[
+                'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-none',
+                badgeKind === 'custom'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-slate-200 bg-slate-50 text-slate-600',
+              ].join(' ')}
+            >
+              {badgeText}
+            </span>
+            {!!sprite?.src && (
+              <>
+                <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] leading-none text-blue-700">
+                  {t('settings.skins.badge.spriteSheet')}
+                </span>
+                <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] leading-none text-slate-700">
+                  {spriteMode === 'overlay'
+                    ? t('settings.skins.badge.spriteOverlay')
+                    : t('settings.skins.badge.spriteReplace')}
+                </span>
+              </>
+            )}
+          </div>
         </div>
-        <img
-          src={skin.body.src}
-          alt={skin.body.alt}
-          draggable={false}
-          className="absolute left-1/2 top-1/2 h-[76%] w-auto -translate-x-1/2 -translate-y-1/2 select-none"
-        />
-        <img
-          src={skin.hammer.src}
-          alt={skin.hammer.alt}
-          draggable={false}
-          className="absolute right-2 top-2 h-[44%] w-auto rotate-[12deg] select-none drop-shadow-sm opacity-95"
-        />
+        {showReplacePreview ? (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <SpriteSheetCanvas
+              src={sprite!.src}
+              size={220}
+              columns={sprite!.columns}
+              rows={sprite!.rows}
+              mood="idle"
+              rowIndex={0}
+              animate={true}
+              frameIntervalMs={140}
+              speed={1}
+              chromaKey={sprite!.chromaKey ?? true}
+              chromaKeyAlgorithm={sprite!.chromaKeyAlgorithm ?? 'yuv'}
+              chromaKeyOptions={sprite!.chromaKeyOptions}
+              imageSmoothingEnabled={sprite!.imageSmoothingEnabled ?? true}
+              removeGridLines={sprite!.removeGridLines ?? true}
+              idleBreathe={sprite!.idleBreathe ?? true}
+            />
+          </div>
+        ) : (
+          <>
+            <img
+              src={skin.body.src}
+              alt={skin.body.alt}
+              draggable={false}
+              className="absolute left-1/2 top-1/2 h-[76%] w-auto -translate-x-1/2 -translate-y-1/2 select-none"
+            />
+            <img
+              src={skin.hammer.src}
+              alt={skin.hammer.alt}
+              draggable={false}
+              className="absolute right-2 top-2 h-[44%] w-auto rotate-[12deg] select-none drop-shadow-sm opacity-95"
+            />
+            {showOverlayPreview ? (
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                <SpriteSheetCanvas
+                  src={sprite!.src}
+                  size={220}
+                  columns={sprite!.columns}
+                  rows={sprite!.rows}
+                  mood="idle"
+                  rowIndex={0}
+                  animate={true}
+                  frameIntervalMs={140}
+                  speed={1}
+                  chromaKey={sprite!.chromaKey ?? true}
+                  chromaKeyAlgorithm={sprite!.chromaKeyAlgorithm ?? 'yuv'}
+                  chromaKeyOptions={sprite!.chromaKeyOptions}
+                  imageSmoothingEnabled={sprite!.imageSmoothingEnabled ?? true}
+                  removeGridLines={sprite!.removeGridLines ?? true}
+                  idleBreathe={sprite!.idleBreathe ?? true}
+                />
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <div className="text-sm font-medium text-slate-900 truncate">{title}</div>
@@ -441,7 +511,7 @@ async function readFileAsBase64(file: File): Promise<string> {
 }
 
 function stripZipSuffix(name: string): string {
-  return name.replace(/\.zip$/i, '')
+  return name.replace(/\.(zip|czs)$/i, '')
 }
 
 function sanitizeFileName(name: string): string {

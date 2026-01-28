@@ -7,12 +7,14 @@ export type WindowDragGestureOptions = {
   thresholdPx?: number
   holdMs?: number
   shouldTrack?: (event: ReactPointerEvent) => boolean
+  onDragStateChange?: (dragging: boolean) => void
 }
 
 export function useWindowDragGesture(options: WindowDragGestureOptions = {}) {
   const enabled = options.enabled ?? true
   const thresholdPx = options.thresholdPx ?? 8
   const holdMs = Math.max(0, Math.round(options.holdMs ?? 0))
+  const onDragStateChange = options.onDragStateChange
   const shouldTrack = useMemo(
     () =>
       options.shouldTrack ??
@@ -24,12 +26,28 @@ export function useWindowDragGesture(options: WindowDragGestureOptions = {}) {
   const dragOriginRef = useRef<{ x: number; y: number } | null>(null)
   const ignoreClickRef = useRef(false)
   const pointerDownAtRef = useRef<number | null>(null)
+  const pointerDownRef = useRef(false)
+  const pointerCaptureTargetRef = useRef<HTMLElement | null>(null)
+  const pointerIdRef = useRef<number | null>(null)
 
   const reset = useCallback(() => {
     dragOriginRef.current = null
+    if (dragStartedRef.current) onDragStateChange?.(false)
     dragStartedRef.current = false
     pointerDownAtRef.current = null
-  }, [])
+    pointerDownRef.current = false
+    const target = pointerCaptureTargetRef.current
+    const pointerId = pointerIdRef.current
+    pointerCaptureTargetRef.current = null
+    pointerIdRef.current = null
+    if (target && pointerId != null) {
+      try {
+        target.releasePointerCapture(pointerId)
+      } catch {
+        // ignore
+      }
+    }
+  }, [onDragStateChange])
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent) => {
@@ -37,11 +55,25 @@ export function useWindowDragGesture(options: WindowDragGestureOptions = {}) {
       if (!shouldTrack(event)) return
 
       dragStartedRef.current = false
+      onDragStateChange?.(false)
       ignoreClickRef.current = false
       dragOriginRef.current = { x: event.clientX, y: event.clientY }
       pointerDownAtRef.current = performance.now()
+      pointerDownRef.current = true
+
+      // Keep receiving pointermove even if the cursor leaves the element quickly.
+      const target = event.currentTarget as unknown as HTMLElement | null
+      if (target && typeof (target as any).setPointerCapture === 'function') {
+        try {
+          target.setPointerCapture(event.pointerId)
+          pointerCaptureTargetRef.current = target
+          pointerIdRef.current = event.pointerId
+        } catch {
+          // ignore
+        }
+      }
     },
-    [enabled, shouldTrack]
+    [enabled, onDragStateChange, shouldTrack]
   )
 
   const onPointerMove = useCallback(
@@ -57,8 +89,9 @@ export function useWindowDragGesture(options: WindowDragGestureOptions = {}) {
         return
       }
 
-      // For mouse, left button must remain down while dragging.
-      if (event.pointerType === 'mouse' && (event.buttons & 1) !== 1) return
+      // Some WebView environments may report `buttons=0` during pointermove.
+      // Rely on our own pointer-down tracking instead of `event.buttons`.
+      if (event.pointerType === 'mouse' && !pointerDownRef.current) return
 
       const dx = event.clientX - origin.x
       const dy = event.clientY - origin.y
@@ -67,6 +100,7 @@ export function useWindowDragGesture(options: WindowDragGestureOptions = {}) {
       // In Tauri, calling `startDragging()` on pointer-down can swallow the click.
       // Start dragging only after the pointer actually moves.
       dragStartedRef.current = true
+      onDragStateChange?.(true)
       ignoreClickRef.current = true
       void getCurrentWindow()
         .startDragging()
@@ -74,7 +108,7 @@ export function useWindowDragGesture(options: WindowDragGestureOptions = {}) {
           // ignore
         })
     },
-    [enabled, holdMs, thresholdPx]
+    [enabled, holdMs, onDragStateChange, thresholdPx]
   )
 
   const consumeIgnoreClick = useCallback(() => {

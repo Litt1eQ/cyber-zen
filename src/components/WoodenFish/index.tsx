@@ -1,7 +1,9 @@
 import { motion } from 'framer-motion'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ROSEWOOD_SKIN, type WoodenFishSkin } from './skins'
 import { useWindowDragGesture } from '../../hooks/useWindowDragGesture'
+import { SpriteSheetCanvas } from '@/components/SpriteSheet/SpriteSheetCanvas'
+import { useSpritePlayback } from './useSpritePlayback'
 import {
   getDefaultHammerStrikeKeyframes,
   getWoodenFishHitDurationSeconds,
@@ -20,6 +22,7 @@ export function WoodenFish({
   dragEnabled = true,
   dragHoldMs = 0,
   opacity = 1,
+  windowHovered = false,
 }: {
   isAnimating: boolean
   animationSpeed: number
@@ -30,8 +33,15 @@ export function WoodenFish({
   dragEnabled?: boolean
   dragHoldMs?: number
   opacity?: number
+  windowHovered?: boolean
 }) {
   const duration = getWoodenFishHitDurationSeconds(animationSpeed)
+  const [spriteFailed, setSpriteFailed] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    setSpriteFailed(false)
+  }, [skin.sprite_sheet?.src])
 
   const size = useMemo(() => {
     const clamped = Math.max(50, Math.min(windowScale, 200))
@@ -55,6 +65,7 @@ export function WoodenFish({
     thresholdPx: DRAG_THRESHOLD_PX,
     enabled: interactive && dragEnabled,
     holdMs: dragHoldMs,
+    onDragStateChange: setIsDragging,
   })
 
   const hitCooldownRef = useRef(false)
@@ -62,6 +73,70 @@ export function WoodenFish({
   const hammerRest = skin.hammer.rest ?? { rotate: 0, x: 0, y: 0 }
   const hammerStrike = skin.hammer.strike ?? getDefaultHammerStrikeKeyframes(hammerRest)
   const hammerX = (hammerAnchor ?? hammerCenter).x
+  const spriteSheet = skin.sprite_sheet
+  const useSpriteSheet = !!spriteSheet?.src && !spriteFailed
+  const spritePlayback = useSpritePlayback({
+    enabled: useSpriteSheet,
+    isAnimating,
+    isDragging,
+    isHovered: windowHovered,
+  })
+
+  if (useSpriteSheet) {
+    return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        <div
+          className={[
+            'relative select-none flex items-center justify-center',
+            interactive ? 'cursor-pointer' : 'cursor-default pointer-events-none',
+          ].join(' ')}
+          style={{ width: size, height: size, opacity }}
+          onPointerDown={interactive ? dragGesture.onPointerDown : undefined}
+          onPointerMove={interactive ? dragGesture.onPointerMove : undefined}
+          onPointerUp={
+            interactive
+              ? (event) => {
+                dragGesture.onPointerUp()
+                if (event.button !== 0) return
+                if (dragGesture.consumeIgnoreClick()) return
+                if (hitCooldownRef.current) return
+
+                hitCooldownRef.current = true
+                queueMicrotask(() => {
+                  hitCooldownRef.current = false
+                })
+                onHit()
+              }
+              : undefined
+          }
+          onPointerCancel={interactive ? dragGesture.onPointerCancel : undefined}
+          onPointerLeave={interactive ? dragGesture.onPointerLeave : undefined}
+        >
+          <div className="absolute -translate-x-1/2 -translate-y-1/2 select-none" style={{ left: '50%', top: '50%' }}>
+            <SpriteSheetCanvas
+              src={spriteSheet!.src}
+              size={size}
+              columns={spriteSheet!.columns}
+              rows={spriteSheet!.rows}
+              mood="idle"
+              rowIndex={spritePlayback.rowIndex}
+              animate={spritePlayback.animate}
+              frameIntervalMs={spritePlayback.frameIntervalMs}
+              speed={animationSpeed}
+              chromaKey={spriteSheet!.chromaKey ?? true}
+              chromaKeyAlgorithm={spriteSheet!.chromaKeyAlgorithm ?? 'yuv'}
+              chromaKeyOptions={spriteSheet!.chromaKeyOptions}
+              imageSmoothingEnabled={spriteSheet!.imageSmoothingEnabled ?? true}
+              removeGridLines={spriteSheet!.removeGridLines ?? true}
+              idleBreathe={spriteSheet!.idleBreathe ?? true}
+              effect="none"
+              onError={() => setSpriteFailed(true)}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative w-full h-full flex items-center justify-center">

@@ -16,6 +16,7 @@ export function MeritPop({
   scale = 1,
   labelText = DEFAULT_MERIT_LABEL,
   opacity = DEFAULT_MERIT_ALPHA,
+  lite = false,
 }: {
   x: number
   y: number
@@ -24,6 +25,7 @@ export function MeritPop({
   scale?: number
   labelText?: string
   opacity?: number
+  lite?: boolean
 }) {
   const baseLabel = (() => {
     const trimmed = labelText.trim()
@@ -56,24 +58,26 @@ export function MeritPop({
       style={{ position: 'absolute', left: x, top: y, transform: 'translate(-50%, -50%)' }}
     >
       <motion.div
-        initial={{ opacity: 0, x: 0, y: 0, scale: 0.98, filter: 'blur(2px)' }}
-        animate={{ opacity: 1, x: driftX, y: -driftY, scale: popScale, filter: 'blur(0px)' }}
-        exit={{ opacity: 0, x: driftX, y: -driftY - 18 * scale, scale: popScale + 0.06, filter: 'blur(2px)' }}
+        initial={lite ? { opacity: 0, x: 0, y: 0, scale: 1 } : { opacity: 0, x: 0, y: 0, scale: 0.98, filter: 'blur(2px)' }}
+        animate={lite ? { opacity: 1, x: driftX, y: -driftY, scale: 1 } : { opacity: 1, x: driftX, y: -driftY, scale: popScale, filter: 'blur(0px)' }}
+        exit={lite ? { opacity: 0, x: driftX, y: -driftY - 18 * scale, scale: 1 } : { opacity: 0, x: driftX, y: -driftY - 18 * scale, scale: popScale + 0.06, filter: 'blur(2px)' }}
         transition={{ duration: 1.08, ease: [0.2, 0.9, 0.2, 1] }}
         className="relative"
       >
-        <motion.div
-          className="absolute inset-0 rounded-full"
-          initial={{ opacity: 0, scale: 0.6 }}
-          animate={{ opacity: 0.7, scale: 1.25 }}
-          exit={{ opacity: 0, scale: 1.55 }}
-          transition={{ duration: 1.05, ease: 'easeOut' }}
-          style={{
-            background:
-              `radial-gradient(circle at center, ${glowHighlight}, ${sourceAccentGlow} 32%, ${glowTransparent} 65%)`,
-            filter: 'blur(1px)',
-          }}
-        />
+        {!lite ? (
+          <motion.div
+            className="absolute inset-0 rounded-full"
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 0.7, scale: 1.25 }}
+            exit={{ opacity: 0, scale: 1.55 }}
+            transition={{ duration: 1.05, ease: 'easeOut' }}
+            style={{
+              background:
+                `radial-gradient(circle at center, ${glowHighlight}, ${sourceAccentGlow} 32%, ${glowTransparent} 65%)`,
+              filter: 'blur(1px)',
+            }}
+          />
+        ) : null}
 
         <div
           className="relative leading-none font-black tracking-[0.04em] whitespace-nowrap"
@@ -86,8 +90,8 @@ export function MeritPop({
             textShadow:
               [
                 outlineShadow,
-                `0 0 26px ${textGlowShadow}`,
-                '0 18px 42px rgba(0,0,0,0.28)',
+                lite ? '' : `0 0 26px ${textGlowShadow}`,
+                lite ? '' : '0 18px 42px rgba(0,0,0,0.28)',
               ].filter(Boolean).join(', '),
             whiteSpace: 'nowrap',
           }}

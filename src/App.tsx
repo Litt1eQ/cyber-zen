@@ -37,6 +37,7 @@ function App() {
   useGlobalShortcuts(settings)
 
   const [isAnimating, setIsAnimating] = useState(false)
+  const [isWindowHovered, setIsWindowHovered] = useState(false)
   const permissionPromptShownRef = useRef(false)
 
   useDailyReset()
@@ -81,12 +82,13 @@ function App() {
 
   const windowScale = settings?.window_scale ?? 100
   const popScale = windowScale / 100
-  const { mapById: customSkinsById } = useCustomWoodenFishSkins()
+  const { mapById: customSkinsById, loading: customSkinsLoading } = useCustomWoodenFishSkins()
   const skinId = (settings?.wooden_fish_skin as WoodenFishSkinId | undefined) ?? DEFAULT_WOODEN_FISH_SKIN_ID
-  const skin =
-    WOODEN_FISH_SKINS[skinId as BuiltinWoodenFishSkinId] ??
-    customSkinsById.get(skinId)?.skin ??
-    WOODEN_FISH_SKINS[DEFAULT_WOODEN_FISH_SKIN_ID]
+  const builtinSkin = WOODEN_FISH_SKINS[skinId as BuiltinWoodenFishSkinId]
+  const customSkin = customSkinsById.get(skinId)?.skin
+  const wantsCustomSkin = skinId.startsWith('custom:')
+  const skin = builtinSkin ?? customSkin ?? (wantsCustomSkin && customSkinsLoading ? undefined : WOODEN_FISH_SKINS[DEFAULT_WOODEN_FISH_SKIN_ID])
+  const meritPopLite = !!skin?.sprite_sheet?.src
   const animationSpeed = settings?.animation_speed ?? 1
   const pulseTimeoutMs = useMemo(() => getWoodenFishHitTimeoutMs(animationSpeed), [animationSpeed])
   const pulseTimeoutRef = useRef<number | null>(null)
@@ -148,28 +150,47 @@ function App() {
     <div
       className="w-full h-full relative overflow-hidden bg-transparent"
       style={autoFadeEnabled ? autoFade.style : { opacity: activeOpacity }}
+      onPointerEnter={() => {
+        setIsWindowHovered(true)
+        if (autoFadeEnabled) autoFade.bind.onPointerEnter()
+      }}
+      onPointerLeave={() => {
+        setIsWindowHovered(false)
+        if (autoFadeEnabled) autoFade.bind.onPointerLeave()
+      }}
       onContextMenu={(e) => {
         e.preventDefault()
         void showMainQuickMenu()
       }}
-      {...(autoFadeEnabled ? autoFade.bind : {})}
     >
       <div className="absolute inset-0 pointer-events-none" />
 
-      <WoodenFish
-        isAnimating={isAnimating}
-        animationSpeed={animationSpeed}
-        windowScale={windowScale}
-        onHit={handleHit}
-        skin={skin}
-        opacity={settings?.wooden_fish_opacity ?? 1.0}
-        dragEnabled={!(settings?.lock_window_position ?? false)}
-        dragHoldMs={settings?.drag_hold_ms ?? 0}
-      />
+      {skin ? (
+        <WoodenFish
+          isAnimating={isAnimating}
+          animationSpeed={animationSpeed}
+          windowScale={windowScale}
+          onHit={handleHit}
+          skin={skin}
+          opacity={settings?.wooden_fish_opacity ?? 1.0}
+          dragEnabled={!(settings?.lock_window_position ?? false)}
+          dragHoldMs={settings?.drag_hold_ms ?? 0}
+          windowHovered={isWindowHovered}
+        />
+      ) : null}
 
       <div
         className="pointer-events-none"
-        style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 9999 }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          zIndex: 9999,
+          contain: 'layout paint',
+          transform: 'translateZ(0)',
+        }}
       >
         <AnimatePresence>
           {floating.map((item) => (
@@ -182,6 +203,7 @@ function App() {
               scale={popScale}
               labelText={settings?.merit_pop_label ?? '功德'}
               opacity={settings?.merit_pop_opacity ?? 0.82}
+              lite={meritPopLite}
             />
           ))}
         </AnimatePresence>
