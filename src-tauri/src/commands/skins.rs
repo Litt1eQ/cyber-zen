@@ -43,3 +43,15 @@ pub async fn export_wooden_fish_skin_zip(
     wooden_fish_skins::export_skin_zip_to_app_data(&app_handle, &id, &file_name)
         .map_err(|e| format!("{e:#}"))
 }
+
+#[tauri::command]
+pub async fn cache_custom_wooden_fish_sprite_sheet_png(
+    app_handle: AppHandle,
+    id: String,
+    png_base64: String,
+) -> Result<(), String> {
+    wooden_fish_skins::write_custom_skin_sprite_sheet_cache_png(&app_handle, &id, &png_base64)
+        .map_err(|e| format!("{e:#}"))?;
+    let _ = app_handle.emit(EVENT_WOODEN_FISH_SKINS_UPDATED, ());
+    Ok(())
+}

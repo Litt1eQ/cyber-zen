@@ -26,6 +26,27 @@ export interface ProcessedSheet {
   rows: number
 }
 
+type ProcessedSheetBuildOptions = {
+  src: string
+  columns?: number
+  rows?: number
+  chromaKey?: boolean
+  chromaKeyAlgorithm?: ChromaKeyAlgorithm
+  chromaKeyOptions?: ChromaKeyOptions
+  imageSmoothingEnabled?: boolean
+  removeGridLines?: boolean
+  /**
+   * Hint for how large a single frame should be (in source pixels) after processing.
+   * Used to downscale very large sheets to reduce chroma-key CPU cost.
+   */
+  targetFrameWidthPx?: number
+  /**
+   * Safety cap for processing cost. If the cropped sheet area exceeds this many pixels,
+   * the sheet will be downscaled before chroma key / seam cleanup.
+   */
+  maxProcessedPixels?: number
+}
+
 type CanvasLayout = {
   dpr: number
   width: number
@@ -33,6 +54,42 @@ type CanvasLayout = {
 }
 
 const canvasLayoutCache = new WeakMap<HTMLCanvasElement, CanvasLayout>()
+
+const processedSheetPromiseCache = new Map<string, Promise<ProcessedSheet>>()
+const MAX_CACHED_SHEETS = 8
+
+function stableStringify(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value !== 'object') return String(value)
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  const obj = value as Record<string, unknown>
+  const keys = Object.keys(obj).sort()
+  return `{${keys.map((k) => `${k}:${stableStringify(obj[k])}`).join(',')}}`
+}
+
+function makeProcessedSheetCacheKey(opts: ProcessedSheetBuildOptions): string {
+  const cols = opts.columns ?? SPRITE_FRAMES_PER_ROW
+  const rows = opts.rows ?? SPRITE_ROWS
+  const chromaKey = opts.chromaKey ?? true
+  const algo = opts.chromaKeyAlgorithm ?? 'classic'
+  const smoothing = opts.imageSmoothingEnabled ?? true
+  const fixGrid = opts.removeGridLines ?? true
+  const targetFrameWidthPx = opts.targetFrameWidthPx ? Math.round(opts.targetFrameWidthPx) : 0
+  const maxProcessedPixels = opts.maxProcessedPixels ?? 0
+  return [
+    'v2',
+    opts.src,
+    `c${cols}`,
+    `r${rows}`,
+    `k${chromaKey ? 1 : 0}`,
+    `a${algo}`,
+    `s${smoothing ? 1 : 0}`,
+    `g${fixGrid ? 1 : 0}`,
+    `tw${targetFrameWidthPx}`,
+    `mp${maxProcessedPixels}`,
+    `o${stableStringify(opts.chromaKeyOptions ?? {})}`,
+  ].join('|')
+}
 
 function ensureCanvasBackingStoreSize(opts: {
   canvas: HTMLCanvasElement
@@ -97,56 +154,90 @@ export async function buildProcessedSheetFromSrc(opts: {
   chromaKeyOptions?: ChromaKeyOptions
   imageSmoothingEnabled?: boolean
   removeGridLines?: boolean
+  targetFrameWidthPx?: number
+  maxProcessedPixels?: number
 }): Promise<ProcessedSheet> {
-  const sprite = await loadImage(opts.src)
+  const key = makeProcessedSheetCacheKey(opts)
+  const cached = processedSheetPromiseCache.get(key)
+  if (cached) return await cached
 
-  const cols = opts.columns ?? SPRITE_FRAMES_PER_ROW
-  const rows = opts.rows ?? SPRITE_ROWS
-  const sourceW = sprite.naturalWidth || sprite.width
-  const sourceH = sprite.naturalHeight || sprite.height
+  const promise = (async (): Promise<ProcessedSheet> => {
+    const sprite = await loadImage(opts.src)
 
-  const valid = validateSpriteImageDimensions(sourceW, sourceH, cols, rows)
-  if (!valid.valid) throw new Error(valid.error ?? 'Invalid sprite sheet dimensions.')
+    const cols = opts.columns ?? SPRITE_FRAMES_PER_ROW
+    const rows = opts.rows ?? SPRITE_ROWS
+    const sourceW = sprite.naturalWidth || sprite.width
+    const sourceH = sprite.naturalHeight || sprite.height
 
-  const frameWidth = Math.floor(sourceW / cols)
-  const frameHeight = Math.floor(sourceH / rows)
-  const sheetW = frameWidth * cols
-  const sheetH = frameHeight * rows
+    const valid = validateSpriteImageDimensions(sourceW, sourceH, cols, rows)
+    if (!valid.valid) throw new Error(valid.error ?? 'Invalid sprite sheet dimensions.')
 
-  const sourceCanvas = document.createElement('canvas')
-  sourceCanvas.width = sourceW
-  sourceCanvas.height = sourceH
-  const sourceCtx = sourceCanvas.getContext('2d')
-  if (!sourceCtx) throw new Error('Failed to create 2D context.')
+    const sourceFrameWidth = Math.floor(sourceW / cols)
+    const sourceFrameHeight = Math.floor(sourceH / rows)
+    const sourceSheetW = sourceFrameWidth * cols
+    const sourceSheetH = sourceFrameHeight * rows
 
-  sourceCtx.clearRect(0, 0, sourceW, sourceH)
-  sourceCtx.drawImage(sprite, 0, 0, sourceW, sourceH)
+    const targetFrameWidthPx =
+      opts.targetFrameWidthPx && Number.isFinite(opts.targetFrameWidthPx)
+        ? Math.max(1, Math.round(opts.targetFrameWidthPx))
+        : sourceFrameWidth
 
-  if (opts.chromaKey ?? true) {
-    applyChromaKey(sourceCtx, sourceW, sourceH, opts.chromaKeyOptions ?? {}, opts.chromaKeyAlgorithm ?? 'classic')
+    const maxProcessedPixels =
+      opts.maxProcessedPixels && Number.isFinite(opts.maxProcessedPixels)
+        ? Math.max(64 * 64, Math.round(opts.maxProcessedPixels))
+        : 6_000_000
+
+    const desiredScale = targetFrameWidthPx > 0 ? targetFrameWidthPx / Math.max(1, sourceFrameWidth) : 1
+    const sourcePixels = sourceSheetW * sourceSheetH
+    const maxPixelScale = sourcePixels > 0 ? Math.sqrt(maxProcessedPixels / sourcePixels) : 1
+    const scale = Math.max(0.05, Math.min(1, desiredScale, maxPixelScale))
+
+    const frameWidth = Math.max(1, Math.round(sourceFrameWidth * scale))
+    const frameHeight = Math.max(1, Math.round(sourceFrameHeight * scale))
+    const sheetW = frameWidth * cols
+    const sheetH = frameHeight * rows
+
+    const needsPixelReads = (opts.chromaKey ?? true) || (opts.removeGridLines ?? true)
+    const sheet = document.createElement('canvas')
+    sheet.width = sheetW
+    sheet.height = sheetH
+    const sheetCtx = sheet.getContext('2d', needsPixelReads ? { willReadFrequently: true } : undefined)
+    if (!sheetCtx) throw new Error('Failed to create 2D context.')
+
+    sheetCtx.clearRect(0, 0, sheetW, sheetH)
+    sheetCtx.imageSmoothingEnabled = opts.imageSmoothingEnabled ?? true
+
+    // Crop the centered area that matches exact framing derived from the source,
+    // then (optionally) downscale to reduce chroma-key CPU cost.
+    const cropW = Math.max(1, sourceSheetW)
+    const cropH = Math.max(1, sourceSheetH)
+    const cropX = Math.max(0, Math.floor((sourceW - cropW) / 2))
+    const cropY = Math.max(0, Math.floor((sourceH - cropH) / 2))
+    sheetCtx.drawImage(sprite, cropX, cropY, cropW, cropH, 0, 0, sheetW, sheetH)
+
+    if (opts.chromaKey ?? true) {
+      applyChromaKey(sheetCtx, sheetW, sheetH, opts.chromaKeyOptions ?? {}, opts.chromaKeyAlgorithm ?? 'classic')
+    }
+
+    if (opts.removeGridLines ?? true) {
+      removeGridLines(sheetCtx, sheetW, sheetH, cols, rows)
+    }
+
+    return { sheet, frameWidth, frameHeight, columns: cols, rows }
+  })()
+
+  processedSheetPromiseCache.set(key, promise)
+  if (processedSheetPromiseCache.size > MAX_CACHED_SHEETS) {
+    const firstKey = processedSheetPromiseCache.keys().next().value as string | undefined
+    if (firstKey) processedSheetPromiseCache.delete(firstKey)
   }
 
-  const sheet = document.createElement('canvas')
-  sheet.width = sheetW
-  sheet.height = sheetH
-  const sheetCtx = sheet.getContext('2d')
-  if (!sheetCtx) throw new Error('Failed to create 2D context.')
-
-  sheetCtx.clearRect(0, 0, sheetW, sheetH)
-  sheetCtx.imageSmoothingEnabled = opts.imageSmoothingEnabled ?? true
-
-  // Crop the centered area that matches exact framing derived from the source.
-  const cropW = Math.max(1, sheetW)
-  const cropH = Math.max(1, sheetH)
-  const cropX = Math.max(0, Math.floor((sourceW - cropW) / 2))
-  const cropY = Math.max(0, Math.floor((sourceH - cropH) / 2))
-  sheetCtx.drawImage(sourceCanvas, cropX, cropY, cropW, cropH, 0, 0, sheetW, sheetH)
-
-  if (opts.removeGridLines ?? true) {
-    removeGridLines(sheetCtx, sheetW, sheetH, cols, rows)
+  try {
+    return await promise
+  } catch (e) {
+    processedSheetPromiseCache.delete(key)
+    throw e
   }
-
-  return { sheet, frameWidth, frameHeight, columns: cols, rows }
 }
 
 export function drawFrameToCanvas(opts: {

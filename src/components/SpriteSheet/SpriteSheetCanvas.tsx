@@ -53,6 +53,10 @@ export function SpriteSheetCanvas({
 
   const intervalMs = useMemo(() => frameIntervalMs ?? moodToFrameIntervalMs(mood, speed), [frameIntervalMs, mood, speed])
   const shouldAnimate = animate ?? mood !== 'idle'
+  const targetFrameWidthPx = useMemo(() => {
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+    return Math.max(1, Math.round(size * dpr))
+  }, [size])
 
   useEffect(() => {
     let cancelled = false
@@ -72,6 +76,7 @@ export function SpriteSheetCanvas({
           chromaKeyOptions,
           imageSmoothingEnabled,
           removeGridLines,
+          targetFrameWidthPx,
         })
         if (cancelled) return
         setSheetState({
@@ -89,7 +94,7 @@ export function SpriteSheetCanvas({
     return () => {
       cancelled = true
     }
-  }, [chromaKey, chromaKeyAlgorithm, chromaKeyOptions, columns, imageSmoothingEnabled, onError, removeGridLines, rows, src])
+  }, [chromaKey, chromaKeyAlgorithm, chromaKeyOptions, columns, imageSmoothingEnabled, onError, removeGridLines, rows, src, targetFrameWidthPx])
 
   const draw = useMemo(() => {
     if (!sheetState) return null

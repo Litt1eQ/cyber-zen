@@ -177,6 +177,7 @@ pub fn run() {
             commands::skins::import_custom_wooden_fish_skin_zip,
             commands::skins::delete_custom_wooden_fish_skin,
             commands::skins::export_wooden_fish_skin_zip,
+            commands::skins::cache_custom_wooden_fish_sprite_sheet_png,
             commands::app_icons::get_app_icon,
             commands::click_heatmap::get_display_monitors,
             commands::click_heatmap::get_click_heatmap_grid,

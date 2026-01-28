@@ -5,12 +5,14 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import { WOODEN_FISH_SKINS, type BuiltinWoodenFishSkinId, type WoodenFishSkin, type WoodenFishSkinId } from '../WoodenFish/skins'
 import { useCustomWoodenFishSkins } from '../../hooks/useCustomWoodenFishSkins'
 import { COMMANDS } from '../../types/events'
+import type { CustomWoodenFishSkin } from '@/types/skins'
 import { Button } from '../ui/button'
 import { Card } from '../ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { WoodenFish } from '../WoodenFish'
 import { SpriteSheetCanvas } from '@/components/SpriteSheet/SpriteSheetCanvas'
 import i18n from '@/i18n'
+import { precacheCustomSkinSpriteSheet } from '@/sprites/spriteSheetCache'
 
 const DEFAULT_PREVIEW_WINDOW_SCALE = 100
 
@@ -31,6 +33,7 @@ export function SkinManager({
   const { t } = useTranslation()
   const { skins: customSkins, mapById: customSkinsById, loading, error, reload } = useCustomWoodenFishSkins()
   const [importBusy, setImportBusy] = useState(false)
+  const [importStage, setImportStage] = useState<'reading' | 'importing' | 'processing' | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [exportBusy, setExportBusy] = useState(false)
   const [exportPath, setExportPath] = useState<string | null>(null)
@@ -77,21 +80,38 @@ export function SkinManager({
 
   const handleImportFile = async (file: File) => {
     setImportBusy(true)
+    setImportStage('reading')
     setImportError(null)
     setExportPath(null)
     try {
       const zipBase64 = await readFileAsBase64(file)
       const name = stripZipSuffix(file.name)
-      const skin = await invoke<{ id: WoodenFishSkinId }>(COMMANDS.IMPORT_CUSTOM_WOODEN_FISH_SKIN_ZIP, {
+      setImportStage('importing')
+      const skin = await invoke<CustomWoodenFishSkin>(COMMANDS.IMPORT_CUSTOM_WOODEN_FISH_SKIN_ZIP, {
         zipBase64,
         name,
       })
+
+      // Preprocess spritesheet once at import time to avoid any runtime pixel-processing.
+      try {
+        setImportStage('processing')
+        await waitForPaint()
+        await precacheCustomSkinSpriteSheet(skin)
+      } catch (e) {
+        // Ignore cache failures: the skin itself is still usable.
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.debug('[cz] sprite cache skipped/failed', e)
+        }
+      }
+
       await reload()
       if (skin?.id) onSelect(skin.id)
     } catch (e) {
       setImportError(String(e))
     } finally {
       setImportBusy(false)
+      setImportStage(null)
     }
   }
 
@@ -210,6 +230,35 @@ export function SkinManager({
         }}
         selected={previewId ? (options.find((o) => o.id === previewId) ?? selectedOption) : selectedOption}
       />
+
+      <Dialog
+        open={importBusy}
+        onOpenChange={() => {
+          // Keep it modal while busy.
+        }}
+      >
+        <DialogContent
+          className="max-w-sm"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          data-no-drag
+        >
+          <DialogHeader>
+            <DialogTitle>{t('settings.skins.importing')}</DialogTitle>
+            <DialogDescription>
+              {importStage === 'reading'
+                ? t('settings.skins.importStages.reading')
+                : importStage === 'processing'
+                  ? t('settings.skins.importStages.processingSprite')
+                  : t('settings.skins.importStages.importing')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="h-5 w-5 rounded-full border-2 border-slate-300 border-t-slate-700 animate-spin" aria-hidden="true" />
+            <div className="text-sm text-slate-600">{t('common.loading')}</div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={deleteConfirm != null}
@@ -508,6 +557,11 @@ async function readFileAsBase64(file: File): Promise<string> {
   const comma = dataUrl.indexOf(',')
   if (comma === -1) throw new Error(i18n.t('settings.skins.errors.zipEncodeFailed') as string)
   return dataUrl.slice(comma + 1)
+}
+
+async function waitForPaint(): Promise<void> {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 }
 
 function stripZipSuffix(name: string): string {

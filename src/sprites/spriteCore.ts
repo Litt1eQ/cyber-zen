@@ -288,6 +288,11 @@ function chromaDistance(r1: number, g1: number, b1: number, r2: number, g2: numb
   return Math.sqrt(du * du + dv * dv)
 }
 
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(1, value))
+}
+
 function detectKeyColor(
   data: Uint8ClampedArray,
   width: number,
@@ -452,9 +457,10 @@ function applyChromaKeyYUV(ctx: CanvasRenderingContext2D, width: number, height:
   const keyB = keyColor.b
   const isMagentaKey = detectedColor.mode === 'magenta' || (keyR > keyG + 50 && keyB > keyG + 50)
 
-  const similarity = options.similarity ?? 0.4
-  const smoothness = options.smoothness ?? 0.12
-  const spill = options.spill ?? 0.15
+  // Defaults tuned for magenta-screen sprite sheets (anti-aliased edges tend to retain magenta fringes).
+  const similarity = options.similarity ?? (isMagentaKey ? 0.46 : 0.4)
+  const smoothness = options.smoothness ?? (isMagentaKey ? 0.14 : 0.12)
+  const spill = options.spill ?? (isMagentaKey ? 0.22 : 0.15)
 
   const pixelCount = width * height
   const bgMask = new Uint8Array(pixelCount)
@@ -476,7 +482,7 @@ function applyChromaKeyYUV(ctx: CanvasRenderingContext2D, width: number, height:
     const dv = v - keyV
     const dist = Math.sqrt(du * du + dv * dv)
 
-    if (dist < similarity * 0.5) return true
+    if (dist < similarity * 0.7) return true
 
     if (isMagentaKey) {
       const magentaDominance = Math.min(r, b) - g
@@ -485,6 +491,8 @@ function applyChromaKeyYUV(ctx: CanvasRenderingContext2D, width: number, height:
         const bDiff = Math.abs(b - keyB)
         if (rDiff < 80 && bDiff < 80) return true
       }
+      // More permissive magenta variant check is safe because flood fill is border-connected.
+      if (dist < similarity * 1.25 && isMagentaVariant(r, g, b, 0.9)) return true
     }
 
     return false
@@ -519,7 +527,7 @@ function applyChromaKeyYUV(ctx: CanvasRenderingContext2D, width: number, height:
     if (y < height - 1) trySeed(p + width)
   }
 
-  const edgeRadius = 6
+  const edgeRadius = 8
   const distField = computeDistanceField(bgMask, width, height, edgeRadius)
 
   for (let p = 0; p < pixelCount; p++) {
@@ -583,6 +591,41 @@ function applyChromaKeyYUV(ctx: CanvasRenderingContext2D, width: number, height:
       data[i] = r
       data[i + 1] = g
       data[i + 2] = b
+    }
+  }
+
+  // Final fringe cleanup for magenta keys: remove residual halos on edge pixels where magenta leaked in.
+  if (isMagentaKey) {
+    const fringeRadius = 3
+    for (let p = 0; p < pixelCount; p++) {
+      const distToBg = distField[p]
+      if (distToBg === 0 || distToBg > fringeRadius) continue
+      if (bgMask[p]) continue
+      const i = p * 4
+      const a = data[i + 3]
+      if (a === 0) continue
+
+      const r = data[i]
+      const g = data[i + 1]
+      const b = data[i + 2]
+      const magentaDominance = Math.min(r, b) - g
+      if (magentaDominance <= 0) continue
+
+      const distFactor = (fringeRadius - distToBg + 1) / (fringeRadius + 1) // 0..1 (stronger near bg)
+      const cdist = chromaDistance(r, g, b, keyR, keyG, keyB)
+      const keyClose = clamp01(1 - cdist / Math.max(0.001, similarity * 1.1 + 0.12))
+      const dom = clamp01((magentaDominance - 10) / 90)
+      const shrink = keyClose * dom * distFactor
+
+      const newAlpha = Math.round(a * (1 - 0.85 * shrink))
+      data[i + 3] = newAlpha < 12 ? 0 : newAlpha
+      if (data[i + 3] === 0) continue
+
+      const despillStrength = spill * (0.9 + distFactor * 0.8) * Math.min(1, magentaDominance / 70)
+      const [nr, ng, nb] = despillMagenta(r, g, b, despillStrength)
+      data[i] = nr
+      data[i + 1] = ng
+      data[i + 2] = nb
     }
   }
 

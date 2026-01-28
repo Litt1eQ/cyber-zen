@@ -58,11 +58,12 @@ export function MeritPop({
       style={{ position: 'absolute', left: x, top: y, transform: 'translate(-50%, -50%)' }}
     >
       <motion.div
-        initial={lite ? { opacity: 0, x: 0, y: 0, scale: 1 } : { opacity: 0, x: 0, y: 0, scale: 0.98, filter: 'blur(2px)' }}
-        animate={lite ? { opacity: 1, x: driftX, y: -driftY, scale: 1 } : { opacity: 1, x: driftX, y: -driftY, scale: popScale, filter: 'blur(0px)' }}
-        exit={lite ? { opacity: 0, x: driftX, y: -driftY - 18 * scale, scale: 1 } : { opacity: 0, x: driftX, y: -driftY - 18 * scale, scale: popScale + 0.06, filter: 'blur(2px)' }}
+        initial={lite ? { opacity: 0, x: 0, y: 0, scale: 1 } : { opacity: 0, x: 0, y: 0, scale: 0.98 }}
+        animate={lite ? { opacity: 1, x: driftX, y: -driftY, scale: 1 } : { opacity: 1, x: driftX, y: -driftY, scale: popScale }}
+        exit={lite ? { opacity: 0, x: driftX, y: -driftY - 18 * scale, scale: 1 } : { opacity: 0, x: driftX, y: -driftY - 18 * scale, scale: popScale + 0.06 }}
         transition={{ duration: 1.08, ease: [0.2, 0.9, 0.2, 1] }}
         className="relative"
+        style={{ willChange: 'transform, opacity' }}
       >
         {!lite ? (
           <motion.div

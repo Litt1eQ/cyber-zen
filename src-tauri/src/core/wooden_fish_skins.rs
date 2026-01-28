@@ -17,6 +17,8 @@ const HAMMER_FILE_NAME: &str = "hammer.png";
 const SPRITE_SHEET_PNG_FILE_NAME: &str = "sprite.png";
 const SPRITE_SHEET_JPG_FILE_NAME: &str = "sprite.jpg";
 const SPRITE_SHEET_JPEG_FILE_NAME: &str = "sprite.jpeg";
+const SPRITE_SHEET_CACHE_DIR_NAME: &str = "_cache";
+const SPRITE_SHEET_CACHE_FILE_NAME: &str = "sprite_cached_v1.png";
 
 const EXPECTED_MUYU_DIMENSIONS: (u32, u32) = (500, 350);
 const EXPECTED_HAMMER_DIMENSIONS: (u32, u32) = (500, 150);
@@ -31,6 +33,8 @@ const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
 // Spritesheets are typically much larger than the two single-frame PNG assets, and are still
 // bounded by `MAX_ZIP_BYTES` when importing/exporting skin packages.
 const MAX_SPRITE_SHEET_BYTES: usize = 9 * 1024 * 1024;
+// A processed cached spritesheet PNG can be larger than the original (e.g. JPEG → PNG).
+const MAX_SPRITE_SHEET_CACHE_BYTES: usize = 24 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: usize = 128 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,7 +201,12 @@ pub fn list_custom_skins(app: &AppHandle) -> Result<Vec<CustomWoodenFishSkin>> {
             continue;
         };
 
-        let sprite_sheet_path = {
+        let cached_sprite_sheet_path = sprite_sheet_cache_file_path(&path);
+        let has_cached_sprite_sheet = cached_sprite_sheet_path.is_file();
+
+        let sprite_sheet_path = if has_cached_sprite_sheet {
+            Some(cached_sprite_sheet_path.to_string_lossy().to_string())
+        } else {
             let candidates = [
                 path.join(SPRITE_SHEET_PNG_FILE_NAME),
                 path.join(SPRITE_SHEET_JPG_FILE_NAME),
@@ -233,6 +242,16 @@ pub fn list_custom_skins(app: &AppHandle) -> Result<Vec<CustomWoodenFishSkin>> {
             });
         }
 
+        // If we are using a cached pre-processed spritesheet, disable pixel-processing in the
+        // renderer layer for this session (no manifest rewrite; export keeps original behavior).
+        if has_cached_sprite_sheet {
+            if let Some(ref mut cfg) = manifest.sprite_sheet {
+                cfg.chroma_key = Some(false);
+                cfg.remove_grid_lines = Some(false);
+                // Keep the rest of the config (columns/rows/behavior/etc.) intact.
+            }
+        }
+
         let muyu_path = path.join(MUYU_FILE_NAME);
         let hammer_path = path.join(HAMMER_FILE_NAME);
         let muyu_path = if muyu_path.is_file() {
@@ -264,6 +283,83 @@ pub fn list_custom_skins(app: &AppHandle) -> Result<Vec<CustomWoodenFishSkin>> {
 
     skins.sort_by(|a, b| b.created_at_ms.cmp(&a.created_at_ms));
     Ok(skins)
+}
+
+pub fn write_custom_skin_sprite_sheet_cache_png(
+    app: &AppHandle,
+    settings_id: &str,
+    png_base64: &str,
+) -> Result<()> {
+    let Some(raw_id) = parse_custom_skin_settings_id(settings_id) else {
+        return Err(anyhow!("非法皮肤 ID"));
+    };
+    if !is_safe_id(raw_id) {
+        return Err(anyhow!("非法皮肤 ID"));
+    }
+
+    let png_base64 = png_base64.trim();
+    if png_base64.is_empty() {
+        return Err(anyhow!("PNG 内容为空"));
+    }
+
+    let png_bytes = BASE64_STANDARD
+        .decode(png_base64.as_bytes())
+        .context("PNG base64 解码失败")?;
+    if png_bytes.is_empty() {
+        return Err(anyhow!("PNG 内容为空"));
+    }
+    if png_bytes.len() > MAX_SPRITE_SHEET_CACHE_BYTES {
+        return Err(anyhow!(
+            "处理后的 spritesheet PNG 过大（最大 {}MB）",
+            MAX_SPRITE_SHEET_CACHE_BYTES / 1024 / 1024
+        ));
+    }
+
+    // Validate as PNG and validate grid/aspect (same checks as import).
+    let (w, h) = png_dimensions(&png_bytes).context("处理后的 spritesheet 不是有效的 PNG")?;
+
+    let root = skins_root(app)?;
+    let dir = root.join(raw_id);
+    if !dir.is_dir() {
+        return Err(anyhow!("皮肤不存在"));
+    }
+
+    let manifest_path = dir.join(MANIFEST_FILE_NAME);
+    let Some(manifest) = read_manifest_v2(&manifest_path, raw_id) else {
+        return Err(anyhow!("manifest.json 无效或缺失"));
+    };
+
+    let cols = manifest
+        .sprite_sheet
+        .as_ref()
+        .and_then(|c| c.columns)
+        .filter(|v| *v >= 1)
+        .unwrap_or(EXPECTED_SPRITE_COLUMNS);
+    let rows = manifest
+        .sprite_sheet
+        .as_ref()
+        .and_then(|c| c.rows)
+        .filter(|v| *v >= 1)
+        .unwrap_or(EXPECTED_SPRITE_ROWS);
+
+    // Reuse the same validation semantics, but we already parsed dimensions above.
+    validate_sprite_sheet_dimensions(w, h, cols, rows)?;
+
+    let cache_dir = dir.join(SPRITE_SHEET_CACHE_DIR_NAME);
+    fs::create_dir_all(&cache_dir)
+        .with_context(|| format!("创建 spritesheet 缓存目录失败：{}", cache_dir.display()))?;
+
+    let target = cache_dir.join(SPRITE_SHEET_CACHE_FILE_NAME);
+    let tmp = cache_dir.join(format!("{}.tmp", SPRITE_SHEET_CACHE_FILE_NAME));
+    fs::write(&tmp, &png_bytes)
+        .with_context(|| format!("写入 spritesheet 缓存失败：{}", tmp.display()))?;
+    if target.exists() {
+        let _ = fs::remove_file(&target);
+    }
+    fs::rename(&tmp, &target)
+        .with_context(|| format!("保存 spritesheet 缓存失败：{}", target.display()))?;
+
+    Ok(())
 }
 
 pub fn import_custom_skin_zip_base64(
@@ -922,7 +1018,10 @@ fn validate_sprite_sheet_image(bytes: &[u8], columns: u32, rows: u32) -> Result<
         return Err(anyhow!("sprite.* 网格非法：{}x{}", columns, rows));
     }
     let (w, h) = image_dimensions(bytes).context("sprite.* 不是有效图片（仅支持 PNG/JPEG）")?;
+    validate_sprite_sheet_dimensions(w, h, columns, rows)
+}
 
+fn validate_sprite_sheet_dimensions(w: u32, h: u32, columns: u32, rows: u32) -> Result<()> {
     let min_w = columns * SPRITE_MIN_FRAME_SIZE_PX;
     let min_h = rows * SPRITE_MIN_FRAME_SIZE_PX;
     if w < min_w || h < min_h {
@@ -952,6 +1051,12 @@ fn validate_sprite_sheet_image(bytes: &[u8], columns: u32, rows: u32) -> Result<
     }
 
     Ok(())
+}
+
+fn sprite_sheet_cache_file_path(skin_dir: &Path) -> PathBuf {
+    skin_dir
+        .join(SPRITE_SHEET_CACHE_DIR_NAME)
+        .join(SPRITE_SHEET_CACHE_FILE_NAME)
 }
 
 fn sanitize_zip_file_name(file_name: &str) -> String {

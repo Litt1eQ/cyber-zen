@@ -45,7 +45,7 @@ export function useSpritePlayback(opts: {
   const [playback, setPlayback] = useState<SpritePlayback>({
     rowIndex: DEFAULT_IDLE_ROW,
     frameIntervalMs: 120,
-    animate: true,
+    animate: false,
   })
 
   const prevAnimatingRef = useRef(false)
@@ -75,7 +75,7 @@ export function useSpritePlayback(opts: {
 
   useEffect(() => {
     if (!enabled) {
-      const next = { rowIndex: DEFAULT_IDLE_ROW, frameIntervalMs: 140, animate: true }
+      const next = { rowIndex: DEFAULT_IDLE_ROW, frameIntervalMs: 140, animate: false }
       setPlayback((prev) =>
         prev.rowIndex === next.rowIndex && prev.frameIntervalMs === next.frameIntervalMs && prev.animate === next.animate
           ? prev
@@ -140,7 +140,9 @@ export function useSpritePlayback(opts: {
       }
 
       const rowIndex = isHovered ? DEFAULT_HOVER_IDLE_ROW : DEFAULT_IDLE_ROW
-      const next = { rowIndex, frameIntervalMs: 140, animate: true }
+      // Match the reference behavior: idle stays on frame 0 (no frame-advance),
+      // with an optional hover-only animation if desired.
+      const next = { rowIndex, frameIntervalMs: 140, animate: isHovered }
       setPlayback((prev) =>
         prev.rowIndex === next.rowIndex && prev.frameIntervalMs === next.frameIntervalMs && prev.animate === next.animate
           ? prev
