@@ -1,5 +1,6 @@
 use crate::core::wooden_fish_skins;
 use crate::core::wooden_fish_skins::CustomWoodenFishSkin;
+use crate::core::wooden_fish_skins::SpriteSheetConfigV2;
 use tauri::{AppHandle, Emitter};
 
 const EVENT_WOODEN_FISH_SKINS_UPDATED: &str = "wooden-fish-skins-updated";
@@ -54,4 +55,32 @@ pub async fn cache_custom_wooden_fish_sprite_sheet_png(
         .map_err(|e| format!("{e:#}"))?;
     let _ = app_handle.emit(EVENT_WOODEN_FISH_SKINS_UPDATED, ());
     Ok(())
+}
+
+#[tauri::command]
+pub async fn export_sprite_skin_package_zip(
+    app_handle: AppHandle,
+    file_name: String,
+    name: Option<String>,
+    sprite_base64: String,
+    sprite_sheet: Option<SpriteSheetConfigV2>,
+) -> Result<String, String> {
+    wooden_fish_skins::export_sprite_skin_package_zip_base64_to_app_data(
+        &app_handle,
+        &file_name,
+        name,
+        &sprite_base64,
+        sprite_sheet,
+    )
+    .map_err(|e| format!("{e:#}"))
+}
+
+#[tauri::command]
+pub async fn export_png_to_app_data(
+    app_handle: AppHandle,
+    file_name: String,
+    png_base64: String,
+) -> Result<String, String> {
+    wooden_fish_skins::export_png_base64_to_app_data(&app_handle, &file_name, &png_base64)
+        .map_err(|e| format!("{e:#}"))
 }

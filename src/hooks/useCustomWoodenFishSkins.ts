@@ -14,13 +14,21 @@ export type CustomWoodenFishSkinResolved = CustomWoodenFishSkin & {
 
 function mapSpriteSheetConfig(config: CustomWoodenFishSkin['sprite_sheet']) {
   if (!config) return undefined
+  const chromaKeyOptions = config.chroma_key_options
+    ? {
+      similarity: config.chroma_key_options.similarity,
+      smoothness: config.chroma_key_options.smoothness,
+      spill: config.chroma_key_options.spill,
+      keyColor: config.chroma_key_options.key_color,
+    }
+    : undefined
   return {
     mode: config.mode,
     columns: config.columns,
     rows: config.rows,
     chromaKey: config.chroma_key,
     chromaKeyAlgorithm: config.chroma_key_algorithm,
-    chromaKeyOptions: config.chroma_key_options,
+    chromaKeyOptions,
     removeGridLines: config.remove_grid_lines,
     imageSmoothingEnabled: config.image_smoothing_enabled,
     idleBreathe: config.idle_breathe,

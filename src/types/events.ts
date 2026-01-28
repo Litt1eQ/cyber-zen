@@ -53,6 +53,8 @@ export const COMMANDS = {
   DELETE_CUSTOM_WOODEN_FISH_SKIN: 'delete_custom_wooden_fish_skin',
   EXPORT_WOODEN_FISH_SKIN_ZIP: 'export_wooden_fish_skin_zip',
   CACHE_CUSTOM_WOODEN_FISH_SPRITE_SHEET_PNG: 'cache_custom_wooden_fish_sprite_sheet_png',
+  EXPORT_SPRITE_SKIN_PACKAGE_ZIP: 'export_sprite_skin_package_zip',
+  EXPORT_PNG_TO_APP_DATA: 'export_png_to_app_data',
   GET_APP_ICON: 'get_app_icon',
   GET_DISPLAY_MONITORS: 'get_display_monitors',
   GET_CLICK_HEATMAP_GRID: 'get_click_heatmap_grid',

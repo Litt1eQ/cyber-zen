@@ -27,6 +27,14 @@ export async function precacheCustomSkinSpriteSheet(
 
   const columns = cfg.columns ?? 8
   const rows = cfg.rows ?? 7
+  const chromaKeyOptions = cfg.chroma_key_options
+    ? {
+      similarity: cfg.chroma_key_options.similarity,
+      smoothness: cfg.chroma_key_options.smoothness,
+      spill: cfg.chroma_key_options.spill,
+      keyColor: cfg.chroma_key_options.key_color,
+    }
+    : undefined
 
   const src = convertFileSrc(skin.sprite_sheet_path)
   const processed = await buildProcessedSheetFromSrc({
@@ -35,7 +43,7 @@ export async function precacheCustomSkinSpriteSheet(
     rows,
     chromaKey,
     chromaKeyAlgorithm: cfg.chroma_key_algorithm ?? 'classic',
-    chromaKeyOptions: cfg.chroma_key_options,
+    chromaKeyOptions,
     imageSmoothingEnabled: cfg.image_smoothing_enabled ?? true,
     removeGridLines,
     targetFrameWidthPx: DEFAULT_CACHE_TARGET_FRAME_WIDTH_PX,
@@ -69,4 +77,3 @@ async function blobToBase64(blob: Blob): Promise<string> {
   if (comma === -1) throw new Error('Failed to encode base64.')
   return dataUrl.slice(comma + 1)
 }
-

@@ -16,25 +16,25 @@ import { COMMANDS, EVENTS } from '../../types/events'
 import { Statistics } from '../Statistics'
 import { useWindowDragging } from '../../hooks/useWindowDragging'
 import { ShortcutRecorder } from './ShortcutRecorder'
-import { IconChart, IconInfo, IconKeyboard, IconSettings, IconTrophy } from './icons'
+import { IconChart, IconInfo, IconKeyboard, IconPalette, IconSettings, IconTrophy } from './icons'
 import { Switch } from '../ui/switch'
 import { Slider } from '../ui/slider'
 import { Button } from '../ui/button'
-import { Card } from '../ui/card'
 import { TodayOverviewPanel } from '../Statistics/TodayOverviewPanel'
 import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { isLinux, isMac, isWindows } from '../../utils/platform'
-import { SkinManager } from './SkinManager'
 import { HEAT_LEVEL_COUNT_DEFAULT, HEAT_LEVEL_COUNT_MAX, HEAT_LEVEL_COUNT_MIN } from '../Statistics/heatScale'
 import { KEYBOARD_LAYOUTS, normalizeKeyboardLayoutId } from '@/lib/keyboard'
 import { useAppLocaleSync } from '@/hooks/useAppLocaleSync'
 import { MouseDistanceCalibration } from '@/components/Settings/MouseDistanceCalibration'
 import { AchievementsTab } from '@/components/Settings/AchievementsTab'
 import { getSystemNotificationPermission, isSystemNotificationSupported, requestSystemNotificationPermission } from '@/lib/notifications'
+import { AppearanceTab } from '@/components/Settings/AppearanceTab'
+import { SettingCard, SettingRow, SettingsSection } from '@/components/Settings/SettingsLayout'
 
-type SettingsTab = 'general' | 'shortcuts' | 'achievements' | 'statistics' | 'about'
+type SettingsTab = 'general' | 'appearance' | 'shortcuts' | 'achievements' | 'statistics' | 'about'
 
 type UpdateInfo = { version: string; body?: string | null; date?: string | null }
 type UpdateDownloadEventPayload =
@@ -43,8 +43,6 @@ type UpdateDownloadEventPayload =
   | { type: 'finished'; downloaded: number; total: number | null }
 
 const OPEN_SOURCE_URL = 'https://github.com/Litt1eQ/cyber-zen'
-const MERIT_LABEL_MAX_CHARS = 4
-const DEFAULT_MERIT_LABEL = '功德'
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB'] as const
@@ -87,10 +85,8 @@ export function Settings() {
   >({ status: 'idle' })
   const [updateDownload, setUpdateDownload] = useState<UpdateDownloadEventPayload | null>(null)
 
-  const meritLabelFocusedRef = useRef(false)
   const logsTapRef = useRef<{ count: number; lastMs: number }>({ count: 0, lastMs: 0 })
   const windowScaleCommitTokenRef = useRef(0)
-  const [meritLabelDraft, setMeritLabelDraft] = useState('')
   const [clickHeatmapColsDraft, setClickHeatmapColsDraft] = useState('')
   const [clickHeatmapRowsDraft, setClickHeatmapRowsDraft] = useState('')
   const [windowScaleDraft, setWindowScaleDraft] = useState<number | null>(null)
@@ -119,12 +115,6 @@ export function Settings() {
       // ignore
     }
   }, [i18n.resolvedLanguage, t])
-
-  useEffect(() => {
-    if (!settings) return
-    if (meritLabelFocusedRef.current) return
-    setMeritLabelDraft(settings.merit_pop_label ?? DEFAULT_MERIT_LABEL)
-  }, [settings, settings?.merit_pop_label])
 
   useEffect(() => {
     if (!settings) return
@@ -233,6 +223,7 @@ export function Settings() {
     () =>
       [
         { id: 'general' as const, label: t('settings.tabs.general'), icon: IconSettings },
+        { id: 'appearance' as const, label: t('settings.tabs.appearance'), icon: IconPalette },
         { id: 'shortcuts' as const, label: t('settings.tabs.shortcuts'), icon: IconKeyboard },
         { id: 'achievements' as const, label: t('settings.tabs.achievements'), icon: IconTrophy },
         { id: 'statistics' as const, label: t('settings.tabs.statistics'), icon: IconChart },
@@ -874,82 +865,6 @@ export function Settings() {
                   />
                 </SettingsSection>
 
-                <SettingsSection title={t('settings.sections.appearance.title')}>
-                  <SkinManager
-                    selectedId={settings.wooden_fish_skin ?? 'rosewood'}
-                    onSelect={(id) => updateSettings({ wooden_fish_skin: id })}
-                  />
-
-                  <SettingRow
-                    title={t('settings.appearance.woodenFishOpacity')}
-                    description={`${Math.round(((settings.wooden_fish_opacity ?? 1) as number) * 100)}% ${t('settings.appearance.woodenFishOpacityDesc')}`}
-                    control={
-                      <Slider
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={[settings.wooden_fish_opacity ?? 1]}
-                        onValueChange={([v]) => updateSettings({ wooden_fish_opacity: v })}
-                        className="w-56"
-                        data-no-drag
-                      />
-                    }
-                  />
-
-                  <SettingRow
-                    title={t('settings.appearance.meritPopOpacity')}
-                    description={`${Math.round(((settings.merit_pop_opacity ?? 0.82) as number) * 100)}%`}
-                    control={
-                      <Slider
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={[settings.merit_pop_opacity ?? 0.82]}
-                        onValueChange={([v]) => updateSettings({ merit_pop_opacity: v })}
-                        className="w-56"
-                        data-no-drag
-                      />
-                    }
-                  />
-
-                  <SettingRow
-                    title={t('settings.appearance.meritPopLabel')}
-                    description={t('settings.appearance.meritPopLabelExample', {
-                      example: `${(settings.merit_pop_label ?? DEFAULT_MERIT_LABEL).slice(0, MERIT_LABEL_MAX_CHARS)}+1`,
-                      max: MERIT_LABEL_MAX_CHARS,
-                    })}
-                    control={
-                      <div className="flex items-center gap-2">
-                        <Input
-                          className="w-28"
-                          value={meritLabelDraft}
-                          placeholder={DEFAULT_MERIT_LABEL}
-                          maxLength={MERIT_LABEL_MAX_CHARS}
-                          onFocus={() => {
-                            meritLabelFocusedRef.current = true
-                          }}
-                          onBlur={() => {
-                            meritLabelFocusedRef.current = false
-                            const trimmed = meritLabelDraft.trim()
-                            const normalized =
-                              Array.from(trimmed).slice(0, MERIT_LABEL_MAX_CHARS).join('') || DEFAULT_MERIT_LABEL
-                            setMeritLabelDraft(normalized)
-                            updateSettings({ merit_pop_label: normalized })
-                          }}
-                          onChange={(e) => {
-                            setMeritLabelDraft(e.currentTarget.value)
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key !== 'Enter') return
-                            e.currentTarget.blur()
-                          }}
-                          data-no-drag
-                        />
-                      </div>
-                    }
-                  />
-                </SettingsSection>
-
                 <SettingsSection title={t('settings.sections.app.title')}>
                   <SettingRow
                     title={t('settings.language.title')}
@@ -1074,6 +989,10 @@ export function Settings() {
                 </SettingsSection>
 
               </div>
+            )}
+
+            {activeTab === 'appearance' && (
+              <AppearanceTab settings={settings} updateSettings={updateSettings} />
             )}
 
             {activeTab === 'shortcuts' && (
@@ -1507,63 +1426,6 @@ export function Settings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  )
-}
-
-function SettingCard({ children }: { children: React.ReactNode }) {
-  return (
-    <Card className="p-4">{children}</Card>
-  )
-}
-
-function SettingsSection({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description?: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="space-y-5">
-      <div>
-        <div className="text-sm font-semibold text-slate-900 uppercase tracking-wide">{title}</div>
-        {description && <div className="text-sm text-slate-500 mt-1.5">{description}</div>}
-      </div>
-      <div className="space-y-5">{children}</div>
-    </section>
-  )
-}
-
-function SettingRow({
-  title,
-  description,
-  extra,
-  extraVariant = 'error',
-  control,
-}: {
-  title: string
-  description?: React.ReactNode
-  extra?: string
-  extraVariant?: 'error' | 'info'
-  control: React.ReactNode
-}) {
-  return (
-    <div className="rounded-lg border border-slate-200/60 bg-white shadow-sm p-4 flex items-center justify-between gap-4">
-      <div className="min-w-0">
-        <div className="font-medium text-slate-900">{title}</div>
-        {description && <div className="text-sm text-slate-500 mt-1">{description}</div>}
-        {extra && (
-          <div className={`text-xs mt-1 ${extraVariant === 'info' ? 'text-slate-600' : 'text-red-600'}`}>
-            {extra}
-          </div>
-        )}
-      </div>
-      <div className="shrink-0" data-no-drag>
-        {control}
-      </div>
     </div>
   )
 }

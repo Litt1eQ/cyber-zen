@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { invoke } from '@tauri-apps/api/core'
 import { openPath } from '@tauri-apps/plugin-opener'
@@ -13,6 +13,8 @@ import { WoodenFish } from '../WoodenFish'
 import { SpriteSheetCanvas } from '@/components/SpriteSheet/SpriteSheetCanvas'
 import i18n from '@/i18n'
 import { precacheCustomSkinSpriteSheet } from '@/sprites/spriteSheetCache'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SpriteSheetStudioDialog } from '@/components/Settings/SpriteSheetStudioDialog'
 
 const DEFAULT_PREVIEW_WINDOW_SCALE = 100
 
@@ -22,6 +24,8 @@ type SkinOption = {
   skin: WoodenFishSkin
   kind: 'builtin' | 'custom'
 }
+
+type SkinView = 'legacy' | 'sprite'
 
 export function SkinManager({
   selectedId,
@@ -40,6 +44,7 @@ export function SkinManager({
   const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: WoodenFishSkinId; title: string } | null>(null)
   const [previewId, setPreviewId] = useState<WoodenFishSkinId | null>(null)
+  const [studioOpen, setStudioOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const options = useMemo<SkinOption[]>(() => {
@@ -71,6 +76,15 @@ export function SkinManager({
   }, [customSkinsById, selectedId, t])
 
   const effectiveSelectedId = selectedOption.id
+  const selectedView: SkinView = selectedOption.skin.sprite_sheet?.src ? 'sprite' : 'legacy'
+  const [view, setView] = useState<SkinView>(selectedView)
+
+  useEffect(() => {
+    setView(selectedView)
+  }, [selectedView])
+
+  const legacyOptions = useMemo(() => options.filter((o) => !o.skin.sprite_sheet?.src), [options])
+  const spriteOptions = useMemo(() => options.filter((o) => !!o.skin.sprite_sheet?.src), [options])
 
   const openImport = () => {
     setImportError(null)
@@ -145,83 +159,117 @@ export function SkinManager({
 
   return (
     <Card className="p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="font-medium text-slate-900">{t('settings.skins.title')}</div>
-          <div className="text-sm text-slate-500 mt-1">
-            {t('settings.skins.importHintPrefix')}{' '}
-            <span className="font-mono">muyu.png</span> {t('settings.skins.importHintAnd')}{' '}
-            <span className="font-mono">hammer.png</span>
-            {t('settings.skins.importHintSuffix')}
+      <Tabs value={view} onValueChange={(v) => setView(v as SkinView)}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="font-medium text-slate-900">{t('settings.skins.title')}</div>
+              <TabsList className="h-9 bg-slate-50 border border-slate-200/60">
+                <TabsTrigger value="legacy">{t('settings.skins.tabs.legacy')}</TabsTrigger>
+                <TabsTrigger value="sprite">{t('settings.skins.tabs.sprite')}</TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="text-sm text-slate-500 mt-2">
+              {view === 'legacy' ? (
+                <>
+                  {t('settings.skins.legacyHintPrefix')}{' '}
+                  <span className="font-mono">muyu.png</span> {t('settings.skins.legacyHintAnd')}{' '}
+                  <span className="font-mono">hammer.png</span>
+                  {t('settings.skins.legacyHintSuffix')}
+                </>
+              ) : (
+                <>
+                  {t('settings.skins.spriteHintPrefix')}{' '}
+                  <span className="font-mono">sprite.png</span>
+                  {t('settings.skins.spriteHintOr')}{' '}
+                  <span className="font-mono">sprite.jpg</span> / <span className="font-mono">sprite.jpeg</span>
+                  {t('settings.skins.spriteHintSuffix')}
+                </>
+              )}
+            </div>
+            {loading && <div className="text-xs text-slate-500 mt-2">{t('settings.skins.loading')}</div>}
+            {error && <div className="text-xs text-red-600 mt-2">{error}</div>}
           </div>
-          {loading && <div className="text-xs text-slate-500 mt-2">{t('settings.skins.loading')}</div>}
-          {error && <div className="text-xs text-red-600 mt-2">{error}</div>}
+          <div className="shrink-0 flex flex-wrap items-center justify-end gap-2" data-no-drag>
+            <Button variant="secondary" onClick={() => setPreviewId(selectedOption.id)}>
+              {t('settings.skins.previewReference')}
+            </Button>
+            {view === 'sprite' && (
+              <Button variant="secondary" onClick={() => setStudioOpen(true)} disabled={exportBusy || importBusy}>
+                {t('settings.skins.studio.open')}
+              </Button>
+            )}
+            {view === 'legacy' && (
+              <Button
+                variant="secondary"
+                disabled={exportBusy}
+                onClick={() => void handleDownloadZip('rosewood', 'wooden-fish-skin-template.czs')}
+              >
+                {t('settings.skins.downloadTemplate')}
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              disabled={exportBusy}
+              onClick={() =>
+                void handleDownloadZip(
+                  effectiveSelectedId,
+                  sanitizeFileName(`wooden-fish-skin-${selectedOption.title}-${effectiveSelectedId}.czs`)
+                )
+              }
+            >
+              {t('settings.skins.exportCurrentZip')}
+            </Button>
+            <Button onClick={openImport} disabled={importBusy}>
+              {importBusy ? t('settings.skins.importing') : t('settings.skins.importZip')}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".czs,.zip,application/zip"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.currentTarget.files?.[0]
+                e.currentTarget.value = ''
+                if (!f) return
+                void handleImportFile(f)
+              }}
+            />
+          </div>
         </div>
-        <div className="shrink-0 flex items-center gap-2" data-no-drag>
-          <Button variant="secondary" onClick={() => setPreviewId(selectedOption.id)}>
-            {t('settings.skins.previewReference')}
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={exportBusy}
-            onClick={() => void handleDownloadZip('rosewood', 'wooden-fish-skin-template.czs')}
-          >
-            {t('settings.skins.downloadTemplate')}
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={exportBusy}
-            onClick={() =>
-              void handleDownloadZip(
-                effectiveSelectedId,
-                sanitizeFileName(`wooden-fish-skin-${selectedOption.title}-${effectiveSelectedId}.czs`)
-              )
-            }
-          >
-            {t('settings.skins.exportCurrentZip')}
-          </Button>
-          <Button onClick={openImport} disabled={importBusy}>
-            {importBusy ? t('settings.skins.importing') : t('settings.skins.importZip')}
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".czs,.zip,application/zip"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.currentTarget.files?.[0]
-              e.currentTarget.value = ''
-              if (!f) return
-              void handleImportFile(f)
-            }}
-          />
-        </div>
-      </div>
+        {importError && <div className="text-xs text-red-600 mt-2">{importError}</div>}
+        {exportPath && (
+          <div className="text-xs text-slate-500 mt-2">
+            {t('settings.skins.exported')} <span className="font-mono">{exportPath}</span>
+          </div>
+        )}
 
-      {importError && <div className="text-xs text-red-600 mt-2">{importError}</div>}
-      {exportPath && (
-        <div className="text-xs text-slate-500 mt-2">
-          {t('settings.skins.exported')} <span className="font-mono">{exportPath}</span>
-        </div>
-      )}
-
-      <div className="mt-4 grid grid-cols-2 gap-3" data-no-drag>
-        {options.map((opt) => (
-          <SkinPreviewCard
-            key={opt.id}
-            id={opt.id}
-            title={opt.title}
-            selected={effectiveSelectedId === opt.id}
-            skin={opt.skin}
-            badgeText={opt.kind === 'custom' ? t('settings.skins.badge.custom') : t('settings.skins.badge.builtin')}
-            badgeKind={opt.kind}
-            canDelete={opt.kind === 'custom'}
-            onDelete={() => setDeleteConfirm({ id: opt.id, title: opt.title })}
-            onSelect={(id) => onSelect(id)}
+        <TabsContent value="legacy" className="mt-4" data-no-drag>
+          <SkinGrid
+            options={legacyOptions}
+            selectedId={effectiveSelectedId}
+            onSelect={onSelect}
             onPreview={(id) => setPreviewId(id)}
+            onDelete={(id, title) => setDeleteConfirm({ id, title })}
           />
-        ))}
-      </div>
+        </TabsContent>
+        <TabsContent value="sprite" className="mt-4" data-no-drag>
+          {spriteOptions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+              {t('settings.skins.spriteEmptyHint')}
+            </div>
+          ) : (
+            <SkinGrid
+              options={spriteOptions}
+              selectedId={effectiveSelectedId}
+              onSelect={onSelect}
+              onPreview={(id) => setPreviewId(id)}
+              onDelete={(id, title) => setDeleteConfirm({ id, title })}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
 
       <SkinPreviewDialog
         open={previewId != null}
@@ -230,6 +278,8 @@ export function SkinManager({
         }}
         selected={previewId ? (options.find((o) => o.id === previewId) ?? selectedOption) : selectedOption}
       />
+
+      <SpriteSheetStudioDialog open={studioOpen} onOpenChange={setStudioOpen} />
 
       <Dialog
         open={importBusy}
@@ -295,6 +345,41 @@ export function SkinManager({
         </DialogContent>
       </Dialog>
     </Card>
+  )
+}
+
+function SkinGrid({
+  options,
+  selectedId,
+  onSelect,
+  onPreview,
+  onDelete,
+}: {
+  options: SkinOption[]
+  selectedId: WoodenFishSkinId
+  onSelect: (id: WoodenFishSkinId) => void
+  onPreview: (id: WoodenFishSkinId) => void
+  onDelete: (id: WoodenFishSkinId, title: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {options.map((opt) => (
+        <SkinPreviewCard
+          key={opt.id}
+          id={opt.id}
+          title={opt.title}
+          selected={selectedId === opt.id}
+          skin={opt.skin}
+          badgeText={opt.kind === 'custom' ? t('settings.skins.badge.custom') : t('settings.skins.badge.builtin')}
+          badgeKind={opt.kind}
+          canDelete={opt.kind === 'custom'}
+          onDelete={() => onDelete(opt.id, opt.title)}
+          onSelect={(id) => onSelect(id)}
+          onPreview={(id) => onPreview(id)}
+        />
+      ))}
+    </div>
   )
 }
 
@@ -392,7 +477,7 @@ function SkinPreviewCard({
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <SpriteSheetCanvas
               src={sprite!.src}
-              size={220}
+              size={180}
               columns={sprite!.columns}
               rows={sprite!.rows}
               mood="idle"
@@ -414,19 +499,19 @@ function SkinPreviewCard({
               src={skin.body.src}
               alt={skin.body.alt}
               draggable={false}
-              className="absolute left-1/2 top-1/2 h-[76%] w-auto -translate-x-1/2 -translate-y-1/2 select-none"
+              className="absolute left-1/2 top-1/2 h-[70%] w-auto -translate-x-1/2 -translate-y-1/2 select-none"
             />
             <img
               src={skin.hammer.src}
               alt={skin.hammer.alt}
               draggable={false}
-              className="absolute right-2 top-2 h-[44%] w-auto rotate-[12deg] select-none drop-shadow-sm opacity-95"
+              className="absolute right-2 top-2 h-[38%] w-auto rotate-[12deg] select-none drop-shadow-sm opacity-95"
             />
             {showOverlayPreview ? (
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                 <SpriteSheetCanvas
                   src={sprite!.src}
-                  size={220}
+                  size={180}
                   columns={sprite!.columns}
                   rows={sprite!.rows}
                   mood="idle"

@@ -25,6 +25,8 @@ const EXPECTED_HAMMER_DIMENSIONS: (u32, u32) = (500, 150);
 
 const EXPECTED_SPRITE_COLUMNS: u32 = 8;
 const EXPECTED_SPRITE_ROWS: u32 = 7;
+const MAX_SPRITE_COLUMNS: u32 = 16;
+const MAX_SPRITE_ROWS: u32 = 16;
 const SPRITE_ASPECT_RATIO_TOLERANCE: f64 = 0.15;
 const SPRITE_MIN_FRAME_SIZE_PX: u32 = 32;
 
@@ -36,6 +38,7 @@ const MAX_SPRITE_SHEET_BYTES: usize = 9 * 1024 * 1024;
 // A processed cached spritesheet PNG can be larger than the original (e.g. JPEG → PNG).
 const MAX_SPRITE_SHEET_CACHE_BYTES: usize = 24 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: usize = 128 * 1024;
+const MAX_EXPORT_PNG_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomWoodenFishSkin {
@@ -67,6 +70,15 @@ pub struct ChromaKeyOptionsV2 {
     pub smoothness: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spill: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_color: Option<KeyColorV2>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyColorV2 {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,6 +127,14 @@ pub struct SpriteSheetConfigV2 {
     pub hit_mood: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pet: Option<PetConfigV2>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PackageManifestV2 {
+    pub schema_version: u32,
+    pub name: Option<String>,
+    #[serde(default)]
+    pub sprite_sheet: Option<SpriteSheetConfigV2>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -394,14 +414,6 @@ pub fn import_custom_skin_zip_bytes(
 
     let (muyu_png, hammer_png, sprite_sheet, package_manifest_bytes) = extract_skin_assets(zip_bytes)?;
 
-    #[derive(Debug, Deserialize)]
-    struct PackageManifestV2 {
-        pub schema_version: u32,
-        pub name: Option<String>,
-        #[serde(default)]
-        pub sprite_sheet: Option<SpriteSheetConfigV2>,
-    }
-
     let package_manifest = match package_manifest_bytes {
         Some(bytes) => {
             let m = serde_json::from_slice::<PackageManifestV2>(&bytes)
@@ -467,6 +479,7 @@ pub fn import_custom_skin_zip_bytes(
                 similarity: Some(0.42),
                 smoothness: Some(0.1),
                 spill: Some(0.28),
+                key_color: None,
             }),
             remove_grid_lines: Some(true),
             image_smoothing_enabled: Some(true),
@@ -599,6 +612,141 @@ pub fn export_skin_zip_to_app_data(
 
     let path = export_dir.join(file_name);
     fs::write(&path, &zip_bytes)
+        .with_context(|| format!("写入导出文件失败：{}", path.display()))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+pub fn export_sprite_skin_package_zip_base64_to_app_data(
+    app: &AppHandle,
+    file_name: &str,
+    name: Option<String>,
+    sprite_base64: &str,
+    sprite_sheet: Option<SpriteSheetConfigV2>,
+) -> Result<String> {
+    let sprite_base64 = strip_data_url_base64(sprite_base64);
+    if sprite_base64.is_empty() {
+        return Err(anyhow!("sprite 内容为空"));
+    }
+    let sprite_bytes = BASE64_STANDARD
+        .decode(sprite_base64.as_bytes())
+        .context("sprite base64 解码失败")?;
+    if sprite_bytes.is_empty() {
+        return Err(anyhow!("sprite 内容为空"));
+    }
+    if sprite_bytes.len() > MAX_SPRITE_SHEET_BYTES {
+        return Err(anyhow!(
+            "sprite 过大（最大 {}MB）",
+            MAX_SPRITE_SHEET_BYTES / 1024 / 1024
+        ));
+    }
+
+    let kind = detect_sprite_image_kind(&sprite_bytes)?;
+    let sprite_file_name = canonical_sprite_file_name(kind).to_string();
+
+    let cols = sprite_sheet
+        .as_ref()
+        .and_then(|c| c.columns)
+        .filter(|v| *v >= 1)
+        .unwrap_or(EXPECTED_SPRITE_COLUMNS);
+    let rows = sprite_sheet
+        .as_ref()
+        .and_then(|c| c.rows)
+        .filter(|v| *v >= 1)
+        .unwrap_or(EXPECTED_SPRITE_ROWS);
+    if cols > MAX_SPRITE_COLUMNS || rows > MAX_SPRITE_ROWS {
+        return Err(anyhow!(
+            "sprite_sheet 列/行过大（最大 {}x{}）",
+            MAX_SPRITE_COLUMNS,
+            MAX_SPRITE_ROWS
+        ));
+    }
+    validate_sprite_sheet_image(&sprite_bytes, cols, rows)?;
+
+    let mut cfg = sprite_sheet.unwrap_or_else(|| SpriteSheetConfigV2 {
+        file: None,
+        mode: Some("replace".to_string()),
+        columns: Some(cols),
+        rows: Some(rows),
+        chroma_key: Some(true),
+        chroma_key_algorithm: Some("yuv".to_string()),
+        chroma_key_options: Some(ChromaKeyOptionsV2 {
+            similarity: Some(0.42),
+            smoothness: Some(0.1),
+            spill: Some(0.28),
+            key_color: None,
+        }),
+        remove_grid_lines: Some(true),
+        image_smoothing_enabled: Some(true),
+        idle_breathe: Some(true),
+        behavior: Some("pet".to_string()),
+        idle_mood: Some("idle".to_string()),
+        hit_mood: Some("excited".to_string()),
+        pet: None,
+    });
+
+    cfg.file = Some(sprite_file_name.clone());
+    if cfg.columns.is_none() { cfg.columns = Some(cols); }
+    if cfg.rows.is_none() { cfg.rows = Some(rows); }
+    if cfg.behavior.is_none() { cfg.behavior = Some("pet".to_string()); }
+    if cfg.mode.as_deref() != Some("replace") {
+        cfg.mode = Some("replace".to_string());
+    }
+
+    let manifest = PackageManifestV2 {
+        schema_version: 2,
+        name: normalize_name(name),
+        sprite_sheet: Some(cfg),
+    };
+    let manifest_json = serde_json::to_vec_pretty(&manifest).context("序列化 manifest 失败")?;
+    let zip_bytes = build_skin_zip(&manifest_json, None, None, Some((sprite_file_name.as_str(), &sprite_bytes)))?;
+
+    let file_name = sanitize_zip_file_name(file_name);
+    let export_dir = app
+        .path()
+        .app_data_dir()
+        .context("获取 App 数据目录失败")?
+        .join("exports");
+    fs::create_dir_all(&export_dir)
+        .with_context(|| format!("创建导出目录失败：{}", export_dir.display()))?;
+    let path = export_dir.join(file_name);
+    fs::write(&path, &zip_bytes)
+        .with_context(|| format!("写入导出文件失败：{}", path.display()))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+pub fn export_png_base64_to_app_data(
+    app: &AppHandle,
+    file_name: &str,
+    png_base64: &str,
+) -> Result<String> {
+    let png_base64 = strip_data_url_base64(png_base64);
+    if png_base64.is_empty() {
+        return Err(anyhow!("PNG 内容为空"));
+    }
+    let png_bytes = BASE64_STANDARD
+        .decode(png_base64.as_bytes())
+        .context("PNG base64 解码失败")?;
+    if png_bytes.is_empty() {
+        return Err(anyhow!("PNG 内容为空"));
+    }
+    if png_bytes.len() > MAX_EXPORT_PNG_BYTES {
+        return Err(anyhow!(
+            "PNG 过大（最大 {}MB）",
+            MAX_EXPORT_PNG_BYTES / 1024 / 1024
+        ));
+    }
+    let _ = png_dimensions(&png_bytes).context("PNG 不是有效的 PNG")?;
+
+    let file_name = sanitize_file_name_with_ext(file_name, "cover.png", ".png");
+    let export_dir = app
+        .path()
+        .app_data_dir()
+        .context("获取 App 数据目录失败")?
+        .join("exports");
+    fs::create_dir_all(&export_dir)
+        .with_context(|| format!("创建导出目录失败：{}", export_dir.display()))?;
+    let path = export_dir.join(file_name);
+    fs::write(&path, &png_bytes)
         .with_context(|| format!("写入导出文件失败：{}", path.display()))?;
     Ok(path.to_string_lossy().to_string())
 }
@@ -1089,6 +1237,50 @@ fn sanitize_zip_file_name(file_name: &str) -> String {
         }
     }
     out
+}
+
+fn sanitize_file_name_with_ext(file_name: &str, fallback: &str, ext: &str) -> String {
+    let name = file_name.trim();
+    let name = Path::new(name)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(fallback);
+    let mut out: String = name
+        .chars()
+        .map(|c| match c {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect();
+    out = out.trim().to_string();
+    if out.is_empty() {
+        out = fallback.to_string();
+    }
+    let lower = out.to_ascii_lowercase();
+    let ext_lower = ext.to_ascii_lowercase();
+    if !lower.ends_with(&ext_lower) {
+        out.push_str(ext);
+    }
+    if out.len() > 80 {
+        out.truncate(80);
+        let lower = out.to_ascii_lowercase();
+        if !lower.ends_with(&ext_lower) {
+            out.push_str(ext);
+        }
+    }
+    out
+}
+
+fn strip_data_url_base64(s: &str) -> &str {
+    let trimmed = s.trim();
+    if !trimmed.starts_with("data:") {
+        return trimmed;
+    }
+    match trimmed.find(',') {
+        Some(i) => &trimmed[i + 1..],
+        None => trimmed,
+    }
 }
 
 fn png_dimensions(bytes: &[u8]) -> Result<(u32, u32)> {

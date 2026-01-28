@@ -11,7 +11,12 @@ export type CustomWoodenFishSkin = {
     rows?: number
     chroma_key?: boolean
     chroma_key_algorithm?: 'classic' | 'yuv' | 'hsl' | 'aggressive'
-    chroma_key_options?: { similarity?: number; smoothness?: number; spill?: number }
+    chroma_key_options?: {
+      similarity?: number
+      smoothness?: number
+      spill?: number
+      key_color?: { r: number; g: number; b: number }
+    }
     remove_grid_lines?: boolean
     image_smoothing_enabled?: boolean
     idle_breathe?: boolean
