@@ -271,6 +271,37 @@ export function removeGridLines(
 // Chroma key implementation
 // -------------------------
 
+type KeyColorMode = 'magenta' | 'green' | 'blue' | 'red' | 'unknown'
+
+function classifyKeyColorMode(r: number, g: number, b: number): KeyColorMode {
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  if (max - min < 35) return 'unknown'
+
+  const magentaLike = r > g + 40 && b > g + 40 && r > 80 && b > 80
+  if (magentaLike) return 'magenta'
+  if (g > r + 40 && g > b + 40 && g > 80) return 'green'
+  if (b > r + 40 && b > g + 40 && b > 80) return 'blue'
+  if (r > g + 40 && r > b + 40 && r > 80) return 'red'
+  return 'unknown'
+}
+
+function keyModeDominance(mode: KeyColorMode, r: number, g: number, b: number): number {
+  switch (mode) {
+    case 'magenta':
+      return Math.min(r, b) - g
+    case 'green':
+      return g - Math.max(r, b)
+    case 'blue':
+      return b - Math.max(r, g)
+    case 'red':
+      return r - Math.max(g, b)
+    case 'unknown':
+    default:
+      return 0
+  }
+}
+
 function rgbToUV(r: number, g: number, b: number): [number, number] {
   const rn = r / 255
   const gn = g / 255
@@ -278,6 +309,22 @@ function rgbToUV(r: number, g: number, b: number): [number, number] {
   const u = rn * -0.169 + gn * -0.331 + bn * 0.5 + 0.5
   const v = rn * 0.5 + gn * -0.419 + bn * -0.081 + 0.5
   return [u, v]
+}
+
+function rgbToYUV(r: number, g: number, b: number): [number, number, number] {
+  const rn = r / 255
+  const gn = g / 255
+  const bn = b / 255
+  const y = rn * 0.299 + gn * 0.587 + bn * 0.114
+  const u = rn * -0.169 + gn * -0.331 + bn * 0.5 + 0.5
+  const v = rn * 0.5 + gn * -0.419 + bn * -0.081 + 0.5
+  return [y, u, v]
+}
+
+function chromaMagnitude(u: number, v: number): number {
+  const du = u - 0.5
+  const dv = v - 0.5
+  return Math.sqrt(du * du + dv * dv)
 }
 
 function chromaDistance(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
@@ -297,7 +344,7 @@ function detectKeyColor(
   data: Uint8ClampedArray,
   width: number,
   height: number
-): { r: number; g: number; b: number; mode: 'magenta' | 'red' | 'unknown' } {
+): { r: number; g: number; b: number; mode: KeyColorMode } {
   const borderPixels: { r: number; g: number; b: number }[] = []
 
   const sampleBorder = (x: number, y: number): void => {
@@ -333,6 +380,43 @@ function detectKeyColor(
   }
 
   if (borderPixels.length === 0) return { r: 255, g: 0, b: 255, mode: 'magenta' }
+
+  // Fast-path: pick the dominant border color (quantized histogram) so we can support
+  // non-magenta key colors (e.g. green screens) and reduce false positives when
+  // foreground touches the border.
+  const bins = new Uint16Array(16 * 16 * 16)
+  const sumR = new Uint32Array(16 * 16 * 16)
+  const sumG = new Uint32Array(16 * 16 * 16)
+  const sumB = new Uint32Array(16 * 16 * 16)
+
+  for (const { r, g, b } of borderPixels) {
+    const ri = r >> 4
+    const gi = g >> 4
+    const bi = b >> 4
+    const idx = (ri << 8) | (gi << 4) | bi
+    bins[idx]++
+    sumR[idx] += r
+    sumG[idx] += g
+    sumB[idx] += b
+  }
+
+  let bestIdx = 0
+  let bestCount = 0
+  for (let i = 0; i < bins.length; i++) {
+    const c = bins[i]
+    if (c > bestCount) {
+      bestCount = c
+      bestIdx = i
+    }
+  }
+
+  const minAccept = Math.max(12, Math.floor(borderPixels.length * 0.06))
+  if (bestCount >= minAccept) {
+    const r = Math.round(sumR[bestIdx] / bestCount)
+    const g = Math.round(sumG[bestIdx] / bestCount)
+    const b = Math.round(sumB[bestIdx] / bestCount)
+    return { r, g, b, mode: classifyKeyColorMode(r, g, b) }
+  }
 
   let magentaCount = 0
   let magentaR = 0,
@@ -455,7 +539,9 @@ function applyChromaKeyYUV(ctx: CanvasRenderingContext2D, width: number, height:
   const keyR = keyColor.r
   const keyG = keyColor.g
   const keyB = keyColor.b
-  const isMagentaKey = detectedColor.mode === 'magenta' || (keyR > keyG + 50 && keyB > keyG + 50)
+  const classifiedMode = classifyKeyColorMode(keyR, keyG, keyB)
+  const keyMode = classifiedMode !== 'unknown' ? classifiedMode : detectedColor.mode
+  const isMagentaKey = keyMode === 'magenta'
 
   // Defaults tuned for magenta-screen sprite sheets (anti-aliased edges tend to retain magenta fringes).
   const similarity = options.similarity ?? (isMagentaKey ? 0.46 : 0.4)
@@ -465,10 +551,20 @@ function applyChromaKeyYUV(ctx: CanvasRenderingContext2D, width: number, height:
   const pixelCount = width * height
   const bgMask = new Uint8Array(pixelCount)
 
-  const [keyU, keyV] = rgbToUV(keyR, keyG, keyB)
-  const keyMagentaDominance = Math.max(0, Math.min(keyR, keyB) - keyG)
+  const [, keyU, keyV] = rgbToYUV(keyR, keyG, keyB)
+  const keySat = chromaMagnitude(keyU, keyV)
+  const keyDominance = Math.max(0, keyModeDominance(keyMode, keyR, keyG, keyB))
 
-  const isBgCandidate = (p: number): boolean => {
+  const distThresholdSeed = similarity * (isMagentaKey ? 0.55 : 0.5)
+  const distThresholdGrow = similarity * (isMagentaKey ? 0.95 : 0.8)
+  const satRatioSeedMin = isMagentaKey ? 0.25 : 0.45
+  const satRatioGrowMin = isMagentaKey ? 0.18 : 0.35
+  const dominanceSeedMin =
+    keyMode === 'unknown' ? 0 : isMagentaKey ? Math.max(40, keyDominance * 0.3) : Math.max(18, keyDominance * 0.22)
+  const dominanceGrowMin =
+    keyMode === 'unknown' ? 0 : isMagentaKey ? Math.max(28, keyDominance * 0.18) : Math.max(10, keyDominance * 0.14)
+
+  const isBgCandidate = (p: number, strict: boolean): boolean => {
     const i = p * 4
     const a = data[i + 3]
     if (a < 16) return true
@@ -477,54 +573,68 @@ function applyChromaKeyYUV(ctx: CanvasRenderingContext2D, width: number, height:
     const g = data[i + 1]
     const b = data[i + 2]
 
-    const [u, v] = rgbToUV(r, g, b)
+    const [, u, v] = rgbToYUV(r, g, b)
     const du = u - keyU
     const dv = v - keyV
     const dist = Math.sqrt(du * du + dv * dv)
 
-    if (dist < similarity * 0.7) return true
+    const sat = chromaMagnitude(u, v)
+    const satRatio = keySat > 0.0001 ? sat / keySat : 0
+
+    const distThreshold = strict ? distThresholdSeed : distThresholdGrow
+    const satRatioMin = strict ? satRatioSeedMin : satRatioGrowMin
+    const dominance = keyModeDominance(keyMode, r, g, b)
+    const domMin = strict ? dominanceSeedMin : dominanceGrowMin
+
+    // If it's extremely close in chroma space, it's probably background — but still guard against
+    // low-saturation spill (common cause of "cut-out" artifacts when foreground touches border).
+    if (dist <= distThreshold * 0.65) {
+      if (satRatio >= satRatioMin * 0.9 && (keyMode === 'unknown' || dominance >= domMin * 0.9)) return true
+    }
+
+    // For non-magenta keys, avoid removing low-saturation foreground pixels with spill
+    // (common on anti-aliased edges / compression) by requiring adequate saturation.
+    if (dist > distThreshold || satRatio < satRatioMin) return false
+
+    if (keyMode === 'unknown') return true
+
+    if (dominance < domMin) return false
 
     if (isMagentaKey) {
-      const magentaDominance = Math.min(r, b) - g
-      if (magentaDominance > keyMagentaDominance * 0.3 && magentaDominance > 40) {
-        const rDiff = Math.abs(r - keyR)
-        const bDiff = Math.abs(b - keyB)
-        if (rDiff < 80 && bDiff < 80) return true
-      }
       // More permissive magenta variant check is safe because flood fill is border-connected.
       if (dist < similarity * 1.25 && isMagentaVariant(r, g, b, 0.9)) return true
     }
 
-    return false
+    return true
   }
 
   const queue: number[] = []
   let head = 0
 
-  const trySeed = (p: number): void => {
+  const trySeed = (p: number, strict: boolean): void => {
     if (bgMask[p]) return
-    if (!isBgCandidate(p)) return
+    if (!isBgCandidate(p, strict)) return
     bgMask[p] = 1
     queue.push(p)
   }
 
   for (let x = 0; x < width; x++) {
-    trySeed(x)
-    trySeed((height - 1) * width + x)
+    trySeed(x, true)
+    trySeed((height - 1) * width + x, true)
   }
   for (let y = 0; y < height; y++) {
-    trySeed(y * width)
-    trySeed(y * width + (width - 1))
+    trySeed(y * width, true)
+    trySeed(y * width + (width - 1), true)
   }
 
   while (head < queue.length) {
     const p = queue[head++]
     const x = p % width
     const y = (p / width) | 0
-    if (x > 0) trySeed(p - 1)
-    if (x < width - 1) trySeed(p + 1)
-    if (y > 0) trySeed(p - width)
-    if (y < height - 1) trySeed(p + width)
+    if (x > 0) trySeed(p - 1, false)
+    if (x < width - 1) trySeed(p + 1, false)
+    if (y > 0) trySeed(p - width, false)
+    if (y < height - 1) trySeed(p + width, false)
   }
 
   const edgeRadius = 8
@@ -761,8 +871,11 @@ function applyChromaKeyClassic(ctx: CanvasRenderingContext2D, width: number, hei
   const bgG = keyColor.g
   const bgB = keyColor.b
 
-  const isMagentaKey = detectedColor.mode === 'magenta' || (bgR > bgG + 50 && bgB > bgG + 50)
+  const classifiedMode = classifyKeyColorMode(bgR, bgG, bgB)
+  const keyMode = classifiedMode !== 'unknown' ? classifiedMode : detectedColor.mode
+  const isMagentaKey = keyMode === 'magenta'
   const bgMagentaDominance = isMagentaKey ? Math.max(180, Math.min(bgR, bgB) - bgG) : 1
+  const keyDominance = Math.max(0, keyModeDominance(keyMode, bgR, bgG, bgB))
 
   const pixelCount = width * height
   const bgMask = new Uint8Array(pixelCount)
@@ -772,6 +885,8 @@ function applyChromaKeyClassic(ctx: CanvasRenderingContext2D, width: number, hei
   const bgFillDist = 150
   const bgFillDistSq = bgFillDist * bgFillDist
   const bgDominanceMin = Math.max(50, Math.floor(bgMagentaDominance * 0.18))
+  const primaryDominanceMin =
+    !isMagentaKey && keyMode !== 'unknown' ? Math.max(16, Math.floor(keyDominance * 0.14)) : 0
   const alphaMin = 16
 
   const isBgCandidate = (p: number): boolean => {
@@ -786,6 +901,10 @@ function applyChromaKeyClassic(ctx: CanvasRenderingContext2D, width: number, hei
     if (isMagentaKey) {
       const dominance = Math.min(r, b) - g
       if (dominance < bgDominanceMin) return false
+    } else if (primaryDominanceMin > 0) {
+      // Prevent "cut-out" artifacts when the foreground touches the border and has key-color spill.
+      // For primary keys (green/red/blue), require strong channel dominance to be considered background.
+      if (keyModeDominance(keyMode, r, g, b) < primaryDominanceMin) return false
     }
 
     const dr = r - bgR
