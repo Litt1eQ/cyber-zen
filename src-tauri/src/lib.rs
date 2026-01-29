@@ -13,6 +13,7 @@ use core::window_manager::setup_panel;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
@@ -170,6 +171,7 @@ pub fn run() {
             commands::window::show_logs_window,
             commands::window::hide_logs_window,
             commands::window::toggle_logs_window,
+            commands::window::show_sprite_studio_window,
             commands::window::quit_app,
             commands::updater::check_update,
             commands::updater::download_and_install_update,
@@ -201,6 +203,7 @@ pub fn run() {
                     || label == "settings"
                     || label == "custom_statistics"
                     || label == "logs"
+                    || label == "sprite_studio"
                 {
                     if let Some(webview_window) = window.app_handle().get_webview_window(label) {
                         if label == "main" {

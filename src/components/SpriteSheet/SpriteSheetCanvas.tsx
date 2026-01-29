@@ -7,6 +7,8 @@ export function SpriteSheetCanvas({
   size,
   columns,
   rows,
+  cropOffsetX,
+  cropOffsetY,
   mood,
   speed = 1,
   rowIndex,
@@ -26,6 +28,8 @@ export function SpriteSheetCanvas({
   size: number
   columns?: number
   rows?: number
+  cropOffsetX?: number
+  cropOffsetY?: number
   mood: CustomMood
   speed?: number
   rowIndex?: number
@@ -71,6 +75,8 @@ export function SpriteSheetCanvas({
           src,
           columns,
           rows,
+          cropOffsetX,
+          cropOffsetY,
           chromaKey,
           chromaKeyAlgorithm,
           chromaKeyOptions,
@@ -94,7 +100,7 @@ export function SpriteSheetCanvas({
     return () => {
       cancelled = true
     }
-  }, [chromaKey, chromaKeyAlgorithm, chromaKeyOptions, columns, imageSmoothingEnabled, onError, removeGridLines, rows, src, targetFrameWidthPx])
+  }, [chromaKey, chromaKeyAlgorithm, chromaKeyOptions, columns, cropOffsetX, cropOffsetY, imageSmoothingEnabled, onError, removeGridLines, rows, src, targetFrameWidthPx])
 
   const draw = useMemo(() => {
     if (!sheetState) return null

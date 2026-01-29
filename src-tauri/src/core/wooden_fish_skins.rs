@@ -14,6 +14,7 @@ const CUSTOM_SKINS_DIR_NAME: &str = "wooden_fish_skins";
 const MANIFEST_FILE_NAME: &str = "manifest.json";
 const MUYU_FILE_NAME: &str = "muyu.png";
 const HAMMER_FILE_NAME: &str = "hammer.png";
+const COVER_FILE_NAME: &str = "cover.png";
 const SPRITE_SHEET_PNG_FILE_NAME: &str = "sprite.png";
 const SPRITE_SHEET_JPG_FILE_NAME: &str = "sprite.jpg";
 const SPRITE_SHEET_JPEG_FILE_NAME: &str = "sprite.jpeg";
@@ -30,11 +31,11 @@ const MAX_SPRITE_ROWS: u32 = 16;
 const SPRITE_ASPECT_RATIO_TOLERANCE: f64 = 0.15;
 const SPRITE_MIN_FRAME_SIZE_PX: u32 = 32;
 
-const MAX_ZIP_BYTES: usize = 10 * 1024 * 1024;
+const MAX_ZIP_BYTES: usize = 50 * 1024 * 1024;
 const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
 // Spritesheets are typically much larger than the two single-frame PNG assets, and are still
 // bounded by `MAX_ZIP_BYTES` when importing/exporting skin packages.
-const MAX_SPRITE_SHEET_BYTES: usize = 9 * 1024 * 1024;
+const MAX_SPRITE_SHEET_BYTES: usize = 40 * 1024 * 1024;
 // A processed cached spritesheet PNG can be larger than the original (e.g. JPEG → PNG).
 const MAX_SPRITE_SHEET_CACHE_BYTES: usize = 24 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: usize = 128 * 1024;
@@ -45,9 +46,13 @@ pub struct CustomWoodenFishSkin {
     pub id: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub muyu_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hammer_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover_path: Option<String>,
     pub sprite_sheet_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sprite_sheet: Option<SpriteSheetConfigV2>,
@@ -108,6 +113,10 @@ pub struct SpriteSheetConfigV2 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rows: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub crop_offset_x: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crop_offset_y: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub chroma_key: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chroma_key_algorithm: Option<String>,
@@ -133,6 +142,8 @@ pub struct SpriteSheetConfigV2 {
 struct PackageManifestV2 {
     pub schema_version: u32,
     pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
     #[serde(default)]
     pub sprite_sheet: Option<SpriteSheetConfigV2>,
 }
@@ -142,6 +153,8 @@ struct SkinManifestV2 {
     pub schema_version: u32,
     pub id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
     pub created_at_ms: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sprite_sheet: Option<SpriteSheetConfigV2>,
@@ -186,6 +199,7 @@ fn read_manifest_v2(path: &Path, dir_id: &str) -> Option<SkinManifestV2> {
         schema_version: 2,
         id: m1.id,
         name: m1.name,
+        author: None,
         created_at_ms: m1.created_at_ms,
         sprite_sheet: None,
     })
@@ -249,6 +263,8 @@ pub fn list_custom_skins(app: &AppHandle) -> Result<Vec<CustomWoodenFishSkin>> {
                 mode: Some("replace".to_string()),
                 columns: Some(EXPECTED_SPRITE_COLUMNS),
                 rows: Some(EXPECTED_SPRITE_ROWS),
+                crop_offset_x: None,
+                crop_offset_y: None,
                 chroma_key: Some(true),
                 chroma_key_algorithm: Some("yuv".to_string()),
                 chroma_key_options: None,
@@ -284,6 +300,10 @@ pub fn list_custom_skins(app: &AppHandle) -> Result<Vec<CustomWoodenFishSkin>> {
         } else {
             None
         };
+        let cover_path = {
+            let cover = path.join(COVER_FILE_NAME);
+            cover.is_file().then(|| cover.to_string_lossy().to_string())
+        };
 
         // Require at least one rendering mode to be available.
         if sprite_sheet_path.is_none() && (muyu_path.is_none() || hammer_path.is_none()) {
@@ -293,8 +313,10 @@ pub fn list_custom_skins(app: &AppHandle) -> Result<Vec<CustomWoodenFishSkin>> {
         skins.push(CustomWoodenFishSkin {
             id: custom_skin_settings_id(&id),
             name: manifest.name,
+            author: manifest.author,
             muyu_path,
             hammer_path,
+            cover_path,
             sprite_sheet_path,
             sprite_sheet: manifest.sprite_sheet,
             created_at_ms: manifest.created_at_ms,
@@ -412,7 +434,8 @@ pub fn import_custom_skin_zip_bytes(
         ));
     }
 
-    let (muyu_png, hammer_png, sprite_sheet, package_manifest_bytes) = extract_skin_assets(zip_bytes)?;
+    let (muyu_png, hammer_png, cover_png, sprite_sheet, package_manifest_bytes) =
+        extract_skin_assets(zip_bytes)?;
 
     let package_manifest = match package_manifest_bytes {
         Some(bytes) => {
@@ -452,6 +475,10 @@ pub fn import_custom_skin_zip_bytes(
         return Err(anyhow!("Zip 内缺少必需文件（需要 muyu.png + hammer.png，或提供 sprite.* 精灵图）"));
     }
 
+    if let Some(ref cover) = cover_png {
+        let _ = png_dimensions(cover).context("cover.png 不是有效的 PNG")?;
+    }
+
     let mut sprite_sheet_config: Option<SpriteSheetConfigV2> =
         package_manifest.as_ref().and_then(|m| m.sprite_sheet.clone());
     if let Some(ref sprite_sheet) = sprite_sheet {
@@ -473,6 +500,8 @@ pub fn import_custom_skin_zip_bytes(
             mode: Some("replace".to_string()),
             columns: Some(cols),
             rows: Some(rows),
+            crop_offset_x: None,
+            crop_offset_y: None,
             chroma_key: Some(true),
             chroma_key_algorithm: Some("yuv".to_string()),
             chroma_key_options: Some(ChromaKeyOptionsV2 {
@@ -521,12 +550,18 @@ pub fn import_custom_skin_zip_bytes(
         .and_then(|m| normalize_name(m.name.clone()))
         .or_else(|| normalize_name(name))
         .unwrap_or_else(|| "自定义皮肤".to_string());
+    let author = package_manifest
+        .as_ref()
+        .and_then(|m| normalize_author(m.author.clone()));
 
     if let Some(ref bytes) = muyu_png {
         fs::write(tmp_dir.join(MUYU_FILE_NAME), bytes).context("写入 muyu.png 失败")?;
     }
     if let Some(ref bytes) = hammer_png {
         fs::write(tmp_dir.join(HAMMER_FILE_NAME), bytes).context("写入 hammer.png 失败")?;
+    }
+    if let Some(ref bytes) = cover_png {
+        fs::write(tmp_dir.join(COVER_FILE_NAME), bytes).context("写入 cover.png 失败")?;
     }
     if let Some(ref sprite_sheet) = sprite_sheet {
         fs::write(tmp_dir.join(&sprite_sheet.file_name), &sprite_sheet.bytes)
@@ -537,6 +572,7 @@ pub fn import_custom_skin_zip_bytes(
         schema_version: 2,
         id: raw_id.clone(),
         name: name.clone(),
+        author: author.clone(),
         created_at_ms,
         sprite_sheet: sprite_sheet_config.clone(),
     };
@@ -554,12 +590,17 @@ pub fn import_custom_skin_zip_bytes(
     Ok(CustomWoodenFishSkin {
         id: custom_skin_settings_id(&raw_id),
         name,
+        author,
         muyu_path: {
             let path = id_dir.join(MUYU_FILE_NAME);
             path.is_file().then(|| path.to_string_lossy().to_string())
         },
         hammer_path: {
             let path = id_dir.join(HAMMER_FILE_NAME);
+            path.is_file().then(|| path.to_string_lossy().to_string())
+        },
+        cover_path: {
+            let path = id_dir.join(COVER_FILE_NAME);
             path.is_file().then(|| path.to_string_lossy().to_string())
         },
         sprite_sheet_path: {
@@ -598,19 +639,13 @@ pub fn export_skin_zip_to_app_data(
     app: &AppHandle,
     settings_id: &str,
     file_name: &str,
+    export_dir: Option<&str>,
+    export_path: Option<&str>,
 ) -> Result<String> {
     let file_name = sanitize_zip_file_name(file_name);
     let zip_bytes = export_skin_zip_bytes(app, settings_id)?;
 
-    let export_dir = app
-        .path()
-        .app_data_dir()
-        .context("获取 App 数据目录失败")?
-        .join("exports");
-    fs::create_dir_all(&export_dir)
-        .with_context(|| format!("创建导出目录失败：{}", export_dir.display()))?;
-
-    let path = export_dir.join(file_name);
+    let path = resolve_export_zip_path(app, export_path, export_dir, &file_name)?;
     fs::write(&path, &zip_bytes)
         .with_context(|| format!("写入导出文件失败：{}", path.display()))?;
     Ok(path.to_string_lossy().to_string())
@@ -619,8 +654,12 @@ pub fn export_skin_zip_to_app_data(
 pub fn export_sprite_skin_package_zip_base64_to_app_data(
     app: &AppHandle,
     file_name: &str,
+    export_dir: Option<&str>,
+    export_path: Option<&str>,
     name: Option<String>,
+    author: Option<String>,
     sprite_base64: &str,
+    cover_png_base64: Option<&str>,
     sprite_sheet: Option<SpriteSheetConfigV2>,
 ) -> Result<String> {
     let sprite_base64 = strip_data_url_base64(sprite_base64);
@@ -667,6 +706,8 @@ pub fn export_sprite_skin_package_zip_base64_to_app_data(
         mode: Some("replace".to_string()),
         columns: Some(cols),
         rows: Some(rows),
+        crop_offset_x: None,
+        crop_offset_y: None,
         chroma_key: Some(true),
         chroma_key_algorithm: Some("yuv".to_string()),
         chroma_key_options: Some(ChromaKeyOptionsV2 {
@@ -695,20 +736,41 @@ pub fn export_sprite_skin_package_zip_base64_to_app_data(
     let manifest = PackageManifestV2 {
         schema_version: 2,
         name: normalize_name(name),
+        author: normalize_author(author),
         sprite_sheet: Some(cfg),
     };
     let manifest_json = serde_json::to_vec_pretty(&manifest).context("序列化 manifest 失败")?;
-    let zip_bytes = build_skin_zip(&manifest_json, None, None, Some((sprite_file_name.as_str(), &sprite_bytes)))?;
+    let cover_bytes = cover_png_base64
+        .map(strip_data_url_base64)
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| -> Result<Vec<u8>> {
+            let bytes = BASE64_STANDARD
+                .decode(s.as_bytes())
+                .context("cover.png base64 解码失败")?;
+            if bytes.is_empty() {
+                return Err(anyhow!("cover.png 内容为空"));
+            }
+            if bytes.len() > MAX_EXPORT_PNG_BYTES {
+                return Err(anyhow!(
+                    "cover.png 过大（最大 {}MB）",
+                    MAX_EXPORT_PNG_BYTES / 1024 / 1024
+                ));
+            }
+            let _ = png_dimensions(&bytes).context("cover.png 不是有效的 PNG")?;
+            Ok(bytes)
+        })
+        .transpose()?;
+
+    let zip_bytes = build_skin_zip(
+        &manifest_json,
+        None,
+        None,
+        cover_bytes.as_deref(),
+        Some((sprite_file_name.as_str(), &sprite_bytes)),
+    )?;
 
     let file_name = sanitize_zip_file_name(file_name);
-    let export_dir = app
-        .path()
-        .app_data_dir()
-        .context("获取 App 数据目录失败")?
-        .join("exports");
-    fs::create_dir_all(&export_dir)
-        .with_context(|| format!("创建导出目录失败：{}", export_dir.display()))?;
-    let path = export_dir.join(file_name);
+    let path = resolve_export_zip_path(app, export_path, export_dir, &file_name)?;
     fs::write(&path, &zip_bytes)
         .with_context(|| format!("写入导出文件失败：{}", path.display()))?;
     Ok(path.to_string_lossy().to_string())
@@ -717,6 +779,8 @@ pub fn export_sprite_skin_package_zip_base64_to_app_data(
 pub fn export_png_base64_to_app_data(
     app: &AppHandle,
     file_name: &str,
+    export_dir: Option<&str>,
+    export_path: Option<&str>,
     png_base64: &str,
 ) -> Result<String> {
     let png_base64 = strip_data_url_base64(png_base64);
@@ -738,6 +802,30 @@ pub fn export_png_base64_to_app_data(
     let _ = png_dimensions(&png_bytes).context("PNG 不是有效的 PNG")?;
 
     let file_name = sanitize_file_name_with_ext(file_name, "cover.png", ".png");
+    let path = resolve_export_png_path(app, export_path, export_dir, &file_name)?;
+    fs::write(&path, &png_bytes)
+        .with_context(|| format!("写入导出文件失败：{}", path.display()))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+fn resolve_export_dir(app: &AppHandle, export_dir: Option<&str>) -> Result<PathBuf> {
+    if let Some(dir) = export_dir {
+        let dir = dir.trim();
+        if dir.is_empty() {
+            return Err(anyhow!("导出目录为空"));
+        }
+        let path = Path::new(dir);
+        if !path.is_absolute() {
+            return Err(anyhow!("导出目录必须是绝对路径"));
+        }
+        let canonical =
+            fs::canonicalize(path).with_context(|| format!("导出目录不可用：{}", path.display()))?;
+        if !canonical.is_dir() {
+            return Err(anyhow!("导出目录不是文件夹：{}", canonical.display()));
+        }
+        return Ok(canonical);
+    }
+
     let export_dir = app
         .path()
         .app_data_dir()
@@ -745,10 +833,85 @@ pub fn export_png_base64_to_app_data(
         .join("exports");
     fs::create_dir_all(&export_dir)
         .with_context(|| format!("创建导出目录失败：{}", export_dir.display()))?;
-    let path = export_dir.join(file_name);
-    fs::write(&path, &png_bytes)
-        .with_context(|| format!("写入导出文件失败：{}", path.display()))?;
-    Ok(path.to_string_lossy().to_string())
+    Ok(export_dir)
+}
+
+fn sanitize_zip_file_name_only(name: &str) -> Result<String> {
+    let base = Path::new(name)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| anyhow!("导出文件名非法"))?;
+    Ok(sanitize_zip_file_name(base))
+}
+
+fn resolve_export_zip_path(
+    app: &AppHandle,
+    export_path: Option<&str>,
+    export_dir: Option<&str>,
+    file_name: &str,
+) -> Result<PathBuf> {
+    if let Some(path) = export_path {
+        let path = Path::new(path.trim());
+        if path.as_os_str().is_empty() {
+            return Err(anyhow!("导出路径为空"));
+        }
+        if !path.is_absolute() {
+            return Err(anyhow!("导出路径必须是绝对路径"));
+        }
+        let parent = path
+            .parent()
+            .ok_or_else(|| anyhow!("导出路径缺少父目录"))?;
+        fs::create_dir_all(parent)
+            .with_context(|| format!("创建导出目录失败：{}", parent.display()))?;
+        let parent = fs::canonicalize(parent)
+            .with_context(|| format!("导出目录不可用：{}", parent.display()))?;
+        if !parent.is_dir() {
+            return Err(anyhow!("导出目录不是文件夹：{}", parent.display()));
+        }
+        let file_name = sanitize_zip_file_name_only(
+            path.file_name().and_then(|s| s.to_str()).unwrap_or(file_name),
+        )?;
+        return Ok(parent.join(file_name));
+    }
+
+    let export_dir = resolve_export_dir(app, export_dir)?;
+    Ok(export_dir.join(file_name))
+}
+
+fn resolve_export_png_path(
+    app: &AppHandle,
+    export_path: Option<&str>,
+    export_dir: Option<&str>,
+    file_name: &str,
+) -> Result<PathBuf> {
+    if let Some(path) = export_path {
+        let path = Path::new(path.trim());
+        if path.as_os_str().is_empty() {
+            return Err(anyhow!("导出路径为空"));
+        }
+        if !path.is_absolute() {
+            return Err(anyhow!("导出路径必须是绝对路径"));
+        }
+        let parent = path
+            .parent()
+            .ok_or_else(|| anyhow!("导出路径缺少父目录"))?;
+        fs::create_dir_all(parent)
+            .with_context(|| format!("创建导出目录失败：{}", parent.display()))?;
+        let parent = fs::canonicalize(parent)
+            .with_context(|| format!("导出目录不可用：{}", parent.display()))?;
+        if !parent.is_dir() {
+            return Err(anyhow!("导出目录不是文件夹：{}", parent.display()));
+        }
+        let base = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(file_name);
+        let file_name = sanitize_file_name_with_ext(base, "cover.png", ".png");
+        return Ok(parent.join(file_name));
+    }
+
+    let export_dir = resolve_export_dir(app, export_dir)?;
+    Ok(export_dir.join(file_name))
 }
 
 fn skins_root(app: &AppHandle) -> Result<PathBuf> {
@@ -770,18 +933,28 @@ fn generate_id() -> String {
 }
 
 fn normalize_name(name: Option<String>) -> Option<String> {
-    let name = name?;
-    let trimmed = name.trim();
+  let name = name?;
+  let trimmed = name.trim();
+  if trimmed.is_empty() {
+    return None;
+  }
+  let normalized = trimmed
+    .strip_suffix(".czs")
+    .or_else(|| trimmed.strip_suffix(".CZS"))
+    .or_else(|| trimmed.strip_suffix(".zip"))
+    .or_else(|| trimmed.strip_suffix(".ZIP"))
+    .unwrap_or(trimmed);
+  let clipped: String = normalized.chars().take(32).collect();
+  Some(clipped)
+}
+
+fn normalize_author(author: Option<String>) -> Option<String> {
+    let author = author?;
+    let trimmed = author.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let normalized = trimmed
-        .strip_suffix(".czs")
-        .or_else(|| trimmed.strip_suffix(".CZS"))
-        .or_else(|| trimmed.strip_suffix(".zip"))
-        .or_else(|| trimmed.strip_suffix(".ZIP"))
-        .unwrap_or(trimmed);
-    let clipped: String = normalized.chars().take(32).collect();
+    let clipped: String = trimmed.chars().take(32).collect();
     Some(clipped)
 }
 
@@ -826,12 +999,13 @@ fn canonical_sprite_file_name(kind: SpriteImageKind) -> &'static str {
 
 fn extract_skin_assets(
     zip_bytes: &[u8],
-) -> Result<(Option<Vec<u8>>, Option<Vec<u8>>, Option<SpriteSheetAsset>, Option<Vec<u8>>)> {
+) -> Result<(Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>, Option<SpriteSheetAsset>, Option<Vec<u8>>)> {
     let mut archive = ZipArchive::new(Cursor::new(zip_bytes))
         .context("Zip 解析失败（可能不是有效的 zip 文件）")?;
 
     let mut muyu: Option<Vec<u8>> = None;
     let mut hammer: Option<Vec<u8>> = None;
+    let mut cover: Option<Vec<u8>> = None;
     let mut sprite_sheet: Option<SpriteSheetAsset> = None;
     let mut manifest: Option<Vec<u8>> = None;
 
@@ -848,6 +1022,7 @@ fn extract_skin_assets(
 
         if filename != MUYU_FILE_NAME
             && filename != HAMMER_FILE_NAME
+            && filename != COVER_FILE_NAME
             && filename != SPRITE_SHEET_PNG_FILE_NAME
             && filename != SPRITE_SHEET_JPG_FILE_NAME
             && filename != SPRITE_SHEET_JPEG_FILE_NAME
@@ -891,6 +1066,8 @@ fn extract_skin_assets(
                 MUYU_FILE_NAME
             } else if filename == HAMMER_FILE_NAME {
                 HAMMER_FILE_NAME
+            } else if filename == COVER_FILE_NAME {
+                COVER_FILE_NAME
             } else {
                 "sprite.*"
             };
@@ -907,6 +1084,11 @@ fn extract_skin_assets(
                 return Err(anyhow!("Zip 内包含多个 hammer.png"));
             }
             hammer = Some(buf);
+        } else if filename == COVER_FILE_NAME {
+            if cover.is_some() {
+                return Err(anyhow!("Zip 内包含多个 cover.png"));
+            }
+            cover = Some(buf);
         } else {
             if sprite_sheet.is_some() {
                 return Err(anyhow!("Zip 内包含多个 sprite.*（sprite.png / sprite.jpg / sprite.jpeg）"));
@@ -927,19 +1109,20 @@ fn extract_skin_assets(
         return Err(anyhow!("Zip 内缺少 hammer.png（需要与项目默认文件名一致）"));
     }
 
-    Ok((muyu, hammer, sprite_sheet, manifest))
+    Ok((muyu, hammer, cover, sprite_sheet, manifest))
 }
 
 fn build_skin_zip(
     manifest_json: &[u8],
     muyu_png: Option<&[u8]>,
     hammer_png: Option<&[u8]>,
+    cover_png: Option<&[u8]>,
     sprite_sheet: Option<(&str, &[u8])>,
 ) -> Result<Vec<u8>> {
     let mut out = Cursor::new(Vec::<u8>::new());
     let mut writer = ZipWriter::new(&mut out);
 
-    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     writer
         .start_file(MANIFEST_FILE_NAME, options)
@@ -958,6 +1141,13 @@ fn build_skin_zip(
             .start_file(HAMMER_FILE_NAME, options)
             .context("创建 zip 条目 hammer.png 失败")?;
         std::io::Write::write_all(&mut writer, hammer_png).context("写入 zip 条目 hammer.png 失败")?;
+    }
+
+    if let Some(cover_png) = cover_png {
+        writer
+            .start_file(COVER_FILE_NAME, options)
+            .context("创建 zip 条目 cover.png 失败")?;
+        std::io::Write::write_all(&mut writer, cover_png).context("写入 zip 条目 cover.png 失败")?;
     }
 
     if let Some((sprite_file_name, sprite_bytes)) = sprite_sheet {
@@ -980,7 +1170,7 @@ fn build_skin_zip(
 }
 
 fn export_skin_zip_bytes(app: &AppHandle, settings_id: &str) -> Result<Vec<u8>> {
-    let (mut manifest, muyu_png, hammer_png, sprite_sheet) = load_skin_assets(app, settings_id)?;
+    let (mut manifest, muyu_png, hammer_png, cover_png, sprite_sheet) = load_skin_assets(app, settings_id)?;
 
     if let (Some(ref muyu_png), Some(ref hammer_png)) = (&muyu_png, &hammer_png) {
         let (muyu_w, muyu_h) = png_dimensions(muyu_png).context("muyu.png 不是有效的 PNG")?;
@@ -1032,6 +1222,7 @@ fn export_skin_zip_bytes(app: &AppHandle, settings_id: &str) -> Result<Vec<u8>> 
         &manifest_json,
         muyu_png.as_deref(),
         hammer_png.as_deref(),
+        cover_png.as_deref(),
         sprite_sheet
             .as_ref()
             .map(|(name, bytes)| (name.as_str(), bytes.as_slice())),
@@ -1041,18 +1232,20 @@ fn export_skin_zip_bytes(app: &AppHandle, settings_id: &str) -> Result<Vec<u8>> 
 fn load_skin_assets(
     app: &AppHandle,
     settings_id: &str,
-) -> Result<(SkinManifestV2, Option<Vec<u8>>, Option<Vec<u8>>, Option<(String, Vec<u8>)>)> {
+) -> Result<(SkinManifestV2, Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>, Option<(String, Vec<u8>)>)> {
     match settings_id {
         "rosewood" => Ok((
             SkinManifestV2 {
                 schema_version: 2,
                 id: "rosewood".to_string(),
                 name: "rosewood".to_string(),
+                author: None,
                 created_at_ms: 0,
                 sprite_sheet: None,
             },
             Some(include_bytes!("../../../src/assets/rosewood/muyu.png").to_vec()),
             Some(include_bytes!("../../../src/assets/rosewood/hammer.png").to_vec()),
+            None,
             None,
         )),
         "wood" => Ok((
@@ -1060,11 +1253,13 @@ fn load_skin_assets(
                 schema_version: 2,
                 id: "wood".to_string(),
                 name: "wood".to_string(),
+                author: None,
                 created_at_ms: 0,
                 sprite_sheet: None,
             },
             Some(include_bytes!("../../../src/assets/wood/muyu.png").to_vec()),
             Some(include_bytes!("../../../src/assets/wood/hammer.png").to_vec()),
+            None,
             None,
         )),
         _ => {
@@ -1082,6 +1277,7 @@ fn load_skin_assets(
             };
             let muyu_png = fs::read(dir.join(MUYU_FILE_NAME)).ok();
             let hammer_png = fs::read(dir.join(HAMMER_FILE_NAME)).ok();
+            let cover_png = fs::read(dir.join(COVER_FILE_NAME)).ok();
             let sprite_sheet = {
                 let candidates = [
                     dir.join(SPRITE_SHEET_PNG_FILE_NAME),
@@ -1118,6 +1314,14 @@ fn load_skin_assets(
                     ));
                 }
             }
+            if let Some(ref bytes) = cover_png {
+                if bytes.len() > MAX_EXPORT_PNG_BYTES {
+                    return Err(anyhow!(
+                        "cover.png 图片过大（最大 {}MB）",
+                        MAX_EXPORT_PNG_BYTES / 1024 / 1024
+                    ));
+                }
+            }
 
             if let Some((_, ref bytes)) = sprite_sheet {
                 if bytes.len() > MAX_SPRITE_SHEET_BYTES {
@@ -1139,6 +1343,8 @@ fn load_skin_assets(
                     mode: Some("replace".to_string()),
                     columns: Some(EXPECTED_SPRITE_COLUMNS),
                     rows: Some(EXPECTED_SPRITE_ROWS),
+                    crop_offset_x: None,
+                    crop_offset_y: None,
                     chroma_key: Some(true),
                     chroma_key_algorithm: Some("yuv".to_string()),
                     chroma_key_options: None,
@@ -1156,7 +1362,7 @@ fn load_skin_assets(
                 manifest.sprite_sheet = None;
             }
 
-            Ok((manifest, muyu_png, hammer_png, sprite_sheet))
+            Ok((manifest, muyu_png, hammer_png, cover_png, sprite_sheet))
         }
     }
 }

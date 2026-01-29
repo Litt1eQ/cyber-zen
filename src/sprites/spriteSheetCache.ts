@@ -27,6 +27,8 @@ export async function precacheCustomSkinSpriteSheet(
 
   const columns = cfg.columns ?? 8
   const rows = cfg.rows ?? 7
+  const cropOffsetX = cfg.crop_offset_x ?? 0
+  const cropOffsetY = cfg.crop_offset_y ?? 0
   const chromaKeyOptions = cfg.chroma_key_options
     ? {
       similarity: cfg.chroma_key_options.similarity,
@@ -41,6 +43,8 @@ export async function precacheCustomSkinSpriteSheet(
     src,
     columns,
     rows,
+    cropOffsetX,
+    cropOffsetY,
     chromaKey,
     chromaKeyAlgorithm: cfg.chroma_key_algorithm ?? 'classic',
     chromaKeyOptions,

@@ -22,6 +22,7 @@ export default defineConfig(async () => ({
         settings: resolve(__dirname, "settings.html"),
         custom_statistics: resolve(__dirname, "custom-statistics.html"),
         logs: resolve(__dirname, "logs.html"),
+        sprite_studio: resolve(__dirname, "sprite-studio.html"),
       },
     },
   },

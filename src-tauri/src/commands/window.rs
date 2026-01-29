@@ -117,6 +117,35 @@ fn ensure_logs_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
     Ok(window)
 }
 
+fn ensure_sprite_studio_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
+    if let Some(window) = app_handle.get_webview_window("sprite_studio") {
+        return Ok(window);
+    }
+
+    let builder = WebviewWindowBuilder::new(
+        app_handle,
+        "sprite_studio",
+        WebviewUrl::App("sprite-studio.html".into()),
+    )
+    .title("精灵图工作台 - 赛博木鱼")
+    .resizable(true)
+    .decorations(true)
+    .transparent(false)
+    .shadow(true)
+    .skip_taskbar(false)
+    .always_on_top(false)
+    .accept_first_mouse(true)
+    .inner_size(1080.0, 780.0)
+    .min_inner_size(860.0, 640.0);
+
+    let window = apply_platform_window_chrome(builder)
+        .build()
+        .map_err(|e| format!("Failed to create sprite studio window: {}", e))?;
+
+    crate::core::window_placement::restore_all(app_handle);
+    Ok(window)
+}
+
 #[tauri::command]
 pub async fn show_main_window(app_handle: AppHandle) -> Result<(), String> {
     let window = app_handle
@@ -453,6 +482,18 @@ pub async fn toggle_logs_window(app_handle: AppHandle) -> Result<(), String> {
         .set_focus()
         .map_err(|e| format!("Failed to focus logs: {}", e))?;
 
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn show_sprite_studio_window(app_handle: AppHandle) -> Result<(), String> {
+    let window = ensure_sprite_studio_window(&app_handle)?;
+    window
+        .show()
+        .map_err(|e| format!("Failed to show window: {}", e))?;
+    window
+        .set_focus()
+        .map_err(|e| format!("Failed to focus window: {}", e))?;
     Ok(())
 }
 

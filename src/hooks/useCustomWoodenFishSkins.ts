@@ -8,6 +8,7 @@ import { createWoodenFishSkinFromUrls, type WoodenFishSkin } from '../components
 export type CustomWoodenFishSkinResolved = CustomWoodenFishSkin & {
   muyu_src?: string
   hammer_src?: string
+  cover_src?: string
   sprite_sheet_src?: string
   skin: WoodenFishSkin
 }
@@ -26,6 +27,8 @@ function mapSpriteSheetConfig(config: CustomWoodenFishSkin['sprite_sheet']) {
     mode: config.mode,
     columns: config.columns,
     rows: config.rows,
+    cropOffsetX: config.crop_offset_x,
+    cropOffsetY: config.crop_offset_y,
     chromaKey: config.chroma_key,
     chromaKeyAlgorithm: config.chroma_key_algorithm,
     chromaKeyOptions,
@@ -85,11 +88,13 @@ export function useCustomWoodenFishSkins() {
     return skins.map((s) => {
       const muyu_src = s.muyu_path ? convertFileSrc(s.muyu_path) : undefined
       const hammer_src = s.hammer_path ? convertFileSrc(s.hammer_path) : undefined
+      const cover_src = s.cover_path ? convertFileSrc(s.cover_path) : undefined
       const sprite_sheet_src = s.sprite_sheet_path ? convertFileSrc(s.sprite_sheet_path) : undefined
       return {
         ...s,
         muyu_src,
         hammer_src,
+        cover_src,
         sprite_sheet_src,
         skin: createWoodenFishSkinFromUrls({
           muyuSrc: muyu_src,

@@ -30,6 +30,8 @@ type ProcessedSheetBuildOptions = {
   src: string
   columns?: number
   rows?: number
+  cropOffsetX?: number
+  cropOffsetY?: number
   chromaKey?: boolean
   chromaKeyAlgorithm?: ChromaKeyAlgorithm
   chromaKeyOptions?: ChromaKeyOptions
@@ -76,11 +78,15 @@ function makeProcessedSheetCacheKey(opts: ProcessedSheetBuildOptions): string {
   const fixGrid = opts.removeGridLines ?? true
   const targetFrameWidthPx = opts.targetFrameWidthPx ? Math.round(opts.targetFrameWidthPx) : 0
   const maxProcessedPixels = opts.maxProcessedPixels ?? 0
+  const cropOffsetX = opts.cropOffsetX && Number.isFinite(opts.cropOffsetX) ? Math.round(opts.cropOffsetX) : 0
+  const cropOffsetY = opts.cropOffsetY && Number.isFinite(opts.cropOffsetY) ? Math.round(opts.cropOffsetY) : 0
   return [
     'v2',
     opts.src,
     `c${cols}`,
     `r${rows}`,
+    `ox${cropOffsetX}`,
+    `oy${cropOffsetY}`,
     `k${chromaKey ? 1 : 0}`,
     `a${algo}`,
     `s${smoothing ? 1 : 0}`,
@@ -149,6 +155,8 @@ export async function buildProcessedSheetFromSrc(opts: {
   src: string
   columns?: number
   rows?: number
+  cropOffsetX?: number
+  cropOffsetY?: number
   chromaKey?: boolean
   chromaKeyAlgorithm?: ChromaKeyAlgorithm
   chromaKeyOptions?: ChromaKeyOptions
@@ -211,8 +219,14 @@ export async function buildProcessedSheetFromSrc(opts: {
     // then (optionally) downscale to reduce chroma-key CPU cost.
     const cropW = Math.max(1, sourceSheetW)
     const cropH = Math.max(1, sourceSheetH)
-    const cropX = Math.max(0, Math.floor((sourceW - cropW) / 2))
-    const cropY = Math.max(0, Math.floor((sourceH - cropH) / 2))
+    const baseCropX = Math.max(0, Math.floor((sourceW - cropW) / 2))
+    const baseCropY = Math.max(0, Math.floor((sourceH - cropH) / 2))
+    const maxCropX = Math.max(0, sourceW - cropW)
+    const maxCropY = Math.max(0, sourceH - cropH)
+    const ox = opts.cropOffsetX && Number.isFinite(opts.cropOffsetX) ? Math.round(opts.cropOffsetX) : 0
+    const oy = opts.cropOffsetY && Number.isFinite(opts.cropOffsetY) ? Math.round(opts.cropOffsetY) : 0
+    const cropX = Math.max(0, Math.min(maxCropX, baseCropX + ox))
+    const cropY = Math.max(0, Math.min(maxCropY, baseCropY + oy))
     sheetCtx.drawImage(sprite, cropX, cropY, cropW, cropH, 0, 0, sheetW, sheetH)
 
     if (opts.chromaKey ?? true) {

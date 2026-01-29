@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import { invoke } from '@tauri-apps/api/core'
-import { openPath } from '@tauri-apps/plugin-opener'
+import { invoke, isTauri } from '@tauri-apps/api/core'
+import { save } from '@tauri-apps/plugin-dialog'
 
 import { COMMANDS } from '@/types/events'
 import { Button } from '@/components/ui/button'
@@ -12,8 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { validateSpriteImageDimensions, type ChromaKeyAlgorithm, type ChromaKeyOptions } from '@/sprites/spriteCore'
-import { drawFrameToCanvas } from '@/sprites/spriteAnimation'
-import { exportFramePngBase64FromProcessedSheet, loadImageFromUrl, processSpriteSheetToObjectUrl, type ProcessedSpriteSheet, type SpriteSheetProcessOptions } from '@/sprites/spriteStudio'
+import { exportSquareCoverPngBase64FromProcessedSheet, loadImageFromUrl, processSpriteSheetToObjectUrl, type ProcessedSpriteSheet, type SpriteSheetProcessOptions } from '@/sprites/spriteStudio'
+import { ProcessedSpriteFramesPreview } from '@/components/SpriteStudio/ProcessedSpriteFramesPreview'
 
 type SpriteSheetConfigInput = {
   file?: string
@@ -77,6 +77,7 @@ export function SpriteSheetStudioDialog({
   const [lastProcessedSignature, setLastProcessedSignature] = useState<string | null>(null)
 
   const [skinName, setSkinName] = useState<string>('')
+  const [author, setAuthor] = useState<string>('')
   const [columns, setColumns] = useState<number>(DEFAULT_COLUMNS)
   const [rows, setRows] = useState<number>(DEFAULT_ROWS)
 
@@ -88,19 +89,14 @@ export function SpriteSheetStudioDialog({
   const [spill, setSpill] = useState(DEFAULT_SPILL)
   const [removeGridLinesEnabled, setRemoveGridLinesEnabled] = useState(true)
   const [imageSmoothingEnabled, setImageSmoothingEnabled] = useState(true)
-
   const [coverIndex, setCoverIndex] = useState(0)
 
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
-  const [exportedCzsPath, setExportedCzsPath] = useState<string | null>(null)
-  const [exportedCoverPath, setExportedCoverPath] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setExportError(null)
-    setExportedCzsPath(null)
-    setExportedCoverPath(null)
   }, [open])
 
   useEffect(() => {
@@ -187,6 +183,22 @@ export function SpriteSheetStudioDialog({
     setCoverIndex((idx) => Math.min(Math.max(0, idx), totalFrames - 1))
   }, [totalFrames])
 
+  const coverPreviewDataUrl = useMemo(() => {
+    if (!processed) return null
+    try {
+      const base64 = exportSquareCoverPngBase64FromProcessedSheet({
+        sheet: processed.sheet,
+        frameWidth: processed.frameWidth,
+        frameHeight: processed.frameHeight,
+        columns: processed.columns,
+        frameIndex: coverIndex,
+      })
+      return `data:image/png;base64,${base64}`
+    } catch {
+      return null
+    }
+  }, [coverIndex, processed])
+
   const openFilePicker = () => fileInputRef.current?.click()
 
   const currentSignature = useMemo(() => {
@@ -246,9 +258,18 @@ export function SpriteSheetStudioDialog({
     if (!sourceFile || !sourceUrl || !validation?.valid) return
     setExportBusy(true)
     setExportError(null)
-    setExportedCzsPath(null)
-    setExportedCoverPath(null)
     try {
+      if (!isTauri()) return
+
+      const fileBase = toSafeFileBaseName(skinName || sourceFile.name)
+      const czsFileName = `${fileBase}.czs`
+      const exportPath = await save({
+        title: t('settings.skins.exportDirTitle') as string,
+        defaultPath: czsFileName,
+        filters: [{ name: 'CyberZen Skin', extensions: ['czs'] }],
+      })
+      if (!exportPath) return
+
       let latestProcessed = processedRef.current
       if (!isProcessedUpToDate) {
         const next = await runProcess()
@@ -257,11 +278,7 @@ export function SpriteSheetStudioDialog({
       if (!latestProcessed || (!isProcessedUpToDate && !latestProcessed)) {
         throw new Error(t('settings.skins.studio.needProcess') as string)
       }
-      const fileBase = toSafeFileBaseName(skinName || sourceFile.name)
-      const czsFileName = `${fileBase}.czs`
-      const coverFileName = `${fileBase}-cover.png`
-
-      const spriteBase64 = await readFileAsBase64(sourceFile)
+      const spriteBase64 = await maybeLosslessReencodePngBase64(sourceFile)
 
       const spriteSheet: SpriteSheetConfigInput = {
         mode: 'replace',
@@ -278,15 +295,7 @@ export function SpriteSheetStudioDialog({
         hit_mood: 'excited',
       }
 
-      const czsPath = await invoke<string>(COMMANDS.EXPORT_SPRITE_SKIN_PACKAGE_ZIP, {
-        fileName: czsFileName,
-        name: skinName?.trim() ? skinName.trim() : undefined,
-        spriteBase64,
-        spriteSheet,
-      })
-      setExportedCzsPath(czsPath)
-
-      const coverPngBase64 = exportFramePngBase64FromProcessedSheet({
+      const coverPngBase64 = exportSquareCoverPngBase64FromProcessedSheet({
         sheet: latestProcessed.sheet,
         frameWidth: latestProcessed.frameWidth,
         frameHeight: latestProcessed.frameHeight,
@@ -294,14 +303,15 @@ export function SpriteSheetStudioDialog({
         frameIndex: coverIndex,
       })
 
-      const coverPath = await invoke<string>(COMMANDS.EXPORT_PNG_TO_APP_DATA, {
-        fileName: coverFileName,
-        pngBase64: coverPngBase64,
+      await invoke<string>(COMMANDS.EXPORT_SPRITE_SKIN_PACKAGE_ZIP, {
+        fileName: czsFileName,
+        exportPath,
+        name: skinName?.trim() ? skinName.trim() : undefined,
+        author: author?.trim() ? author.trim() : undefined,
+        spriteBase64,
+        coverPngBase64,
+        spriteSheet,
       })
-      setExportedCoverPath(coverPath)
-
-      await openPath(czsPath)
-      await openPath(coverPath)
     } catch (e) {
       setExportError(String(e))
     } finally {
@@ -387,16 +397,13 @@ export function SpriteSheetStudioDialog({
                     className="aspect-square w-full rounded-lg border border-slate-200/60 overflow-hidden"
                     style={checkerboardStyle(12)}
                   >
-                    {processed ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <SpriteFrameCanvas
-                          processed={processed}
-                          cellIndex={coverIndex}
-                          size={240}
-                          imageSmoothingEnabled={imageSmoothingEnabled}
-                          ariaLabel={t('settings.skins.studio.coverPreviewAria')}
-                        />
-                      </div>
+                    {processed && coverPreviewDataUrl ? (
+                      <img
+                        src={coverPreviewDataUrl}
+                        alt={t('settings.skins.studio.coverPreviewAria')}
+                        className="w-full h-full object-contain select-none"
+                        draggable={false}
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-sm text-slate-500">
                         {t('settings.skins.studio.noPreview')}
@@ -406,57 +413,21 @@ export function SpriteSheetStudioDialog({
                 </div>
 
                 <div className="col-span-7">
-                  <div
-                    className="grid gap-2"
-                    style={{ gridTemplateColumns: `repeat(${Math.max(1, columns)}, minmax(0, 1fr))` }}
-                  >
-                    {processed
-                      ? Array.from({ length: totalFrames }).map((_, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className={[
-                            'relative rounded-md border transition-colors overflow-hidden',
-                            'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
-                            coverIndex === i
-                              ? 'border-blue-300 bg-blue-50'
-                              : 'border-slate-200/60 bg-white hover:border-slate-300',
-                          ].join(' ')}
-                          style={{ aspectRatio: '1 / 1', ...checkerboardStyle(10) }}
-                          onClick={() => setCoverIndex(i)}
-                          aria-label={t('settings.skins.studio.pickFrameAria', { index: i + 1 })}
-                        >
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <SpriteFrameCanvas
-                              processed={processed}
-                              cellIndex={i}
-                              size={54}
-                              imageSmoothingEnabled={imageSmoothingEnabled}
-                            />
-                          </div>
-                        </button>
-                      ))
-                      : null}
-                  </div>
+                  {processed ? (
+                    <ProcessedSpriteFramesPreview
+                      processed={processed}
+                      imageSmoothingEnabled={imageSmoothingEnabled}
+                      columns={columns}
+                      rows={rows}
+                      selectedIndex={coverIndex}
+                      onSelectIndex={setCoverIndex}
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>
 
             {exportError && <div className="text-xs text-red-600">{exportError}</div>}
-            {(exportedCzsPath || exportedCoverPath) && (
-              <div className="text-xs text-slate-500 space-y-1">
-                {exportedCzsPath && (
-                  <div>
-                    {t('settings.skins.studio.exportedCzs')} <span className="font-mono">{exportedCzsPath}</span>
-                  </div>
-                )}
-                {exportedCoverPath && (
-                  <div>
-                    {t('settings.skins.studio.exportedCover')} <span className="font-mono">{exportedCoverPath}</span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           <div className="col-span-5 space-y-4">
@@ -468,6 +439,17 @@ export function SpriteSheetStudioDialog({
                   value={skinName}
                   onChange={(e) => setSkinName(e.currentTarget.value)}
                   placeholder={t('settings.skins.studio.namePlaceholder')}
+                  disabled={exportBusy}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="cz-sprite-author">{t('settings.skins.studio.author')}</Label>
+                <Input
+                  id="cz-sprite-author"
+                  value={author}
+                  onChange={(e) => setAuthor(e.currentTarget.value)}
+                  placeholder={t('settings.skins.studio.authorPlaceholder')}
                   disabled={exportBusy}
                 />
               </div>
@@ -640,44 +622,6 @@ function SliderField({
   )
 }
 
-function SpriteFrameCanvas({
-  processed,
-  cellIndex,
-  size,
-  imageSmoothingEnabled,
-  ariaLabel,
-}: {
-  processed: ProcessedSpriteSheet
-  cellIndex: number
-  size: number
-  imageSmoothingEnabled: boolean
-  ariaLabel?: string
-}) {
-  const ref = useRef<HTMLCanvasElement | null>(null)
-
-  useEffect(() => {
-    const canvas = ref.current
-    if (!canvas) return
-    const idx = Math.max(0, Math.floor(cellIndex))
-    const cols = Math.max(1, processed.columns)
-    const fx = idx % cols
-    const rowIndex = Math.floor(idx / cols)
-    drawFrameToCanvas({
-      canvas,
-      sheet: processed.sheet,
-      frameWidth: processed.frameWidth,
-      frameHeight: processed.frameHeight,
-      frameIndex: fx,
-      rowIndex,
-      size,
-      columns: processed.columns,
-      imageSmoothingEnabled,
-    })
-  }, [cellIndex, imageSmoothingEnabled, processed, size])
-
-  return <canvas ref={ref} aria-label={ariaLabel} />
-}
-
 function clampInt(input: string, min: number, max: number, fallback: number): number {
   const n = Math.round(Number(input))
   if (!Number.isFinite(n)) return fallback
@@ -690,6 +634,18 @@ function stripFileExt(name: string): string {
   return name.slice(0, dot)
 }
 
+async function blobToBase64(blob: Blob): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Failed to read blob.'))
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.readAsDataURL(blob)
+  })
+  const comma = dataUrl.indexOf(',')
+  if (comma === -1) throw new Error('Failed to encode base64.')
+  return dataUrl.slice(comma + 1)
+}
+
 async function readFileAsBase64(file: File): Promise<string> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -700,4 +656,40 @@ async function readFileAsBase64(file: File): Promise<string> {
   const comma = dataUrl.indexOf(',')
   if (comma === -1) throw new Error('Failed to encode file.')
   return dataUrl.slice(comma + 1)
+}
+
+async function maybeLosslessReencodePngBase64(file: File): Promise<string> {
+  if (file.type !== 'image/png') return await readFileAsBase64(file)
+  if (file.size < 10 * 1024 * 1024) return await readFileAsBase64(file)
+
+  try {
+    const url = URL.createObjectURL(file)
+    try {
+      const img = await loadImageFromUrl(url)
+      const w = img.naturalWidth || img.width
+      const h = img.naturalHeight || img.height
+      if (w <= 0 || h <= 0) return await readFileAsBase64(file)
+
+      // Guardrail: re-encoding extremely large images can be slow / memory heavy.
+      if (w * h > 240_000_000) return await readFileAsBase64(file)
+
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return await readFileAsBase64(file)
+      ctx.drawImage(img, 0, 0)
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'))
+      if (!blob) return await readFileAsBase64(file)
+
+      // Use the smaller one, without changing resolution.
+      if (blob.size >= file.size) return await readFileAsBase64(file)
+      return await blobToBase64(blob)
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  } catch {
+    return await readFileAsBase64(file)
+  }
 }

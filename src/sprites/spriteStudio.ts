@@ -4,6 +4,8 @@ import { buildProcessedSheetFromSrc } from '@/sprites/spriteAnimation'
 export type SpriteSheetProcessOptions = {
   columns: number
   rows: number
+  cropOffsetX?: number
+  cropOffsetY?: number
   chromaKeyEnabled: boolean
   chromaKeyAlgorithm: ChromaKeyAlgorithm
   chromaKeyOptions: ChromaKeyOptions
@@ -40,6 +42,8 @@ export async function processSpriteSheetToObjectUrl(
     src: srcUrl,
     columns: opts.columns,
     rows: opts.rows,
+    cropOffsetX: opts.cropOffsetX,
+    cropOffsetY: opts.cropOffsetY,
     chromaKey: opts.chromaKeyEnabled,
     chromaKeyAlgorithm: opts.chromaKeyAlgorithm,
     chromaKeyOptions: opts.chromaKeyOptions,
@@ -130,6 +134,38 @@ export function exportFramePngBase64FromProcessedSheet(params: {
   if (!ctx) throw new Error('Failed to create canvas context.')
   ctx.clearRect(0, 0, frameW, frameH)
   ctx.drawImage(params.sheet, fx * frameW, fy * frameH, frameW, frameH, 0, 0, frameW, frameH)
+
+  const dataUrl = canvas.toDataURL('image/png')
+  const comma = dataUrl.indexOf(',')
+  if (comma === -1) throw new Error('Failed to encode PNG.')
+  return dataUrl.slice(comma + 1)
+}
+
+export function exportSquareCoverPngBase64FromProcessedSheet(params: {
+  sheet: HTMLCanvasElement
+  frameWidth: number
+  frameHeight: number
+  columns: number
+  frameIndex: number
+}): string {
+  const cols = Math.max(1, Math.floor(params.columns))
+  const frameW = Math.max(1, Math.floor(params.frameWidth))
+  const frameH = Math.max(1, Math.floor(params.frameHeight))
+  const idx = Math.max(0, Math.floor(params.frameIndex))
+  const fx = idx % cols
+  const fy = Math.floor(idx / cols)
+
+  const side = Math.max(frameW, frameH)
+  const canvas = document.createElement('canvas')
+  canvas.width = side
+  canvas.height = side
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Failed to create canvas context.')
+
+  const dx = Math.floor((side - frameW) / 2)
+  const dy = Math.floor((side - frameH) / 2)
+  ctx.clearRect(0, 0, side, side)
+  ctx.drawImage(params.sheet, fx * frameW, fy * frameH, frameW, frameH, dx, dy, frameW, frameH)
 
   const dataUrl = canvas.toDataURL('image/png')
   const comma = dataUrl.indexOf(',')

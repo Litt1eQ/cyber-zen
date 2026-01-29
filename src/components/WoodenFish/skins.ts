@@ -41,6 +41,8 @@ export type WoodenFishSpriteSheet = {
   mode?: 'replace' | 'overlay'
   columns?: number
   rows?: number
+  cropOffsetX?: number
+  cropOffsetY?: number
   chromaKey?: boolean
   chromaKeyAlgorithm?: ChromaKeyAlgorithm
   chromaKeyOptions?: ChromaKeyOptions
@@ -94,6 +96,8 @@ export function createWoodenFishSkinFromUrls(params: {
     mode: 'replace',
     columns: 8,
     rows: 7,
+    cropOffsetX: 0,
+    cropOffsetY: 0,
     chromaKey: true,
     chromaKeyAlgorithm: 'yuv',
     chromaKeyOptions: { similarity: 0.42, smoothness: 0.1, spill: 0.28 },

@@ -2,11 +2,14 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main", "settings", "custom_statistics", "logs"],
+  "windows": ["main", "settings", "custom_statistics", "logs", "sprite_studio"],
   "permissions": [
       "core:default",
       "core:window:allow-start-dragging",
       "core:window:allow-set-always-on-top",
+      "dialog:default",
+      "dialog:allow-open",
+      "dialog:allow-save",
       "notification:default",
       "opener:default",
       {

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { invoke } from '@tauri-apps/api/core'
-import { openPath } from '@tauri-apps/plugin-opener'
+import { invoke, isTauri } from '@tauri-apps/api/core'
+import { save } from '@tauri-apps/plugin-dialog'
+import { Trash2 } from 'lucide-react'
 import { WOODEN_FISH_SKINS, type BuiltinWoodenFishSkinId, type WoodenFishSkin, type WoodenFishSkinId } from '../WoodenFish/skins'
 import { useCustomWoodenFishSkins } from '../../hooks/useCustomWoodenFishSkins'
 import { COMMANDS } from '../../types/events'
@@ -15,6 +16,9 @@ import i18n from '@/i18n'
 import { precacheCustomSkinSpriteSheet } from '@/sprites/spriteSheetCache'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SpriteSheetStudioDialog } from '@/components/Settings/SpriteSheetStudioDialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { clampSpriteRowIndex, getSpritePreviewRowCount, SPRITE_DEFAULT_IDLE_ROW_INDEX, spriteRowIndexToFrameIntervalMs } from '@/sprites/spritePreview'
 
 const DEFAULT_PREVIEW_WINDOW_SCALE = 100
 
@@ -23,6 +27,8 @@ type SkinOption = {
   title: string
   skin: WoodenFishSkin
   kind: 'builtin' | 'custom'
+  coverSrc?: string
+  author?: string
 }
 
 type SkinView = 'legacy' | 'sprite'
@@ -57,6 +63,8 @@ export function SkinManager({
       title: stripZipSuffix(s.name),
       skin: s.skin,
       kind: 'custom',
+      coverSrc: s.cover_src,
+      author: s.author,
     }))
     return [...builtin, ...custom]
   }, [customSkins, t])
@@ -71,7 +79,7 @@ export function SkinManager({
       return { id: selectedId as WoodenFishSkinId, title, skin: builtin, kind: 'builtin' as const }
     }
     const custom = customSkinsById.get(selectedId)
-    if (custom) return { id: custom.id, title: stripZipSuffix(custom.name), skin: custom.skin, kind: 'custom' as const }
+      if (custom) return { id: custom.id, title: stripZipSuffix(custom.name), skin: custom.skin, kind: 'custom' as const }
     return { id: 'rosewood' as const, title: t('settings.skins.builtin.rosewood'), skin: WOODEN_FISH_SKINS.rosewood, kind: 'builtin' as const }
   }, [customSkinsById, selectedId, t])
 
@@ -147,13 +155,33 @@ export function SkinManager({
     setImportError(null)
     setExportPath(null)
     try {
-      const path = await invoke<string>(COMMANDS.EXPORT_WOODEN_FISH_SKIN_ZIP, { id, fileName })
+      const exportPath = isTauri()
+        ? await save({
+          title: t('settings.skins.exportDirTitle') as string,
+          defaultPath: fileName,
+          filters: [{ name: 'CyberZen Skin', extensions: ['czs', 'zip'] }],
+        })
+        : null
+      if (isTauri() && !exportPath) return
+
+      const path = await invoke<string>(COMMANDS.EXPORT_WOODEN_FISH_SKIN_ZIP, { id, fileName, exportPath })
       setExportPath(path)
-      await openPath(path)
     } catch (e) {
       setImportError(String(e))
     } finally {
       setExportBusy(false)
+    }
+  }
+
+  const openSpriteStudio = async () => {
+    if (!isTauri()) {
+      setStudioOpen(true)
+      return
+    }
+    try {
+      await invoke(COMMANDS.SHOW_SPRITE_STUDIO_WINDOW)
+    } catch {
+      setStudioOpen(true)
     }
   }
 
@@ -196,7 +224,7 @@ export function SkinManager({
               {t('settings.skins.previewReference')}
             </Button>
             {view === 'sprite' && (
-              <Button variant="secondary" onClick={() => setStudioOpen(true)} disabled={exportBusy || importBusy}>
+              <Button variant="secondary" onClick={() => void openSpriteStudio()} disabled={exportBusy || importBusy}>
                 {t('settings.skins.studio.open')}
               </Button>
             )}
@@ -363,14 +391,16 @@ function SkinGrid({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {options.map((opt) => (
-        <SkinPreviewCard
+      <SkinPreviewCard
           key={opt.id}
           id={opt.id}
           title={opt.title}
           selected={selectedId === opt.id}
           skin={opt.skin}
+          coverSrc={opt.coverSrc}
+          author={opt.author}
           badgeText={opt.kind === 'custom' ? t('settings.skins.badge.custom') : t('settings.skins.badge.builtin')}
           badgeKind={opt.kind}
           canDelete={opt.kind === 'custom'}
@@ -388,6 +418,8 @@ function SkinPreviewCard({
   title,
   selected,
   skin,
+  coverSrc,
+  author,
   badgeText,
   badgeKind,
   canDelete,
@@ -399,6 +431,8 @@ function SkinPreviewCard({
   title: string
   selected: boolean
   skin: WoodenFishSkin
+  coverSrc?: string
+  author?: string
   badgeText: string
   badgeKind: 'builtin' | 'custom'
   canDelete: boolean
@@ -407,28 +441,58 @@ function SkinPreviewCard({
   onPreview: (id: WoodenFishSkinId) => void
 }) {
   const { t } = useTranslation()
-  const [hovered, setHovered] = useState(false)
   const sprite = skin.sprite_sheet
-  const spriteMode = sprite?.mode ?? 'replace'
-  const showSpritePreview = !!sprite?.src && (selected || hovered)
-  const showReplacePreview = showSpritePreview && spriteMode === 'replace'
-  const showOverlayPreview = showSpritePreview && spriteMode === 'overlay'
+
+  const preview = coverSrc ? (
+    <img
+      src={coverSrc}
+      alt=""
+      draggable={false}
+      className="absolute left-1/2 top-[62%] h-[56%] w-auto -translate-x-1/2 -translate-y-1/2 object-contain select-none"
+    />
+  ) : sprite?.src ? (
+    <div className="absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2">
+      <SpriteSheetCanvas
+        src={sprite.src}
+        size={108}
+        columns={sprite.columns}
+        rows={sprite.rows}
+        cropOffsetX={sprite.cropOffsetX}
+        cropOffsetY={sprite.cropOffsetY}
+        mood="idle"
+        rowIndex={0}
+        animate={false}
+        frameIntervalMs={140}
+        speed={1}
+        chromaKey={sprite.chromaKey ?? true}
+        chromaKeyAlgorithm={sprite.chromaKeyAlgorithm ?? 'yuv'}
+        chromaKeyOptions={sprite.chromaKeyOptions}
+        imageSmoothingEnabled={sprite.imageSmoothingEnabled ?? true}
+        removeGridLines={sprite.removeGridLines ?? true}
+        idleBreathe={sprite.idleBreathe ?? true}
+      />
+    </div>
+  ) : (
+    <img
+      src={skin.body.src}
+      alt={skin.body.alt}
+      draggable={false}
+      className="absolute left-1/2 top-[62%] h-[56%] w-auto -translate-x-1/2 -translate-y-1/2 object-contain select-none"
+    />
+  )
+
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={() => onSelect(id)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
       onKeyDown={(e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return
         e.preventDefault()
         onSelect(id)
       }}
       className={[
-        'group text-left rounded-xl border p-3 transition-colors relative',
+        'group text-left rounded-xl border p-2 transition-colors relative',
         selected
           ? 'border-blue-200 bg-blue-50/60'
           : 'border-slate-200/60 bg-white hover:border-slate-300 hover:bg-slate-50',
@@ -436,103 +500,57 @@ function SkinPreviewCard({
       aria-pressed={selected}
       data-no-drag
     >
-      <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button variant="ghost" className="h-7 px-2 text-xs" onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onPreview(id)
-        }}>
-          {t('settings.skins.preview')}
-        </Button>
-      </div>
-
       <div className="relative aspect-[4/3] w-full rounded-lg overflow-hidden border border-slate-200/60 bg-white">
-        <div className="absolute left-2 top-2 z-10">
-          <div className="flex flex-wrap items-center gap-1">
-            <span
-              className={[
-                'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-none',
-                badgeKind === 'custom'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-slate-200 bg-slate-50 text-slate-600',
-              ].join(' ')}
-            >
-              {badgeText}
-            </span>
-            {!!sprite?.src && (
-              <>
-                <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] leading-none text-blue-700">
-                  {t('settings.skins.badge.spriteSheet')}
-                </span>
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] leading-none text-slate-700">
-                  {spriteMode === 'overlay'
-                    ? t('settings.skins.badge.spriteOverlay')
-                    : t('settings.skins.badge.spriteReplace')}
-                </span>
-              </>
-            )}
+        <div className="absolute inset-x-2 top-2 z-20 flex items-center justify-between gap-2" data-no-drag>
+          <span
+            className={[
+              'inline-flex h-7 items-center rounded border px-2 text-[11px] leading-none',
+              badgeKind === 'custom'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-slate-200 bg-slate-50 text-slate-600',
+            ].join(' ')}
+          >
+            {badgeText}
+          </span>
+
+          <div className="flex items-center gap-1">
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onPreview(id)
+                }}
+              >
+                {t('settings.skins.preview')}
+              </Button>
+            </div>
+            {canDelete ? (
+              <Button
+                variant="ghost"
+                className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                aria-label={t('settings.skins.delete')}
+                title={t('settings.skins.delete')}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onDelete()
+                }}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            ) : null}
           </div>
         </div>
-        {showReplacePreview ? (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <SpriteSheetCanvas
-              src={sprite!.src}
-              size={180}
-              columns={sprite!.columns}
-              rows={sprite!.rows}
-              mood="idle"
-              rowIndex={0}
-              animate={true}
-              frameIntervalMs={140}
-              speed={1}
-              chromaKey={sprite!.chromaKey ?? true}
-              chromaKeyAlgorithm={sprite!.chromaKeyAlgorithm ?? 'yuv'}
-              chromaKeyOptions={sprite!.chromaKeyOptions}
-              imageSmoothingEnabled={sprite!.imageSmoothingEnabled ?? true}
-              removeGridLines={sprite!.removeGridLines ?? true}
-              idleBreathe={sprite!.idleBreathe ?? true}
-            />
-          </div>
-        ) : (
-          <>
-            <img
-              src={skin.body.src}
-              alt={skin.body.alt}
-              draggable={false}
-              className="absolute left-1/2 top-1/2 h-[70%] w-auto -translate-x-1/2 -translate-y-1/2 select-none"
-            />
-            <img
-              src={skin.hammer.src}
-              alt={skin.hammer.alt}
-              draggable={false}
-              className="absolute right-2 top-2 h-[38%] w-auto rotate-[12deg] select-none drop-shadow-sm opacity-95"
-            />
-            {showOverlayPreview ? (
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-                <SpriteSheetCanvas
-                  src={sprite!.src}
-                  size={180}
-                  columns={sprite!.columns}
-                  rows={sprite!.rows}
-                  mood="idle"
-                  rowIndex={0}
-                  animate={true}
-                  frameIntervalMs={140}
-                  speed={1}
-                  chromaKey={sprite!.chromaKey ?? true}
-                  chromaKeyAlgorithm={sprite!.chromaKeyAlgorithm ?? 'yuv'}
-                  chromaKeyOptions={sprite!.chromaKeyOptions}
-                  imageSmoothingEnabled={sprite!.imageSmoothingEnabled ?? true}
-                  removeGridLines={sprite!.removeGridLines ?? true}
-                  idleBreathe={sprite!.idleBreathe ?? true}
-                />
-              </div>
-            ) : null}
-          </>
-        )}
+        {preview}
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="text-sm font-medium text-slate-900 truncate">{title}</div>
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-slate-900 truncate">{title}</div>
+          {author ? <div className="text-xs text-slate-500 truncate">{t('settings.skins.authorBy', { author })}</div> : null}
+        </div>
         <div
           className={[
             'h-2.5 w-2.5 rounded-full border',
@@ -541,22 +559,6 @@ function SkinPreviewCard({
           aria-hidden="true"
         />
       </div>
-
-      {canDelete && (
-        <div className="mt-2 flex justify-end" data-no-drag>
-          <Button
-            variant="ghost"
-            className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onDelete()
-            }}
-          >
-            {t('settings.skins.delete')}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }
@@ -571,11 +573,29 @@ function SkinPreviewDialog({
   selected: SkinOption
 }) {
   const { t } = useTranslation()
-  const [animating, setAnimating] = useState(false)
+  const sprite = selected.skin.sprite_sheet
+  const hasSprite = !!sprite?.src
+  const previewRows = useMemo(() => {
+    if (!hasSprite) return 0
+    return getSpritePreviewRowCount(sprite?.rows ?? 7)
+  }, [hasSprite, sprite?.rows])
 
-  const play = () => {
-    setAnimating(true)
-    window.setTimeout(() => setAnimating(false), 260)
+  const defaultRowIndex = useMemo(() => {
+    if (!previewRows) return 0
+    return clampSpriteRowIndex(SPRITE_DEFAULT_IDLE_ROW_INDEX, previewRows)
+  }, [previewRows])
+
+  const [rowIndex, setRowIndex] = useState<number>(defaultRowIndex)
+  const [loop, setLoop] = useState(false)
+  const [hitAnimating, setHitAnimating] = useState(false)
+
+  useEffect(() => {
+    setRowIndex(defaultRowIndex)
+  }, [defaultRowIndex])
+
+  const playHit = () => {
+    setHitAnimating(true)
+    window.setTimeout(() => setHitAnimating(false), 260)
   }
 
   return (
@@ -588,47 +608,101 @@ function SkinPreviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-4">
-          <PreviewBlock title={t('settings.skins.previewDialog.defaultRosewood')} skin={WOODEN_FISH_SKINS.rosewood} animating={animating} />
-          <PreviewBlock title={t('settings.skins.previewDialog.current', { title: selected.title })} skin={selected.skin} animating={animating} />
+        <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-900">
+                {t('settings.skins.previewDialog.current', { title: selected.title })}
+              </div>
+              {selected.author ? (
+                <div className="text-xs text-slate-500 mt-1 truncate">
+                  {t('settings.skins.authorBy', { author: selected.author })}
+                </div>
+              ) : null}
+            </div>
+
+            {hasSprite ? (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="text-xs text-slate-600">{t('settings.skins.previewDialog.state')}</div>
+                  <Select
+                    value={String(rowIndex)}
+                    onValueChange={(v) => {
+                      const next = Number.parseInt(v, 10)
+                      if (!Number.isFinite(next)) return
+                      setRowIndex(clampSpriteRowIndex(next, previewRows || 1))
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: previewRows }).map((_, idx) => (
+                        <SelectItem key={idx} value={String(idx)}>
+                          {t(`settings.skins.previewDialog.rowLabels.row${idx + 1}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Switch checked={loop} onCheckedChange={setLoop} />
+                  <div className="text-xs text-slate-600">{t('settings.skins.previewDialog.loop')}</div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 rounded-xl border border-slate-200/60 bg-white overflow-hidden">
+            <div className="w-[320px] h-[320px] mx-auto flex items-center justify-center">
+              {hasSprite ? (
+                <div className="select-none">
+                  <SpriteSheetCanvas
+                    src={sprite!.src}
+                    size={320}
+                    columns={sprite!.columns}
+                    rows={sprite!.rows}
+                    cropOffsetX={sprite!.cropOffsetX}
+                    cropOffsetY={sprite!.cropOffsetY}
+                    mood="idle"
+                    rowIndex={rowIndex}
+                    animate={loop}
+                    frameIntervalMs={spriteRowIndexToFrameIntervalMs(rowIndex)}
+                    speed={1}
+                    chromaKey={sprite!.chromaKey ?? true}
+                    chromaKeyAlgorithm={sprite!.chromaKeyAlgorithm ?? 'yuv'}
+                    chromaKeyOptions={sprite!.chromaKeyOptions}
+                    imageSmoothingEnabled={sprite!.imageSmoothingEnabled ?? true}
+                    removeGridLines={sprite!.removeGridLines ?? true}
+                    idleBreathe={sprite!.idleBreathe ?? true}
+                    effect="none"
+                  />
+                </div>
+              ) : (
+                <WoodenFish
+                  isAnimating={hitAnimating}
+                  animationSpeed={1}
+                  windowScale={DEFAULT_PREVIEW_WINDOW_SCALE}
+                  onHit={() => {}}
+                  skin={selected.skin}
+                  interactive={false}
+                />
+              )}
+            </div>
+          </div>
         </div>
 
         <DialogFooter>
-          <Button variant="secondary" onClick={play}>
-            {t('settings.skins.previewDialog.playHit')}
-          </Button>
+          {!hasSprite ? (
+            <Button variant="secondary" onClick={playHit}>
+              {t('settings.skins.previewDialog.playHit')}
+            </Button>
+          ) : null}
           <Button onClick={() => onOpenChange(false)}>{t('common.close')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function PreviewBlock({
-  title,
-  skin,
-  animating,
-}: {
-  title: string
-  skin: WoodenFishSkin
-  animating: boolean
-}) {
-  return (
-    <div>
-      <div className="text-sm font-medium text-slate-900">{title}</div>
-      <div className="mt-2 rounded-xl border border-slate-200/60 bg-slate-50 p-3">
-        <div className="w-[320px] h-[320px] mx-auto rounded-lg border border-dashed border-slate-300 bg-white overflow-hidden">
-          <WoodenFish
-            isAnimating={animating}
-            animationSpeed={1}
-            windowScale={DEFAULT_PREVIEW_WINDOW_SCALE}
-            onHit={() => {}}
-            skin={skin}
-            interactive={false}
-          />
-        </div>
-      </div>
-    </div>
   )
 }
 

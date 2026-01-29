@@ -92,8 +92,11 @@ function App() {
   const animationSpeed = settings?.animation_speed ?? 1
   const pulseTimeoutMs = useMemo(() => getWoodenFishHitTimeoutMs(animationSpeed), [animationSpeed])
   const pulseTimeoutRef = useRef<number | null>(null)
+  const [lastHitAt, setLastHitAt] = useState<number>(0)
 
   const pulse = () => {
+    const now = Date.now()
+    setLastHitAt(now)
     setIsAnimating(true)
     if (pulseTimeoutRef.current != null) window.clearTimeout(pulseTimeoutRef.current)
     pulseTimeoutRef.current = window.setTimeout(() => {
@@ -168,6 +171,7 @@ function App() {
       {skin ? (
         <WoodenFish
           isAnimating={isAnimating}
+          hitSignal={lastHitAt}
           animationSpeed={animationSpeed}
           windowScale={windowScale}
           onHit={handleHit}

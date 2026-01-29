@@ -14,6 +14,7 @@ const DRAG_THRESHOLD_PX = 8
 
 export function WoodenFish({
   isAnimating,
+  hitSignal,
   animationSpeed,
   onHit,
   windowScale,
@@ -25,6 +26,7 @@ export function WoodenFish({
   windowHovered = false,
 }: {
   isAnimating: boolean
+  hitSignal?: number
   animationSpeed: number
   onHit: () => void
   windowScale: number
@@ -77,7 +79,7 @@ export function WoodenFish({
   const useSpriteSheet = !!spriteSheet?.src && !spriteFailed
   const spritePlayback = useSpritePlayback({
     enabled: useSpriteSheet,
-    isAnimating,
+    hitSignal,
     isDragging,
     isHovered: windowHovered,
   })
@@ -118,6 +120,8 @@ export function WoodenFish({
               size={size}
               columns={spriteSheet!.columns}
               rows={spriteSheet!.rows}
+              cropOffsetX={spriteSheet!.cropOffsetX}
+              cropOffsetY={spriteSheet!.cropOffsetY}
               mood="idle"
               rowIndex={spritePlayback.rowIndex}
               animate={spritePlayback.animate}

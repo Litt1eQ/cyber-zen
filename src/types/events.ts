@@ -71,4 +71,5 @@ export const COMMANDS = {
   SHOW_LOGS_WINDOW: 'show_logs_window',
   HIDE_LOGS_WINDOW: 'hide_logs_window',
   TOGGLE_LOGS_WINDOW: 'toggle_logs_window',
+  SHOW_SPRITE_STUDIO_WINDOW: 'show_sprite_studio_window',
 } as const

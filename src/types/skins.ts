@@ -1,14 +1,18 @@
 export type CustomWoodenFishSkin = {
   id: `custom:${string}`
   name: string
+  author?: string
   muyu_path?: string
   hammer_path?: string
+  cover_path?: string
   sprite_sheet_path?: string
   sprite_sheet?: {
     file?: string
     mode?: 'replace' | 'overlay'
     columns?: number
     rows?: number
+    crop_offset_x?: number
+    crop_offset_y?: number
     chroma_key?: boolean
     chroma_key_algorithm?: 'classic' | 'yuv' | 'hsl' | 'aggressive'
     chroma_key_options?: {

@@ -40,8 +40,16 @@ pub async fn export_wooden_fish_skin_zip(
     app_handle: AppHandle,
     id: String,
     file_name: String,
+    export_dir: Option<String>,
+    export_path: Option<String>,
 ) -> Result<String, String> {
-    wooden_fish_skins::export_skin_zip_to_app_data(&app_handle, &id, &file_name)
+    wooden_fish_skins::export_skin_zip_to_app_data(
+        &app_handle,
+        &id,
+        &file_name,
+        export_dir.as_deref(),
+        export_path.as_deref(),
+    )
         .map_err(|e| format!("{e:#}"))
 }
 
@@ -61,15 +69,23 @@ pub async fn cache_custom_wooden_fish_sprite_sheet_png(
 pub async fn export_sprite_skin_package_zip(
     app_handle: AppHandle,
     file_name: String,
+    export_dir: Option<String>,
+    export_path: Option<String>,
     name: Option<String>,
+    author: Option<String>,
     sprite_base64: String,
+    cover_png_base64: Option<String>,
     sprite_sheet: Option<SpriteSheetConfigV2>,
 ) -> Result<String, String> {
     wooden_fish_skins::export_sprite_skin_package_zip_base64_to_app_data(
         &app_handle,
         &file_name,
+        export_dir.as_deref(),
+        export_path.as_deref(),
         name,
+        author,
         &sprite_base64,
+        cover_png_base64.as_deref(),
         sprite_sheet,
     )
     .map_err(|e| format!("{e:#}"))
@@ -79,8 +95,16 @@ pub async fn export_sprite_skin_package_zip(
 pub async fn export_png_to_app_data(
     app_handle: AppHandle,
     file_name: String,
+    export_dir: Option<String>,
+    export_path: Option<String>,
     png_base64: String,
 ) -> Result<String, String> {
-    wooden_fish_skins::export_png_base64_to_app_data(&app_handle, &file_name, &png_base64)
+    wooden_fish_skins::export_png_base64_to_app_data(
+        &app_handle,
+        &file_name,
+        export_dir.as_deref(),
+        export_path.as_deref(),
+        &png_base64,
+    )
         .map_err(|e| format!("{e:#}"))
 }
