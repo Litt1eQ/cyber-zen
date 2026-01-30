@@ -25,6 +25,8 @@ export const COMMANDS = {
   UPDATE_INPUT_SETTINGS: 'update_input_settings',
   GET_MERIT_STATS: 'get_merit_stats',
   GET_RECENT_DAYS: 'get_recent_days',
+  GET_RECENT_DAYS_LITE: 'get_recent_days_lite',
+  GET_HISTORY_AGGREGATES: 'get_history_aggregates',
   CLEAR_HISTORY: 'clear_history',
   RESET_ALL_MERIT: 'reset_all_merit',
   GET_SETTINGS: 'get_settings',

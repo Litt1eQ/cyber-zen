@@ -4,7 +4,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useMeritStore } from '../stores/useMeritStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
-import type { MeritStats } from '../types/merit'
+import { useMeritDaysStore } from '../stores/useMeritDaysStore'
+import { useMeritDaysLiteStore } from '../stores/useMeritDaysLiteStore'
+import type { MeritStatsLite } from '../types/merit'
 import { COMMANDS, EVENTS } from '../types/events'
 import { isMac } from '../utils/platform'
 
@@ -21,17 +23,21 @@ export function useInputListener() {
   const [isListening, setIsListening] = useState(false)
   const [rawError, setRawError] = useState<{ code: InputListenerErrorCode; detail?: string } | null>(null)
   const updateStats = useMeritStore((state) => state.updateStats)
+  const mergeTodayFull = useMeritDaysStore((s) => s.mergeTodayLite)
+  const mergeTodayLite = useMeritDaysLiteStore((s) => s.mergeTodayLite)
   const settings = useSettingsStore((state) => state.settings)
 
   useEffect(() => {
-    const unsubscribe = listen<MeritStats>(EVENTS.MERIT_UPDATED, (event) => {
+    const unsubscribe = listen<MeritStatsLite>(EVENTS.MERIT_UPDATED, (event) => {
       updateStats(event.payload)
+      mergeTodayFull(event.payload.today)
+      mergeTodayLite(event.payload.today)
     })
 
     return () => {
       unsubscribe.then((fn) => fn())
     }
-  }, [updateStats])
+  }, [mergeTodayFull, mergeTodayLite, updateStats])
 
   const startListening = async () => {
     try {

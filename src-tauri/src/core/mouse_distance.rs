@@ -163,7 +163,7 @@ pub fn init(app_handle: AppHandle) {
                     }
                 }
 
-                let stats = changed.then(|| storage.get_stats());
+                let stats = changed.then(|| storage.get_stats().lite());
                 (stats, carry)
             };
 

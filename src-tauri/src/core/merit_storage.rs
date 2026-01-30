@@ -217,6 +217,7 @@ impl MeritStorage {
         }
 
         self.stats.add_merit(source, count);
+        self.drain_history_to_db();
         match source {
             InputSource::Keyboard => {
                 if let Some(k) = keyboard {
@@ -262,6 +263,7 @@ impl MeritStorage {
 
         self.stats
             .add_app_merit(&app.id, app.name.as_deref(), source, count);
+        self.drain_history_to_db();
         true
     }
 
@@ -279,18 +281,19 @@ impl MeritStorage {
         }
 
         self.stats.add_mouse_move_distance_px_for_display(display_id, px);
+        self.drain_history_to_db();
         true
     }
 
     pub fn clear_history(&mut self, app_handle: &AppHandle) {
         self.stats.clear_history();
-        let _ = app_handle.emit("merit-updated", self.stats.clone());
+        let _ = app_handle.emit("merit-updated", self.stats.lite());
         crate::core::persistence::request_save();
     }
 
     pub fn reset_all(&mut self, app_handle: &AppHandle) {
         self.stats.reset_all();
-        let _ = app_handle.emit("merit-updated", self.stats.clone());
+        let _ = app_handle.emit("merit-updated", self.stats.lite());
         crate::core::persistence::request_save();
     }
 
@@ -339,32 +342,6 @@ impl MeritStorage {
         crate::core::persistence::request_save();
     }
 
-    pub fn clear_click_heatmap(&mut self, display_id: Option<&str>, date_key: Option<&str>) {
-        match date_key {
-            Some(key) => {
-                if let Some(id) = display_id {
-                    if let Some(day) = self.click_heatmap.daily.get_mut(key) {
-                        day.displays.remove(id);
-                        if day.displays.is_empty() {
-                            self.click_heatmap.daily.remove(key);
-                        }
-                    }
-                } else {
-                    self.click_heatmap.daily.remove(key);
-                }
-            }
-            None => match display_id {
-                Some(id) => {
-                    self.click_heatmap.displays.remove(id);
-                }
-                None => {
-                    self.click_heatmap.displays.clear();
-                }
-            },
-        }
-        crate::core::persistence::request_save();
-    }
-
     fn should_count(&self, origin: InputOrigin, source: InputSource) -> bool {
         match origin {
             // Explicit in-app action should always count, independent of global input listening toggles.
@@ -374,5 +351,13 @@ impl MeritStorage {
                 InputSource::MouseSingle => self.settings.enable_mouse_single,
             },
         }
+    }
+
+    fn drain_history_to_db(&mut self) {
+        if self.stats.history.is_empty() {
+            return;
+        }
+        let days = std::mem::take(&mut self.stats.history);
+        crate::core::history_db::enqueue_bulk_upsert_daily(days);
     }
 }

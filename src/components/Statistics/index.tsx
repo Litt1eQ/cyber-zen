@@ -1,12 +1,13 @@
 import { useMeritStore } from '../../stores/useMeritStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useMeritDaysStore } from '@/stores/useMeritDaysStore'
 import { MonthlyHistoryCalendar } from './MonthlyHistoryCalendar'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from '../ui/card'
 import { TrendPanel } from './TrendPanel'
 import { AppInputRanking } from './AppInputRanking'
-import { appInputCountsForDay, mergeAppInputCounts } from '@/lib/statisticsAggregates'
+import { appInputCountsForDay, mergeAppInputCounts, mergeAppInputCountsMaps } from '@/lib/statisticsAggregates'
 import { Button } from '@/components/ui/button'
 import { InsightsPanel } from './InsightsPanel'
 import { WeekdayDistribution } from './WeekdayDistribution'
@@ -23,6 +24,7 @@ import { MouseButtonStructure } from './MouseButtonStructure'
 import { ClickPositionHeatmap } from './ClickPositionHeatmap'
 import { MouseDistanceStatistics } from './MouseDistanceStatistics'
 import { PeriodSummaryPanel } from './PeriodSummaryPanel'
+import { historyAggregatesCacheKey, useHistoryAggregatesStore } from '@/stores/useHistoryAggregatesStore'
 import { isLinux, isMac, isWindows } from '@/utils/platform'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -126,7 +128,41 @@ export function Statistics() {
   const updateSettings = useSettingsStore((state) => state.updateSettings)
   const heatLevelCount = useSettingsStore((state) => state.settings?.heatmap_levels)
   const keyboardLayoutId = useSettingsStore((state) => state.settings?.keyboard_layout)
-  const allDays = stats ? [stats.today, ...stats.history] : []
+  const { today: todayFull, history: historyDays, fetchRecentDays, refreshTodayFull } = useMeritDaysStore()
+
+  useEffect(() => {
+    fetchRecentDays(400)
+  }, [fetchRecentDays])
+
+  useEffect(() => {
+    if (!todayFull) return
+    const id = window.setInterval(() => {
+      void refreshTodayFull()
+    }, 2500)
+    return () => window.clearInterval(id)
+  }, [refreshTodayFull, todayFull?.date])
+
+  const todayMerged = useMemo(() => {
+    if (!todayFull) return null
+    const lite = stats?.today
+    if (!lite || lite.date !== todayFull.date) return todayFull
+    return {
+      ...todayFull,
+      total: lite.total ?? todayFull.total,
+      keyboard: lite.keyboard ?? todayFull.keyboard,
+      mouse_single: lite.mouse_single ?? todayFull.mouse_single,
+      first_event_at_ms: lite.first_event_at_ms ?? todayFull.first_event_at_ms,
+      last_event_at_ms: lite.last_event_at_ms ?? todayFull.last_event_at_ms,
+      mouse_move_distance_px: lite.mouse_move_distance_px ?? todayFull.mouse_move_distance_px,
+      mouse_move_distance_px_by_display: lite.mouse_move_distance_px_by_display ?? todayFull.mouse_move_distance_px_by_display,
+      hourly: lite.hourly ?? todayFull.hourly,
+    }
+  }, [stats?.today, todayFull])
+
+  const allDays = useMemo(
+    () => (todayMerged ? [todayMerged, ...historyDays] : todayFull ? [todayFull, ...historyDays] : historyDays),
+    [historyDays, todayFull, todayMerged],
+  )
   const trendDays = useMemo(() => allDays, [allDays])
 
   const blocks = useMemo(() => normalizeStatisticsBlocks(settings?.statistics_blocks), [settings?.statistics_blocks])
@@ -151,13 +187,6 @@ export function Statistics() {
 
   const anchorKey = selectedDayKey ?? stats?.today?.date ?? null
 
-  const selectedDay = useMemo(() => {
-    if (selectedDayKey) return byDateKey.get(selectedDayKey)
-    return stats?.today
-  }, [byDateKey, selectedDayKey, stats?.today])
-
-  const appCountsDay = useMemo(() => appInputCountsForDay(selectedDay), [selectedDay])
-
   const [appRankingRange, setAppRankingRange] = useState<'day' | '7' | '30' | 'all'>('day')
   const appRankingRangeLabel = useMemo(() => {
     if (appRankingRange === 'day') {
@@ -176,10 +205,34 @@ export function Statistics() {
     return t('customStatistics.mode.cumulative')
   }, [anchorKey, appRankingRange, t])
 
+  const appRankingAggregatesQueryKey = useMemo(() => historyAggregatesCacheKey({ endKey: anchorKey ?? null }), [anchorKey])
+  const appRankingAggregates = useHistoryAggregatesStore((s) => s.cache[appRankingAggregatesQueryKey] ?? null)
+  const fetchAppRankingAggregates = useHistoryAggregatesStore((s) => s.fetchAggregates)
+
+  useEffect(() => {
+    if (!anchorKey) return
+    if (appRankingRange !== 'all') return
+    void fetchAppRankingAggregates({ endKey: anchorKey })
+  }, [anchorKey, appRankingRange, fetchAppRankingAggregates])
+
+  const selectedDay = useMemo(() => {
+    if (selectedDayKey) return byDateKey.get(selectedDayKey)
+    return todayMerged ?? todayFull ?? undefined
+  }, [byDateKey, selectedDayKey, todayFull, todayMerged])
+
+  const appCountsDay = useMemo(() => appInputCountsForDay(selectedDay), [selectedDay])
+
   const appRankingCounts = useMemo(() => {
     if (!anchorKey) return {}
     if (appRankingRange === 'day') return appCountsDay
-    if (appRankingRange === 'all') return mergeAppInputCounts(allDays)
+    if (appRankingRange === 'all') {
+      const todayKey = stats?.today?.date
+      const base = appRankingAggregates?.appInputCounts ?? {}
+      if (todayKey && anchorKey === todayKey) {
+        return mergeAppInputCountsMaps(base, appCountsDay)
+      }
+      return base
+    }
 
     const daysWindow = appRankingRange === '7' ? 7 : 30
     const out: Array<(typeof allDays)[number]> = []
@@ -190,7 +243,7 @@ export function Statistics() {
       if (day) out.push(day)
     }
     return mergeAppInputCounts(out)
-  }, [allDays, anchorKey, appCountsDay, appRankingRange, byDateKey])
+  }, [anchorKey, appCountsDay, appRankingAggregates?.appInputCounts, appRankingRange, byDateKey, stats?.today?.date])
 
   const setBlocks = useCallback(
     async (next: ReturnType<typeof normalizeStatisticsBlocks>) => {

@@ -74,6 +74,24 @@ pub fn run() {
                 .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?
                 .join("state.json");
 
+            let history_db_path = app_handle
+                .path()
+                .app_data_dir()
+                .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?
+                .join("history.sqlite3");
+            if let Err(e) = core::history_db::init(history_db_path) {
+                let _ = core::app_log::append(
+                    &app_handle,
+                    core::app_log::AppLogRecord {
+                        ts_ms: chrono::Utc::now().timestamp_millis(),
+                        level: "error".to_string(),
+                        scope: "history_db".to_string(),
+                        message: "init_failed".to_string(),
+                        data: Some(serde_json::json!({ "error": e })),
+                    },
+                );
+            }
+
             if let Ok(Some((
                 stats,
                 settings,
@@ -84,6 +102,10 @@ pub fn run() {
             ))) =
                 core::persistence::load(&state_path)
             {
+                let mut stats = stats;
+                if !stats.history.is_empty() {
+                    core::history_db::enqueue_bulk_upsert_daily(std::mem::take(&mut stats.history));
+                }
                 let storage = MeritStorage::instance();
                 let mut storage = storage.write();
                 storage.set_stats(stats);
@@ -118,6 +140,33 @@ pub fn run() {
             }
 
             core::persistence::init(MeritStorage::instance(), state_path);
+
+            // One-time migration: move legacy click heatmaps out of `state.json` into SQLite.
+            // This is kicked off before global input listening is initialized so newly recorded
+            // clicks won't race with the migration in the DB worker queue.
+            {
+                let legacy = {
+                    let storage = MeritStorage::instance();
+                    let storage = storage.read();
+                    storage.get_click_heatmap()
+                };
+
+                if !legacy.displays.is_empty() || !legacy.daily.is_empty() {
+                    if let Ok(rx) = crate::core::history_db::enqueue_migrate_click_heatmap_legacy(legacy) {
+                        std::thread::spawn(move || {
+                            let ok = rx.recv().ok().is_some_and(|r| r.is_ok());
+                            if !ok {
+                                return;
+                            }
+                            let storage = MeritStorage::instance();
+                            let mut storage = storage.write();
+                            storage.set_click_heatmap(crate::models::ClickHeatmapState::default());
+                            crate::core::persistence::request_save();
+                        });
+                    }
+                }
+            }
+
             core::window_placement::restore_all(&app_handle);
             core::init_input_listener(app_handle.clone())
                 .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
@@ -139,6 +188,8 @@ pub fn run() {
             commands::achievements::clear_achievement_history,
             commands::merit::get_merit_stats,
             commands::merit::get_recent_days,
+            commands::merit::get_recent_days_lite,
+            commands::merit::get_history_aggregates,
             commands::merit::add_merit,
             commands::merit::clear_history,
             commands::merit::reset_all_merit,

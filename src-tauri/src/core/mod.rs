@@ -4,6 +4,7 @@ pub mod app_log;
 pub mod app_updater;
 pub mod activity;
 pub mod auto_updater;
+pub mod history_db;
 pub mod notification_env;
 pub mod click_heatmap;
 pub mod keyboard_piano;

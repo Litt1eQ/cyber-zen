@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, Circle, Flame, Keyboard, MousePointerClick, Sparkles, Sunrise, Trophy, CalendarDays, Move } from 'lucide-react'
-import type { MeritStats } from '@/types/merit'
+import type { DailyStats, DailyStatsLite, MeritStats, MeritStatsLite } from '@/types/merit'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,7 @@ import { useAchievementStore } from '@/stores/useAchievementStore'
 import { useAchievementsSync } from '@/hooks/useAchievementsSync'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useDisplayMonitors } from '@/hooks/useDisplayMonitors'
+import { useMeritDaysLiteStore } from '@/stores/useMeritDaysLiteStore'
 
 function iconFor(kind: AchievementIcon) {
   switch (kind) {
@@ -50,11 +51,12 @@ function resetHintKeyForCadence(cadence: AchievementCadence) {
   }
 }
 
-export function AchievementsTab({ stats }: { stats: MeritStats | null }) {
+export function AchievementsTab({ stats }: { stats: MeritStatsLite | null }) {
   const { t, i18n } = useTranslation()
   const [cadence, setCadence] = useState<AchievementCadence>('daily')
   const settings = useSettingsStore((s) => s.settings)
   const monitors = useDisplayMonitors()
+  const { today: todayLite, history: historyLite, fetchRecentDaysLite } = useMeritDaysLiteStore()
   const achievementState = useAchievementStore((s) => s.state)
   const fetchAchievementState = useAchievementStore((s) => s.fetchState)
   const clearHistory = useAchievementStore((s) => s.clearHistory)
@@ -64,13 +66,39 @@ export function AchievementsTab({ stats }: { stats: MeritStats | null }) {
     fetchAchievementState()
   }, [fetchAchievementState])
 
+  useEffect(() => {
+    fetchRecentDaysLite(420)
+  }, [fetchRecentDaysLite])
+
   const vm = useMemo(() => {
     if (!stats) return null
-    const metrics = computeAchievementMetrics(stats, { settings, monitors: monitors.monitors })
+    const inflate = (day: DailyStatsLite): DailyStats => ({
+      date: day.date,
+      total: day.total ?? 0,
+      keyboard: day.keyboard ?? 0,
+      mouse_single: day.mouse_single ?? 0,
+      first_event_at_ms: day.first_event_at_ms ?? null,
+      last_event_at_ms: day.last_event_at_ms ?? null,
+      mouse_move_distance_px: day.mouse_move_distance_px ?? 0,
+      mouse_move_distance_px_by_display: day.mouse_move_distance_px_by_display ?? {},
+      hourly: day.hourly ?? [],
+      key_counts: {},
+      key_counts_unshifted: {},
+      key_counts_shifted: {},
+      shortcut_counts: {},
+      mouse_button_counts: {},
+      app_input_counts: {},
+    })
+
+    const today = todayLite ? inflate(todayLite) : inflate(stats.today)
+    const history = historyLite.map(inflate).filter((d) => d.date !== today.date)
+    const full: MeritStats = { total_merit: stats.total_merit, today, history }
+
+    const metrics = computeAchievementMetrics(full, { settings, monitors: monitors.monitors })
     const summary = computeAchievementSummary(metrics)
     const byCadence = computeAchievementsByCadence(ACHIEVEMENT_DEFINITIONS, metrics)
     return { summary, byCadence }
-  }, [monitors.monitors, settings, stats])
+  }, [historyLite, monitors.monitors, settings, stats, todayLite])
 
   const defsById = useMemo(() => {
     const map = new Map<string, (typeof ACHIEVEMENT_DEFINITIONS)[number]>()

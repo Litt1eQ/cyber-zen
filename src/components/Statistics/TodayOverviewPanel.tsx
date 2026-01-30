@@ -1,7 +1,7 @@
 import { useId, useMemo, type ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Clock, Keyboard, Mouse } from 'lucide-react'
-import type { MeritStats } from '@/types/merit'
+import type { MeritStats, MeritStatsLite } from '@/types/merit'
 import { cn } from '@/lib/utils'
 import { Card } from '../ui/card'
 import { MeritLevelPanel } from './MeritLevelPanel'
@@ -96,7 +96,7 @@ function BreakdownTile({ item, total }: { item: BreakdownItem; total: number }) 
   )
 }
 
-export function TodayOverviewPanel({ stats }: { stats: MeritStats | null | undefined }) {
+export function TodayOverviewPanel({ stats }: { stats: MeritStats | MeritStatsLite | null | undefined }) {
   const { t, i18n } = useTranslation()
   const todayTotal = stats?.today.total ?? 0
   const timeFmt = useMemo(() => {

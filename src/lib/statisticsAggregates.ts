@@ -20,6 +20,60 @@ export type StatisticsAggregates = {
   appInputCounts: Record<string, AppInputStats>
 }
 
+function mergeNumberMap(a: Record<string, number>, b: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = { ...a }
+  for (const [k, v] of Object.entries(b)) {
+    if (!v) continue
+    out[k] = (out[k] ?? 0) + v
+  }
+  return out
+}
+
+function mergeHourlyBuckets(a: HourBucket[], b: HourBucket[]): HourBucket[] {
+  const out: HourBucket[] = Array.from({ length: 24 }, () => ({ total: 0, keyboard: 0, mouse_single: 0 }))
+  for (let i = 0; i < 24; i++) {
+    const aa = a?.[i]
+    const bb = b?.[i]
+    out[i] = {
+      total: (aa?.total ?? 0) + (bb?.total ?? 0),
+      keyboard: (aa?.keyboard ?? 0) + (bb?.keyboard ?? 0),
+      mouse_single: (aa?.mouse_single ?? 0) + (bb?.mouse_single ?? 0),
+    }
+  }
+  return out
+}
+
+export function mergeAppInputCountsMaps(
+  a: Record<string, AppInputStats>,
+  b: Record<string, AppInputStats>,
+): Record<string, AppInputStats> {
+  const out: Record<string, AppInputStats> = { ...a }
+  for (const [id, raw] of Object.entries(b)) {
+    if (!id) continue
+    if (!raw) continue
+    const prev = out[id]
+    const next: AppInputStats = prev ?? { name: null, total: 0, keyboard: 0, mouse_single: 0 }
+    if (!next.name && raw.name) next.name = raw.name
+    next.keyboard += raw.keyboard ?? 0
+    next.mouse_single += raw.mouse_single ?? 0
+    next.total = next.keyboard + next.mouse_single
+    out[id] = next
+  }
+  return out
+}
+
+export function mergeStatisticsAggregates(a: StatisticsAggregates, b: StatisticsAggregates): StatisticsAggregates {
+  return {
+    keyCountsAll: sumKeyCounts([a.keyCountsAll, b.keyCountsAll]),
+    keyCountsUnshifted: sumKeyCounts([a.keyCountsUnshifted, b.keyCountsUnshifted]),
+    keyCountsShifted: sumKeyCounts([a.keyCountsShifted, b.keyCountsShifted]),
+    shortcutCounts: mergeNumberMap(a.shortcutCounts, b.shortcutCounts),
+    mouseButtonCounts: mergeNumberMap(a.mouseButtonCounts, b.mouseButtonCounts),
+    hourly: mergeHourlyBuckets(a.hourly, b.hourly),
+    appInputCounts: mergeAppInputCountsMaps(a.appInputCounts, b.appInputCounts),
+  }
+}
+
 export function appInputCountsForDay(day: DailyStats | undefined | null): Record<string, AppInputStats> {
   const raw = day?.app_input_counts ?? {}
   const out: Record<string, AppInputStats> = {}

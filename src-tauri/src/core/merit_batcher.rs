@@ -381,7 +381,7 @@ fn emit_stats_updated(app_handle: &AppHandle) {
     let stats = {
         let storage = MeritStorage::instance();
         let storage = storage.read();
-        storage.get_stats()
+        storage.get_stats().lite()
     };
 
     let _ = app_handle.emit("merit-updated", stats);

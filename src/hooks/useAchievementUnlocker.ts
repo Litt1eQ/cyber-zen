@@ -3,16 +3,19 @@ import { useTranslation } from 'react-i18next'
 import { useMeritStore } from '@/stores/useMeritStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useAchievementStore } from '@/stores/useAchievementStore'
+import { useMeritDaysLiteStore } from '@/stores/useMeritDaysLiteStore'
 import { useAchievementsSync } from '@/hooks/useAchievementsSync'
 import { useDisplayMonitors } from '@/hooks/useDisplayMonitors'
 import { ACHIEVEMENT_DEFINITIONS, computeAchievementMetrics, computeAchievementsByCadence, periodKeyForCadence } from '@/lib/achievements'
 import type { AchievementUnlockRecord } from '@/types/achievements'
 import { sendSystemNotification } from '@/lib/notifications'
+import type { DailyStats, DailyStatsLite, MeritStats } from '@/types/merit'
 
 export function useAchievementUnlocker() {
   const { t } = useTranslation()
   const stats = useMeritStore((s) => s.stats)
   const settings = useSettingsStore((s) => s.settings)
+  const { today: todayLite, history: historyLite, fetchRecentDaysLite } = useMeritDaysLiteStore()
   const monitors = useDisplayMonitors()
   const fetchState = useAchievementStore((s) => s.fetchState)
   const achievementState = useAchievementStore((s) => s.state)
@@ -23,6 +26,35 @@ export function useAchievementUnlocker() {
   useEffect(() => {
     fetchState()
   }, [fetchState])
+
+  useEffect(() => {
+    fetchRecentDaysLite(420)
+  }, [fetchRecentDaysLite])
+
+  const statsForAchievements = useMemo((): MeritStats | null => {
+    if (!stats) return null
+    const inflate = (day: DailyStatsLite): DailyStats => ({
+      date: day.date,
+      total: day.total ?? 0,
+      keyboard: day.keyboard ?? 0,
+      mouse_single: day.mouse_single ?? 0,
+      first_event_at_ms: day.first_event_at_ms ?? null,
+      last_event_at_ms: day.last_event_at_ms ?? null,
+      mouse_move_distance_px: day.mouse_move_distance_px ?? 0,
+      mouse_move_distance_px_by_display: day.mouse_move_distance_px_by_display ?? {},
+      hourly: day.hourly ?? [],
+      key_counts: {},
+      key_counts_unshifted: {},
+      key_counts_shifted: {},
+      shortcut_counts: {},
+      mouse_button_counts: {},
+      app_input_counts: {},
+    })
+
+    const today = todayLite ? inflate(todayLite) : inflate(stats.today)
+    const history = historyLite.map(inflate).filter((d) => d.date !== today.date)
+    return { total_merit: stats.total_merit, today, history }
+  }, [historyLite, stats, todayLite])
 
   const historyKeySet = useMemo(() => {
     const set = new Set<string>()
@@ -46,7 +78,7 @@ export function useAchievementUnlocker() {
   const runSeqRef = useRef(0)
 
   useEffect(() => {
-    if (!stats) return
+    if (!statsForAchievements) return
     if (!achievementState) return
     runSeqRef.current += 1
     const seq = runSeqRef.current
@@ -61,7 +93,7 @@ export function useAchievementUnlocker() {
       timerRef.current = null
       if (seq !== runSeqRef.current) return
 
-      const metrics = computeAchievementMetrics(stats, { settings, monitors: monitors.monitors })
+      const metrics = computeAchievementMetrics(statsForAchievements, { settings, monitors: monitors.monitors })
       const byCadence = computeAchievementsByCadence(ACHIEVEMENT_DEFINITIONS, metrics)
       const all = [...byCadence.daily, ...byCadence.weekly, ...byCadence.monthly, ...byCadence.yearly, ...byCadence.total]
 
@@ -135,5 +167,5 @@ export function useAchievementUnlocker() {
         timerRef.current = null
       }
     }
-  }, [appendUnlocks, achievementState, defsById, historyKeySet, monitors.monitors, settings, settings?.achievement_notifications_enabled, stats, t])
+  }, [appendUnlocks, achievementState, defsById, historyKeySet, monitors.monitors, settings, settings?.achievement_notifications_enabled, statsForAchievements, t])
 }

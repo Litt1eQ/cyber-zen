@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { MeritStats, Settings } from '@/types/merit'
+import type { MeritStats, MeritStatsLite, Settings } from '@/types/merit'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -16,7 +16,7 @@ export function MouseDistanceCalibration({
   updateSettings,
 }: {
   settings: Settings
-  stats: MeritStats | null
+  stats: MeritStats | MeritStatsLite | null
   updateSettings: (patch: Partial<Settings>) => Promise<void>
 }) {
   const { t } = useTranslation()

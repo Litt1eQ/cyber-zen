@@ -81,37 +81,66 @@ pub async fn get_click_heatmap_grid(
     let mut out = vec![0u64; cols.saturating_mul(rows)];
     let mut max = 0u64;
 
-    let total_clicks = {
-        let storage = MeritStorage::instance();
-        let storage = storage.read();
-        let display = match date_key.as_deref() {
-            Some(key) => storage.click_heatmap_display_for_date(&monitor_id, key),
-            None => storage.click_heatmap_display(&monitor_id),
-        };
-        let total = display.map(|d| d.total_clicks).unwrap_or(0);
+    let base = core::history_db::load_click_heatmap_base(&monitor_id, date_key.as_deref());
+    let (cells, total_clicks) = match base {
+        Ok((cells, total_clicks)) if total_clicks > 0 || !cells.is_empty() => (cells, total_clicks),
+        Ok(_) | Err(_) => {
+            // Best-effort fallback to legacy in-memory state (e.g. before DB init/migration).
+            let storage = MeritStorage::instance();
+            let storage = storage.read();
+            let display = match date_key.as_deref() {
+                Some(key) => storage.click_heatmap_display_for_date(&monitor_id, key),
+                None => storage.click_heatmap_display(&monitor_id),
+            };
+            let total = display.map(|d| d.total_clicks).unwrap_or(0);
 
-        if let Some(display) = display {
-            for y in 0..CLICK_HEATMAP_BASE_ROWS {
-                for x in 0..CLICK_HEATMAP_BASE_COLS {
-                    let idx = y * CLICK_HEATMAP_BASE_COLS + x;
-                    let count = display.grid.get(idx).copied().unwrap_or(0) as u64;
-                    if count == 0 {
-                        continue;
-                    }
+            if let Some(display) = display {
+                for y in 0..CLICK_HEATMAP_BASE_ROWS {
+                    for x in 0..CLICK_HEATMAP_BASE_COLS {
+                        let idx = y * CLICK_HEATMAP_BASE_COLS + x;
+                        let count = display.grid.get(idx).copied().unwrap_or(0) as u64;
+                        if count == 0 {
+                            continue;
+                        }
 
-                    let tx = (x * cols) / CLICK_HEATMAP_BASE_COLS;
-                    let ty = (y * rows) / CLICK_HEATMAP_BASE_ROWS;
-                    let t_idx = ty * cols + tx;
-                    if let Some(slot) = out.get_mut(t_idx) {
-                        *slot = slot.saturating_add(count);
-                        max = max.max(*slot);
+                        let tx = (x * cols) / CLICK_HEATMAP_BASE_COLS;
+                        let ty = (y * rows) / CLICK_HEATMAP_BASE_ROWS;
+                        let t_idx = ty * cols + tx;
+                        if let Some(slot) = out.get_mut(t_idx) {
+                            *slot = slot.saturating_add(count);
+                            max = max.max(*slot);
+                        }
                     }
                 }
             }
-        }
 
-        total
+            return Ok(ClickHeatmapGrid {
+                monitor_id,
+                cols: cols as u32,
+                rows: rows as u32,
+                counts: out,
+                max,
+                total_clicks: total,
+            });
+        }
     };
+
+    for (idx, count) in cells {
+        let idx = idx as usize;
+        if idx >= CLICK_HEATMAP_BASE_COLS.saturating_mul(CLICK_HEATMAP_BASE_ROWS) {
+            continue;
+        }
+        let x = idx % CLICK_HEATMAP_BASE_COLS;
+        let y = idx / CLICK_HEATMAP_BASE_COLS;
+
+        let tx = (x * cols) / CLICK_HEATMAP_BASE_COLS;
+        let ty = (y * rows) / CLICK_HEATMAP_BASE_ROWS;
+        let t_idx = ty * cols + tx;
+        if let Some(slot) = out.get_mut(t_idx) {
+            *slot = slot.saturating_add(count as u64);
+            max = max.max(*slot);
+        }
+    }
 
     Ok(ClickHeatmapGrid {
         monitor_id,
@@ -125,8 +154,5 @@ pub async fn get_click_heatmap_grid(
 
 #[tauri::command]
 pub async fn clear_click_heatmap(display_id: Option<String>, date_key: Option<String>) -> Result<(), String> {
-    let storage = MeritStorage::instance();
-    let mut storage = storage.write();
-    storage.clear_click_heatmap(display_id.as_deref(), date_key.as_deref());
-    Ok(())
+    core::history_db::clear_click_heatmap(display_id, date_key)
 }

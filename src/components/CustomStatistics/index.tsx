@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import type { MeritStats } from '@/types/merit'
+import type { MeritStatsLite } from '@/types/merit'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useMeritStore } from '@/stores/useMeritStore'
+import { useMeritDaysStore } from '@/stores/useMeritDaysStore'
 import { useSettingsSync } from '@/hooks/useSettingsSync'
 import { useDailyReset } from '@/hooks/useDailyReset'
 import { useWindowDragging } from '@/hooks/useWindowDragging'
@@ -14,7 +15,8 @@ import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { EVENTS } from '@/types/events'
-import { buildStatisticsAggregates } from '@/lib/statisticsAggregates'
+import { buildStatisticsAggregates, mergeStatisticsAggregates } from '@/lib/statisticsAggregates'
+import { historyAggregatesCacheKey, useHistoryAggregatesStore } from '@/stores/useHistoryAggregatesStore'
 import {
   CUSTOM_STATISTICS_WIDGETS,
   DEFAULT_CUSTOM_STATISTICS_WIDGETS,
@@ -72,6 +74,7 @@ export function CustomStatistics() {
   const startDragging = useWindowDragging()
   const { settings, fetchSettings, updateSettings } = useSettingsStore()
   const { stats, fetchStats, updateStats } = useMeritStore()
+  const { today: todayFull, history: historyDays, fetchRecentDays, refreshTodayFull, mergeTodayLite: mergeTodayFullLite } = useMeritDaysStore()
   const { templates, fetchTemplates, upsertTemplate, deleteTemplate, error: templatesError } = useCustomStatisticsTemplatesStore()
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false)
@@ -98,6 +101,15 @@ export function CustomStatistics() {
   }, [])
 
   useEffect(() => {
+    if (!todayFull) return
+    const id = window.setInterval(() => {
+      if (!visibleRef.current) return
+      void refreshTodayFull()
+    }, 2000)
+    return () => window.clearInterval(id)
+  }, [refreshTodayFull, todayFull?.date])
+
+  useEffect(() => {
     try {
       document.title = t('windows.customStatistics')
     } catch {
@@ -109,17 +121,19 @@ export function CustomStatistics() {
     fetchSettings()
     fetchStats()
     fetchTemplates()
-  }, [fetchSettings, fetchStats, fetchTemplates])
+    fetchRecentDays(400)
+  }, [fetchRecentDays, fetchSettings, fetchStats, fetchTemplates])
 
   useEffect(() => {
-    const unsubscribe = listen<MeritStats>(EVENTS.MERIT_UPDATED, (event) => {
+    const unsubscribe = listen<MeritStatsLite>(EVENTS.MERIT_UPDATED, (event) => {
       if (!visibleRef.current) return
       updateStats(event.payload)
+      mergeTodayFullLite(event.payload.today)
     })
     return () => {
       unsubscribe.then((fn) => fn())
     }
-  }, [updateStats])
+  }, [mergeTodayFullLite, updateStats])
 
   useEffect(() => {
     const appWindow = getCurrentWebviewWindow()
@@ -154,7 +168,24 @@ export function CustomStatistics() {
     }
   }, [customizeOpen])
 
-  const allDays = useMemo(() => (stats ? [stats.today, ...stats.history] : []), [stats])
+  const todayMerged = useMemo(() => {
+    if (!todayFull) return null
+    const lite = stats?.today
+    if (!lite || lite.date !== todayFull.date) return todayFull
+    return {
+      ...todayFull,
+      total: lite.total ?? todayFull.total,
+      keyboard: lite.keyboard ?? todayFull.keyboard,
+      mouse_single: lite.mouse_single ?? todayFull.mouse_single,
+      first_event_at_ms: lite.first_event_at_ms ?? todayFull.first_event_at_ms,
+      last_event_at_ms: lite.last_event_at_ms ?? todayFull.last_event_at_ms,
+      mouse_move_distance_px: lite.mouse_move_distance_px ?? todayFull.mouse_move_distance_px,
+      mouse_move_distance_px_by_display: lite.mouse_move_distance_px_by_display ?? todayFull.mouse_move_distance_px_by_display,
+      hourly: lite.hourly ?? todayFull.hourly,
+    }
+  }, [stats?.today, todayFull])
+
+  const allDays = useMemo(() => (todayMerged ? [todayMerged, ...historyDays] : historyDays), [historyDays, todayMerged])
 
   const templateMap = useMemo(() => {
     const map = new Map<string, CustomStatisticsTemplate>()
@@ -197,17 +228,35 @@ export function CustomStatistics() {
 
   const platform = isMac() ? 'mac' : isWindows() ? 'windows' : isLinux() ? 'linux' : 'windows'
   const range: 'today' | 'all' = settings?.custom_statistics_range === 'all' ? 'all' : 'today'
+  const todayAggregates = useMemo(() => buildStatisticsAggregates(todayMerged ? [todayMerged] : []), [todayMerged])
+
+  const aggregatesQueryKey = useMemo(() => historyAggregatesCacheKey({ endKey: todayMerged?.date ?? null }), [todayMerged?.date])
+  const dbAggregates = useHistoryAggregatesStore((s) => s.cache[aggregatesQueryKey] ?? null)
+  const fetchDbAggregates = useHistoryAggregatesStore((s) => s.fetchAggregates)
+
+  useEffect(() => {
+    if (range !== 'all') return
+    if (!todayMerged?.date) return
+    void fetchDbAggregates({ endKey: todayMerged.date })
+  }, [fetchDbAggregates, range, todayMerged?.date])
+
   const scopedAggregates = useMemo(() => {
-    const scopedDays = range === 'all' ? allDays : stats ? [stats.today] : []
-    return buildStatisticsAggregates(scopedDays)
-  }, [allDays, range, stats])
+    if (range === 'all') return dbAggregates ? mergeStatisticsAggregates(dbAggregates, todayAggregates) : todayAggregates
+    return todayAggregates
+  }, [dbAggregates, range, todayAggregates])
+
+  const statsForWidgets = useMemo(() => {
+    const today = todayMerged
+    if (today && stats) return { total_merit: stats.total_merit, today, history: historyDays }
+    return null
+  }, [historyDays, stats, todayMerged])
 
   const widgetCtx = useMemo(
-    () => ({ stats: stats!, settings: settings!, allDays, aggregates: scopedAggregates, range }),
-    [allDays, range, scopedAggregates, settings, stats],
+    () => ({ stats: statsForWidgets!, settings: settings!, allDays, aggregates: scopedAggregates, range }),
+    [allDays, range, scopedAggregates, settings, statsForWidgets],
   )
 
-  if (!settings || !stats) {
+  if (!settings || !stats || !todayMerged) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-white">
         <div className="text-slate-500">{t('common.loading')}</div>
@@ -329,7 +378,7 @@ export function CustomStatistics() {
                     ) : template ? (
                       <CustomWidgetSandbox template={template} ctx={widgetCtx} />
                     ) : widget ? (
-                      widget.render({ stats, settings, allDays, aggregates: scopedAggregates })
+                      widget.render({ stats: statsForWidgets!, settings, allDays, aggregates: scopedAggregates })
                     ) : null}
                   </div>
                 </div>

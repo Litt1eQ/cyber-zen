@@ -35,6 +35,27 @@ export interface DailyStats {
   >
 }
 
+export interface DailyStatsLite {
+  date: string
+  total: number
+  keyboard: number
+  mouse_single: number
+  first_event_at_ms?: number | null
+  last_event_at_ms?: number | null
+  mouse_move_distance_px?: number
+  mouse_move_distance_px_by_display?: Record<string, number>
+  hourly?: Array<{
+    total: number
+    keyboard: number
+    mouse_single: number
+  }>
+}
+
+export interface MeritStatsLite {
+  total_merit: number
+  today: DailyStatsLite
+}
+
 export interface MeritStats {
   total_merit: number
   today: DailyStats

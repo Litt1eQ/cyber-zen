@@ -103,6 +103,27 @@ pub struct DailyStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DailyStatsLite {
+    pub date: NaiveDate,
+    #[serde(default)]
+    pub total: u64,
+    #[serde(default)]
+    pub keyboard: u64,
+    #[serde(default)]
+    pub mouse_single: u64,
+    #[serde(default)]
+    pub first_event_at_ms: Option<u64>,
+    #[serde(default)]
+    pub last_event_at_ms: Option<u64>,
+    #[serde(default)]
+    pub mouse_move_distance_px: u64,
+    #[serde(default)]
+    pub mouse_move_distance_px_by_display: HashMap<String, u64>,
+    #[serde(default = "default_hourly_stats")]
+    pub hourly: Vec<HourlyStats>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppInputStats {
     #[serde(default)]
     pub name: Option<String>,
@@ -167,6 +188,20 @@ impl DailyStats {
             next[idx] = value.clone();
         }
         self.hourly = next;
+    }
+
+    pub fn lite(&self) -> DailyStatsLite {
+        DailyStatsLite {
+            date: self.date,
+            total: self.total,
+            keyboard: self.keyboard,
+            mouse_single: self.mouse_single,
+            first_event_at_ms: self.first_event_at_ms,
+            last_event_at_ms: self.last_event_at_ms,
+            mouse_move_distance_px: self.mouse_move_distance_px,
+            mouse_move_distance_px_by_display: self.mouse_move_distance_px_by_display.clone(),
+            hourly: self.hourly.clone(),
+        }
     }
 
     fn record_event_at_ms(&mut self, event_at_ms: u64) {
@@ -375,6 +410,12 @@ pub struct MeritStats {
     pub history: Vec<DailyStats>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeritStatsLite {
+    pub total_merit: u64,
+    pub today: DailyStatsLite,
+}
+
 impl Default for MeritStats {
     fn default() -> Self {
         Self {
@@ -390,6 +431,13 @@ impl MeritStats {
 
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn lite(&self) -> MeritStatsLite {
+        MeritStatsLite {
+            total_merit: self.total_merit,
+            today: self.today.lite(),
+        }
     }
 
     pub fn normalize_today(&mut self) {
@@ -502,23 +550,6 @@ impl MeritStats {
                 self.history.truncate(Self::MAX_HISTORY_DAYS);
             }
         }
-    }
-
-    pub fn get_recent_days(&self, days: usize) -> Vec<&DailyStats> {
-        let mut result = Vec::with_capacity(days.min(self.history.len() + 1));
-        if days == 0 {
-            return result;
-        }
-        result.push(&self.today);
-        for day in &self.history {
-            if result.len() >= days {
-                break;
-            }
-            if day.date != self.today.date {
-                result.push(day);
-            }
-        }
-        result
     }
 
     pub fn clear_history(&mut self) {

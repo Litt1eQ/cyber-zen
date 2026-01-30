@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use super::MeritStorage;
 
-const CURRENT_STATE_VERSION: u32 = 6;
+const CURRENT_STATE_VERSION: u32 = 7;
 
 #[derive(Clone)]
 struct PersistContext {
@@ -118,7 +118,14 @@ pub fn load(
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     state.stats.normalize_today();
-    state.stats.recompute_counters();
+    if state.version < CURRENT_STATE_VERSION {
+        state.stats.recompute_counters();
+    } else {
+        state.stats.today.recompute_counters();
+        for day in &mut state.stats.history {
+            day.recompute_counters();
+        }
+    }
 
     // One-time migration: drop high-cardinality historical fields and move to the latest format.
     // Best-effort only; failure to rewrite shouldn't prevent the app from starting.
