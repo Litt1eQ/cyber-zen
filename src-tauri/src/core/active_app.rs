@@ -456,12 +456,3 @@ mod imp {
         None
     }
 }
-
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-mod imp {
-    use super::AppContext;
-
-    pub(super) fn query_frontmost_app() -> Option<AppContext> {
-        None
-    }
-}
