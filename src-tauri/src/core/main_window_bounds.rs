@@ -106,6 +106,10 @@ pub fn set_visible(visible: bool) {
     state.last_refresh_ms = now_ms();
 }
 
+pub fn is_visible() -> bool {
+    STATE.read().visible
+}
+
 fn next_token(label: &str) -> u64 {
     let mut guard = REFRESH_TOKENS.lock();
     let entry = guard.entry(label.to_string()).or_insert(0);

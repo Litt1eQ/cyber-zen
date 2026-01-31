@@ -15,7 +15,7 @@ const MAX_QUEUE = 80
 const POP_GAP_MS = 40
 const COALESCE_WINDOW_MS = 1000
 const MAX_DIGIT = 9
-const POP_STALE_TTL_MS = POP_LIFETIME_MS * 4
+const POP_STALE_TTL_MS = POP_LIFETIME_MS * 2
 const POP_RECOVERY_GRACE_MS = 250
 
 export function useMeritPopQueue(getOrigin?: () => { x: number; y: number }) {
@@ -94,6 +94,17 @@ export function useMeritPopQueue(getOrigin?: () => { x: number; y: number }) {
 
     return false
   }, [clearActiveCleanupTimer, clearPumpTimer])
+
+  // Watchdog: ensure pops don't get stuck on screen even if timers get clamped/paused
+  // (e.g. when the event loop is blocked or the app is backgrounded).
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (!activeRef.current) return
+      recoverIfStalled()
+      pruneStaleActive()
+    }, 500)
+    return () => window.clearInterval(id)
+  }, [pruneStaleActive, recoverIfStalled])
 
   const pump = useCallback(() => {
     if (runningRef.current) return

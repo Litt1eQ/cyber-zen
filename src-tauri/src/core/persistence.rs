@@ -81,6 +81,7 @@ pub fn init(storage: std::sync::Arc<parking_lot::RwLock<MeritStorage>>, path: Pa
 }
 
 pub fn request_save() {
+    crate::core::perf::inc_persist_requests();
     if let Some(tx) = SAVE_TX.lock().as_ref() {
         let _ = tx.send(());
     }
@@ -118,19 +119,29 @@ pub fn load(
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     state.stats.normalize_today();
-    if state.version < CURRENT_STATE_VERSION {
-        state.stats.recompute_counters();
-    } else {
-        state.stats.today.recompute_counters();
-        for day in &mut state.stats.history {
-            day.recompute_counters();
-        }
+    state.stats.today.recompute_counters();
+    for day in &mut state.stats.history {
+        day.recompute_counters();
+    }
+
+    // `total_merit` is lifetime-cumulative. Historical daily stats are persisted in SQLite and may
+    // no longer exist in `state.stats.history`, so never recompute lifetime totals from the in-memory
+    // history vector. Instead, ensure `total_merit` is at least (sum of DB daily totals + today's total).
+    let db_total = crate::core::history_db::load_total_merit_all_time().unwrap_or(0);
+    let min_total = db_total.saturating_add(state.stats.today.total);
+    let mut should_rewrite = false;
+    if min_total > state.stats.total_merit {
+        state.stats.total_merit = min_total;
+        should_rewrite = true;
     }
 
     // One-time migration: drop high-cardinality historical fields and move to the latest format.
     // Best-effort only; failure to rewrite shouldn't prevent the app from starting.
     if state.version < CURRENT_STATE_VERSION {
         state.version = CURRENT_STATE_VERSION;
+        should_rewrite = true;
+    }
+    if should_rewrite {
         let _ = write_state_atomically(path, &state);
     }
 

@@ -2,6 +2,7 @@ use chrono::{Local, NaiveDate, Timelike, Utc};
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 fn default_hourly_stats() -> Vec<HourlyStats> {
     vec![HourlyStats::default(); 24]
@@ -89,17 +90,17 @@ pub struct DailyStats {
     #[serde(default = "default_hourly_stats")]
     pub hourly: Vec<HourlyStats>,
     #[serde(default)]
-    pub key_counts: HashMap<String, u64>,
+    pub key_counts: HashMap<Arc<str>, u64>,
     #[serde(default)]
-    pub key_counts_unshifted: HashMap<String, u64>,
+    pub key_counts_unshifted: HashMap<Arc<str>, u64>,
     #[serde(default)]
-    pub key_counts_shifted: HashMap<String, u64>,
+    pub key_counts_shifted: HashMap<Arc<str>, u64>,
     #[serde(default)]
-    pub shortcut_counts: HashMap<String, u64>,
+    pub shortcut_counts: HashMap<Arc<str>, u64>,
     #[serde(default)]
-    pub mouse_button_counts: HashMap<String, u64>,
+    pub mouse_button_counts: HashMap<Arc<str>, u64>,
     #[serde(default)]
-    pub app_input_counts: HashMap<String, AppInputStats>,
+    pub app_input_counts: HashMap<Arc<str>, AppInputStats>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -126,7 +127,7 @@ pub struct DailyStatsLite {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppInputStats {
     #[serde(default)]
-    pub name: Option<String>,
+    pub name: Option<Arc<str>>,
     #[serde(default)]
     pub total: u64,
     #[serde(default)]
@@ -136,13 +137,13 @@ pub struct AppInputStats {
 }
 
 impl AppInputStats {
-    pub fn add(&mut self, name: Option<&str>, source: InputSource, count: u64) {
+    pub fn add(&mut self, name: Option<&Arc<str>>, source: InputSource, count: u64) {
         if count == 0 {
             return;
         }
 
         if self.name.is_none() {
-            self.name = name.map(|v| v.to_string());
+            self.name = name.map(Arc::clone);
         }
 
         self.total = self.total.saturating_add(count);
@@ -287,15 +288,18 @@ impl DailyStats {
         }
     }
 
-    pub fn add_app_merit(&mut self, app_id: &str, app_name: Option<&str>, source: InputSource, count: u64) {
+    pub fn add_app_merit(
+        &mut self,
+        app_id: &Arc<str>,
+        app_name: Option<&Arc<str>>,
+        source: InputSource,
+        count: u64,
+    ) {
         if count == 0 {
             return;
         }
 
-        let entry = self
-            .app_input_counts
-            .entry(app_id.to_string())
-            .or_default();
+        let entry = self.app_input_counts.entry(Arc::clone(app_id)).or_default();
         entry.add(app_name, source, count);
 
         if self.app_input_counts.len() > MAX_APP_ENTRIES_PER_DAY {
@@ -303,26 +307,29 @@ impl DailyStats {
         }
     }
 
-    fn prune_app_input_counts(&mut self, keep_id: &str) {
+    fn prune_app_input_counts(&mut self, keep_id: &Arc<str>) {
         if self.app_input_counts.len() <= MAX_APP_ENTRIES_PER_DAY {
             return;
         }
 
-        let mut entries: Vec<(String, u64)> = self
+        let mut entries: Vec<(Arc<str>, u64)> = self
             .app_input_counts
             .iter()
-            .map(|(k, v)| (k.clone(), v.total))
+            .map(|(k, v)| (Arc::clone(k), v.total))
             .collect();
         entries.sort_by(|a, b| b.1.cmp(&a.1));
 
-        let mut keep: std::collections::HashSet<String> =
-            entries.into_iter().take(MAX_APP_ENTRIES_PER_DAY).map(|(k, _)| k).collect();
-        keep.insert(keep_id.to_string());
+        let mut keep: std::collections::HashSet<Arc<str>> = entries
+            .into_iter()
+            .take(MAX_APP_ENTRIES_PER_DAY)
+            .map(|(k, _)| k)
+            .collect();
+        keep.insert(Arc::clone(keep_id));
 
         self.app_input_counts.retain(|k, _| keep.contains(k));
     }
 
-    pub fn add_key_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_key_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }
@@ -332,13 +339,13 @@ impl DailyStats {
                 continue;
             }
             self.key_counts
-                .entry(key.clone())
+                .entry(Arc::clone(key))
                 .and_modify(|v| *v = v.saturating_add(*count))
                 .or_insert(*count);
         }
     }
 
-    pub fn add_key_unshifted_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_key_unshifted_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }
@@ -348,13 +355,13 @@ impl DailyStats {
                 continue;
             }
             self.key_counts_unshifted
-                .entry(key.clone())
+                .entry(Arc::clone(key))
                 .and_modify(|v| *v = v.saturating_add(*count))
                 .or_insert(*count);
         }
     }
 
-    pub fn add_key_shifted_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_key_shifted_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }
@@ -364,13 +371,13 @@ impl DailyStats {
                 continue;
             }
             self.key_counts_shifted
-                .entry(key.clone())
+                .entry(Arc::clone(key))
                 .and_modify(|v| *v = v.saturating_add(*count))
                 .or_insert(*count);
         }
     }
 
-    pub fn add_shortcut_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_shortcut_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }
@@ -380,13 +387,13 @@ impl DailyStats {
                 continue;
             }
             self.shortcut_counts
-                .entry(key.clone())
+                .entry(Arc::clone(key))
                 .and_modify(|v| *v = v.saturating_add(*count))
                 .or_insert(*count);
         }
     }
 
-    pub fn add_mouse_button_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_mouse_button_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }
@@ -396,7 +403,7 @@ impl DailyStats {
                 continue;
             }
             self.mouse_button_counts
-                .entry(key.clone())
+                .entry(Arc::clone(key))
                 .and_modify(|v| *v = v.saturating_add(*count))
                 .or_insert(*count);
         }
@@ -475,8 +482,8 @@ impl MeritStats {
 
     pub fn add_app_merit(
         &mut self,
-        app_id: &str,
-        app_name: Option<&str>,
+        app_id: &Arc<str>,
+        app_name: Option<&Arc<str>>,
         source: InputSource,
         count: u64,
     ) {
@@ -487,7 +494,7 @@ impl MeritStats {
         self.today.add_app_merit(app_id, app_name, source, count);
     }
 
-    pub fn add_keyboard_key_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_keyboard_key_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }
@@ -495,7 +502,7 @@ impl MeritStats {
         self.today.add_key_counts(counts);
     }
 
-    pub fn add_keyboard_key_unshifted_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_keyboard_key_unshifted_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }
@@ -503,7 +510,7 @@ impl MeritStats {
         self.today.add_key_unshifted_counts(counts);
     }
 
-    pub fn add_keyboard_key_shifted_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_keyboard_key_shifted_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }
@@ -511,7 +518,7 @@ impl MeritStats {
         self.today.add_key_shifted_counts(counts);
     }
 
-    pub fn add_shortcut_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_shortcut_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }
@@ -519,7 +526,7 @@ impl MeritStats {
         self.today.add_shortcut_counts(counts);
     }
 
-    pub fn add_mouse_button_counts(&mut self, counts: &HashMap<String, u64>) {
+    pub fn add_mouse_button_counts(&mut self, counts: &HashMap<Arc<str>, u64>) {
         if counts.is_empty() {
             return;
         }

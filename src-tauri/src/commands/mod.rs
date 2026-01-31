@@ -7,6 +7,7 @@ pub mod click_heatmap;
 pub mod input;
 pub mod merit;
 pub mod permissions;
+pub mod perf;
 pub mod settings;
 pub mod skins;
 pub mod updater;

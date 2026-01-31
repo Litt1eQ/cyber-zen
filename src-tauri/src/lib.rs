@@ -4,7 +4,7 @@ mod models;
 mod tray_menu;
 
 use core::MeritStorage;
-use tauri::{LogicalSize, Manager, Size, WindowEvent};
+use tauri::{Emitter, LogicalSize, Manager, Size, WindowEvent};
 
 #[cfg(target_os = "macos")]
 use core::window_manager::setup_panel;
@@ -24,6 +24,9 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             core::activity::init();
+            // Perf is enabled by default in debug builds and in release builds built with
+            // `--features perf`. No runtime env var is required.
+            core::active_app::init_sampler();
             core::app_log::install_panic_hook(app_handle.clone());
             let _ = core::app_log::info(&app_handle, "app", "startup");
             let notification_env = core::notification_env::detect(&app_handle);
@@ -246,8 +249,23 @@ pub fn run() {
             commands::logs::read_logs,
             commands::logs::clear_logs,
             commands::logs::open_logs_directory,
+            commands::perf::get_perf_snapshot,
+            commands::perf::set_perf_enabled,
         ])
         .on_window_event(|window, event| {
+            if let WindowEvent::Focused(true) = event {
+                let label = window.label();
+                if label == "main" || label == "settings" || label == "custom_statistics" {
+                    if let Some(webview_window) = window.app_handle().get_webview_window(label) {
+                        let stats = {
+                            let storage = MeritStorage::instance();
+                            let storage = storage.read();
+                            storage.get_stats().lite()
+                        };
+                        let _ = webview_window.emit("merit-updated", stats);
+                    }
+                }
+            }
             if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
                 let label = window.label();
                 if label == "main"

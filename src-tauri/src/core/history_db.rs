@@ -4,6 +4,7 @@ use parking_lot::Mutex;
 use rusqlite::{params, Connection, OpenFlags};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::mpsc::{self, Sender};
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -13,8 +14,8 @@ enum DbOp {
     BulkUpsertDaily(Vec<DailyStats>),
     ClearDaily,
     HeatmapDelta {
-        date_key: String,
-        display_id: String,
+        date_key: Arc<str>,
+        display_id: Arc<str>,
         idx: u32,
         delta: u32,
     },
@@ -183,7 +184,7 @@ fn replace_daily_key_counts(
     conn: &Connection,
     date_key: &str,
     kind: i64,
-    counts: &std::collections::HashMap<String, u64>,
+    counts: &std::collections::HashMap<Arc<str>, u64>,
 ) -> Result<(), String> {
     conn.execute(
         "DELETE FROM daily_key_counts WHERE date_key=?1 AND kind=?2",
@@ -202,7 +203,7 @@ fn replace_daily_key_counts(
         stmt.execute(params![
             date_key,
             kind,
-            code,
+            code.as_ref(),
             i64::try_from(*count).unwrap_or(i64::MAX)
         ])
         .map_err(|e| format!("Failed to insert daily_key_counts: {}", e))?;
@@ -214,7 +215,7 @@ fn replace_daily_key_counts(
 fn replace_daily_shortcut_counts(
     conn: &Connection,
     date_key: &str,
-    counts: &std::collections::HashMap<String, u64>,
+    counts: &std::collections::HashMap<Arc<str>, u64>,
 ) -> Result<(), String> {
     conn.execute(
         "DELETE FROM daily_shortcut_counts WHERE date_key=?1",
@@ -247,7 +248,7 @@ fn replace_daily_shortcut_counts(
 fn replace_daily_mouse_button_counts(
     conn: &Connection,
     date_key: &str,
-    counts: &std::collections::HashMap<String, u64>,
+    counts: &std::collections::HashMap<Arc<str>, u64>,
 ) -> Result<(), String> {
     conn.execute(
         "DELETE FROM daily_mouse_button_counts WHERE date_key=?1",
@@ -304,7 +305,7 @@ fn replace_daily_hourly(conn: &Connection, date_key: &str, hourly: &[crate::mode
 fn replace_daily_app_input(
     conn: &Connection,
     date_key: &str,
-    counts: &std::collections::HashMap<String, crate::models::merit::AppInputStats>,
+    counts: &std::collections::HashMap<Arc<str>, crate::models::merit::AppInputStats>,
 ) -> Result<(), String> {
     conn.execute("DELETE FROM daily_app_input WHERE date_key=?1", params![date_key])
         .map_err(|e| format!("Failed to clear daily_app_input: {}", e))?;
@@ -452,10 +453,10 @@ fn migrate_daily_counters_v2(conn: &mut Connection) -> Result<(), String> {
 
 fn apply_heatmap_batch(
     conn: &mut Connection,
-    total_cells: HashMap<(String, u32), u32>,
-    daily_cells: HashMap<(String, String, u32), u32>,
-    total_clicks: HashMap<String, u64>,
-    daily_clicks: HashMap<(String, String), u64>,
+    total_cells: HashMap<(Arc<str>, u32), u32>,
+    daily_cells: HashMap<(Arc<str>, Arc<str>, u32), u32>,
+    total_clicks: HashMap<Arc<str>, u64>,
+    daily_clicks: HashMap<(Arc<str>, Arc<str>), u64>,
 ) -> Result<(), String> {
     if total_cells.is_empty() && daily_cells.is_empty() && total_clicks.is_empty() && daily_clicks.is_empty() {
         return Ok(());
@@ -479,7 +480,7 @@ ON CONFLICT(display_id, idx) DO UPDATE SET count = count + excluded.count
             if delta == 0 {
                 continue;
             }
-            stmt.execute(params![display_id, idx as i64, delta as i64])
+            stmt.execute(params![display_id.as_ref(), idx as i64, delta as i64])
                 .map_err(|e| format!("Failed to upsert click_heatmap_total_cells: {}", e))?;
         }
     }
@@ -498,7 +499,7 @@ ON CONFLICT(date_key, display_id, idx) DO UPDATE SET count = count + excluded.co
             if delta == 0 {
                 continue;
             }
-            stmt.execute(params![date_key, display_id, idx as i64, delta as i64])
+            stmt.execute(params![date_key.as_ref(), display_id.as_ref(), idx as i64, delta as i64])
                 .map_err(|e| format!("Failed to upsert click_heatmap_daily_cells: {}", e))?;
         }
     }
@@ -517,7 +518,7 @@ ON CONFLICT(display_id) DO UPDATE SET total_clicks = total_clicks + excluded.tot
             if delta == 0 {
                 continue;
             }
-            stmt.execute(params![display_id, delta as i64])
+            stmt.execute(params![display_id.as_ref(), delta as i64])
                 .map_err(|e| format!("Failed to upsert click_heatmap_total_meta: {}", e))?;
         }
     }
@@ -536,7 +537,7 @@ ON CONFLICT(date_key, display_id) DO UPDATE SET total_clicks = total_clicks + ex
             if delta == 0 {
                 continue;
             }
-            stmt.execute(params![date_key, display_id, delta as i64])
+            stmt.execute(params![date_key.as_ref(), display_id.as_ref(), delta as i64])
                 .map_err(|e| format!("Failed to upsert click_heatmap_daily_meta: {}", e))?;
         }
     }
@@ -678,10 +679,10 @@ pub fn init(path: PathBuf) -> Result<(), String> {
             eprintln!("{}", e);
         }
 
-        let mut pending_total_cells: HashMap<(String, u32), u32> = HashMap::new();
-        let mut pending_daily_cells: HashMap<(String, String, u32), u32> = HashMap::new();
-        let mut pending_total_clicks: HashMap<String, u64> = HashMap::new();
-        let mut pending_daily_clicks: HashMap<(String, String), u64> = HashMap::new();
+        let mut pending_total_cells: HashMap<(Arc<str>, u32), u32> = HashMap::new();
+        let mut pending_daily_cells: HashMap<(Arc<str>, Arc<str>, u32), u32> = HashMap::new();
+        let mut pending_total_clicks: HashMap<Arc<str>, u64> = HashMap::new();
+        let mut pending_daily_clicks: HashMap<(Arc<str>, Arc<str>), u64> = HashMap::new();
 
         let mut last_flush_ms = now_ms();
 
@@ -741,16 +742,16 @@ pub fn init(path: PathBuf) -> Result<(), String> {
                             continue;
                         }
                         pending_total_cells
-                            .entry((display_id.clone(), idx))
+                            .entry((Arc::clone(&display_id), idx))
                             .and_modify(|v| *v = v.saturating_add(delta))
                             .or_insert(delta);
                         pending_daily_cells
-                            .entry((date_key.clone(), display_id.clone(), idx))
+                            .entry((Arc::clone(&date_key), Arc::clone(&display_id), idx))
                             .and_modify(|v| *v = v.saturating_add(delta))
                             .or_insert(delta);
 
                         pending_total_clicks
-                            .entry(display_id.clone())
+                            .entry(Arc::clone(&display_id))
                             .and_modify(|v| *v = v.saturating_add(delta as u64))
                             .or_insert(delta as u64);
                         pending_daily_clicks
@@ -869,18 +870,23 @@ pub fn clear_daily_stats() {
     let _ = with_ctx(|ctx| ctx.tx.send(DbOp::Vacuum));
 }
 
-pub fn record_click_heatmap_cell(display_id: &str, idx: usize) -> bool {
-    let trimmed = display_id.trim();
+pub fn record_click_heatmap_cell(display_id: Arc<str>, idx: usize) -> bool {
+    let trimmed = display_id.as_ref().trim();
     if trimmed.is_empty() {
         return false;
     }
     let idx = u32::try_from(idx).unwrap_or(u32::MAX);
-    let date_key = chrono::Local::now().date_naive().to_string();
+    let date_key = crate::core::date_key::today_key_arc();
+    let display_id = if trimmed == display_id.as_ref() {
+        display_id
+    } else {
+        Arc::<str>::from(trimmed.to_string())
+    };
 
     with_ctx(|ctx| {
         ctx.tx.send(DbOp::HeatmapDelta {
             date_key,
-            display_id: trimmed.to_string(),
+            display_id,
             idx,
             delta: 1,
         })
@@ -970,9 +976,9 @@ LIMIT ?1
         }
     }
 
-    let mut key_counts_all: HashMap<String, HashMap<String, u64>> = HashMap::new();
-    let mut key_counts_unshifted: HashMap<String, HashMap<String, u64>> = HashMap::new();
-    let mut key_counts_shifted: HashMap<String, HashMap<String, u64>> = HashMap::new();
+    let mut key_counts_all: HashMap<String, HashMap<Arc<str>, u64>> = HashMap::new();
+    let mut key_counts_unshifted: HashMap<String, HashMap<Arc<str>, u64>> = HashMap::new();
+    let mut key_counts_shifted: HashMap<String, HashMap<Arc<str>, u64>> = HashMap::new();
 
     {
         let mut stmt = conn
@@ -1006,11 +1012,11 @@ LIMIT ?1
             target
                 .entry(date_key)
                 .or_default()
-                .insert(code, count_u64);
+                .insert(Arc::from(code), count_u64);
         }
     }
 
-    let mut shortcut_counts: HashMap<String, HashMap<String, u64>> = HashMap::new();
+    let mut shortcut_counts: HashMap<String, HashMap<Arc<str>, u64>> = HashMap::new();
     {
         let mut stmt = conn
             .prepare("SELECT date_key, shortcut, count FROM daily_shortcut_counts WHERE date_key BETWEEN ?1 AND ?2")
@@ -1034,11 +1040,11 @@ LIMIT ?1
             shortcut_counts
                 .entry(date_key)
                 .or_default()
-                .insert(shortcut, count_u64);
+                .insert(Arc::from(shortcut), count_u64);
         }
     }
 
-    let mut mouse_button_counts: HashMap<String, HashMap<String, u64>> = HashMap::new();
+    let mut mouse_button_counts: HashMap<String, HashMap<Arc<str>, u64>> = HashMap::new();
     {
         let mut stmt = conn
             .prepare(
@@ -1064,7 +1070,7 @@ LIMIT ?1
             mouse_button_counts
                 .entry(date_key)
                 .or_default()
-                .insert(button, count_u64);
+                .insert(Arc::from(button), count_u64);
         }
     }
 
@@ -1103,7 +1109,7 @@ LIMIT ?1
         }
     }
 
-    let mut app_input_counts: HashMap<String, HashMap<String, crate::models::merit::AppInputStats>> =
+    let mut app_input_counts: HashMap<String, HashMap<Arc<str>, crate::models::merit::AppInputStats>> =
         HashMap::new();
     {
         let mut stmt = conn
@@ -1134,9 +1140,9 @@ LIMIT ?1
                 .entry(date_key)
                 .or_default()
                 .insert(
-                    app_id,
+                    Arc::from(app_id),
                     crate::models::merit::AppInputStats {
-                        name,
+                        name: name.map(Arc::from),
                         total: keyboard_u64.saturating_add(mouse_u64),
                         keyboard: keyboard_u64,
                         mouse_single: mouse_u64,
@@ -1213,7 +1219,7 @@ fn load_aggregate_key_counts(
     kind: i64,
     start_key: Option<&str>,
     end_key: Option<&str>,
-) -> Result<HashMap<String, u64>, String> {
+) -> Result<HashMap<Arc<str>, u64>, String> {
     fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, i64)> {
         Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
     }
@@ -1249,7 +1255,7 @@ fn load_aggregate_key_counts(
         if count_u64 == 0 {
             continue;
         }
-        out.insert(code, count_u64);
+        out.insert(crate::core::key_codes::intern(&code), count_u64);
     }
     Ok(out)
 }
@@ -1260,7 +1266,7 @@ fn load_aggregate_simple_counts(
     key_column: &str,
     start_key: Option<&str>,
     end_key: Option<&str>,
-) -> Result<HashMap<String, u64>, String> {
+) -> Result<HashMap<Arc<str>, u64>, String> {
     fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, i64)> {
         Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
     }
@@ -1301,7 +1307,7 @@ fn load_aggregate_simple_counts(
         if count_u64 == 0 {
             continue;
         }
-        out.insert(k, count_u64);
+        out.insert(Arc::<str>::from(k), count_u64);
     }
     Ok(out)
 }
@@ -1362,7 +1368,7 @@ fn load_aggregate_app_input(
     conn: &Connection,
     start_key: Option<&str>,
     end_key: Option<&str>,
-) -> Result<HashMap<String, crate::models::merit::AppInputStats>, String> {
+) -> Result<HashMap<Arc<str>, crate::models::merit::AppInputStats>, String> {
     fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, Option<String>, i64, i64)> {
         Ok((
             row.get::<_, String>(0)?,
@@ -1416,7 +1422,7 @@ GROUP BY a.app_id
             .map_err(|e| format!("Failed to query app input aggregate: {}", e))?,
     };
 
-    let mut out: HashMap<String, crate::models::merit::AppInputStats> = HashMap::new();
+    let mut out: HashMap<Arc<str>, crate::models::merit::AppInputStats> = HashMap::new();
     for row in rows {
         let (app_id, name, keyboard, mouse_single) =
             row.map_err(|e| format!("Failed to read app input aggregate row: {}", e))?;
@@ -1426,9 +1432,9 @@ GROUP BY a.app_id
             continue;
         }
         out.insert(
-            app_id,
+            Arc::<str>::from(app_id),
             crate::models::merit::AppInputStats {
-                name,
+                name: name.map(Arc::<str>::from),
                 total: keyboard_u64.saturating_add(mouse_u64),
                 keyboard: keyboard_u64,
                 mouse_single: mouse_u64,
@@ -1469,6 +1475,21 @@ pub fn load_statistics_aggregates(
         hourly: load_aggregate_hourly(&conn, start_key, end_key)?,
         app_input_counts: load_aggregate_app_input(&conn, start_key, end_key)?,
     })
+}
+
+pub fn load_total_merit_all_time() -> Result<u64, String> {
+    let ctx = CTX
+        .lock()
+        .clone()
+        .ok_or_else(|| "history db not initialized".to_string())?;
+
+    let conn = open_read_conn(&ctx.path)?;
+    let sum: i64 = conn
+        .query_row("SELECT COALESCE(SUM(total), 0) FROM daily_stats", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map_err(|e| format!("Failed to query total merit: {}", e))?;
+    Ok(u64::try_from(sum).unwrap_or(u64::MAX))
 }
 
 pub fn load_click_heatmap_base(

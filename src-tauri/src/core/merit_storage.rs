@@ -15,7 +15,7 @@ use parking_lot::RwLock;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use super::active_app::AppContext;
 
@@ -23,14 +23,14 @@ static STORAGE: Lazy<Arc<RwLock<MeritStorage>>> =
     Lazy::new(|| Arc::new(RwLock::new(MeritStorage::new())));
 
 pub struct KeyboardCounts<'a> {
-    pub key_counts: Option<&'a HashMap<String, u64>>,
-    pub key_counts_unshifted: Option<&'a HashMap<String, u64>>,
-    pub key_counts_shifted: Option<&'a HashMap<String, u64>>,
-    pub shortcut_counts: Option<&'a HashMap<String, u64>>,
+    pub key_counts: Option<&'a HashMap<Arc<str>, u64>>,
+    pub key_counts_unshifted: Option<&'a HashMap<Arc<str>, u64>>,
+    pub key_counts_shifted: Option<&'a HashMap<Arc<str>, u64>>,
+    pub shortcut_counts: Option<&'a HashMap<Arc<str>, u64>>,
 }
 
 pub struct MouseCounts<'a> {
-    pub mouse_button_counts: Option<&'a HashMap<String, u64>>,
+    pub mouse_button_counts: Option<&'a HashMap<Arc<str>, u64>>,
 }
 
 pub struct MeritStorage {
@@ -262,7 +262,7 @@ impl MeritStorage {
         };
 
         self.stats
-            .add_app_merit(&app.id, app.name.as_deref(), source, count);
+            .add_app_merit(&app.id, app.name.as_ref(), source, count);
         self.drain_history_to_db();
         true
     }
@@ -287,13 +287,35 @@ impl MeritStorage {
 
     pub fn clear_history(&mut self, app_handle: &AppHandle) {
         self.stats.clear_history();
-        let _ = app_handle.emit("merit-updated", self.stats.lite());
+        let stats = self.stats.lite();
+        if crate::core::main_window_bounds::is_visible() {
+            if let Some(window) = app_handle.get_webview_window("main") {
+                let _ = window.emit("merit-updated", &stats);
+            }
+        }
+        crate::core::ui_emit::emit_to_any_visible_windows(
+            app_handle,
+            &["settings", "custom_statistics"],
+            "merit-updated",
+            &stats,
+        );
         crate::core::persistence::request_save();
     }
 
     pub fn reset_all(&mut self, app_handle: &AppHandle) {
         self.stats.reset_all();
-        let _ = app_handle.emit("merit-updated", self.stats.lite());
+        let stats = self.stats.lite();
+        if crate::core::main_window_bounds::is_visible() {
+            if let Some(window) = app_handle.get_webview_window("main") {
+                let _ = window.emit("merit-updated", &stats);
+            }
+        }
+        crate::core::ui_emit::emit_to_any_visible_windows(
+            app_handle,
+            &["settings", "custom_statistics"],
+            "merit-updated",
+            &stats,
+        );
         crate::core::persistence::request_save();
     }
 

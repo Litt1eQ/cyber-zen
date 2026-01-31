@@ -6,6 +6,8 @@ use parking_lot::RwLock;
 #[cfg(not(target_os = "macos"))]
 use rdev::{listen, Event, EventType};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 #[cfg(target_os = "macos")]
 use std::sync::mpsc;
@@ -19,6 +21,7 @@ use crate::core::main_window_bounds;
 use crate::core::mouse_distance;
 use crate::core::merit_batcher::enqueue_merit_trigger;
 use crate::core::MeritStorage;
+use crate::core::{intern, perf};
 use crate::models::InputOrigin;
 use crate::core::active_app;
 
@@ -109,22 +112,41 @@ fn effective_shifted(code: &str, shift_down: bool, caps_lock: bool) -> bool {
     }
 }
 
-fn shortcut_id(meta: bool, ctrl: bool, alt: bool, shift: bool, code: &str) -> String {
-    let mut parts: Vec<&str> = Vec::with_capacity(5);
-    if meta {
-        parts.push("Meta");
-    }
-    if ctrl {
-        parts.push("Ctrl");
-    }
-    if alt {
-        parts.push("Alt");
-    }
-    if shift {
-        parts.push("Shift");
-    }
-    parts.push(code);
-    parts.join("+")
+thread_local! {
+    static SHORTCUT_BUF: RefCell<String> = RefCell::new(String::with_capacity(32));
+}
+
+fn shortcut_id(meta: bool, ctrl: bool, alt: bool, shift: bool, code: &str) -> Arc<str> {
+    SHORTCUT_BUF.with(|buf| {
+        let mut buf = buf.borrow_mut();
+        buf.clear();
+
+        fn push(part: &str, buf: &mut String, first: &mut bool) {
+            if !*first {
+                buf.push('+');
+            }
+            *first = false;
+            buf.push_str(part);
+        }
+
+        let mut first = true;
+
+        if meta {
+            push("Meta", &mut buf, &mut first);
+        }
+        if ctrl {
+            push("Ctrl", &mut buf, &mut first);
+        }
+        if alt {
+            push("Alt", &mut buf, &mut first);
+        }
+        if shift {
+            push("Shift", &mut buf, &mut first);
+        }
+        push(code, &mut buf, &mut first);
+
+        intern::intern_str(buf.as_str())
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,10 +232,13 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
 
                     let (source, count, detail_code) = match raw {
                         crate::core::macos_event_tap::RawInputEvent::KeyDown { keycode, flags } => {
-                            let code = key_codes::from_macos_virtual_keycode(keycode)
-                                .map(|v| key_codes::normalize_macos_key_code(v).to_string());
-                            if let Some(code) = code.clone() {
-                                keyboard_piano::emit_key(&worker_handle, code);
+                            perf::inc_input_key();
+
+                            let code = perf::time(perf::TimerKind::KeyCodeMap, || {
+                                key_codes::from_macos_virtual_keycode_arc(keycode)
+                            });
+                            if let Some(code) = code.as_ref() {
+                                keyboard_piano::emit_key(&worker_handle, code.as_ref());
                             }
                             let (is_shifted, shortcut) = if let Some(code) = code.as_deref() {
                                 const MASK_ALPHA_SHIFT: u64 = 1 << 16;
@@ -253,6 +278,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             continue;
                         }
                         crate::core::macos_event_tap::RawInputEvent::MouseDown { button, x, y } => {
+                            perf::inc_input_mouse_click();
                             // Record click positions even if we suppress counting for merit to avoid
                             // double-counting in-app clicks (App-origin merit uses suppression).
                             click_heatmap::record_global_click(
@@ -274,12 +300,12 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                                 continue;
                             }
 
-                            let code = match button {
+                            let code: Option<Arc<str>> = match button {
                                 crate::core::macos_event_tap::RawMouseButton::Left => {
-                                    Some("MouseLeft".to_string())
+                                    Some(key_codes::intern("MouseLeft"))
                                 }
                                 crate::core::macos_event_tap::RawMouseButton::Right => {
-                                    Some("MouseRight".to_string())
+                                    Some(key_codes::intern("MouseRight"))
                                 }
                                 crate::core::macos_event_tap::RawMouseButton::Other => None,
                             };
@@ -287,6 +313,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             (InputSource::MouseSingle, 1u64, code)
                         }
                         crate::core::macos_event_tap::RawInputEvent::MouseMove { x, y } => {
+                            perf::inc_input_mouse_move();
                             mouse_distance::record_mouse_move(
                                 click_heatmap::CoordinateSpace::Logical,
                                 x,
@@ -331,68 +358,65 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
 
                 let (source, count, detail_code, is_shifted, shortcut) = match event.event_type {
                     EventType::KeyPress(key) => {
-                        let raw = format!("{:?}", key);
+                        perf::inc_input_key();
+
                         let (snapshot, code) = {
                             let mut state = MOD_STATE.lock();
-                            match raw.as_str() {
-                                "ShiftLeft" => state.shift_left = true,
-                                "ShiftRight" => state.shift_right = true,
-                                "ControlLeft" => state.ctrl_left = true,
-                                "ControlRight" => state.ctrl_right = true,
-                                "Alt" | "AltLeft" => state.alt_left = true,
-                                "AltGr" | "AltRight" => state.alt_right = true,
-                                "MetaLeft" | "Super" => state.meta_left = true,
-                                "MetaRight" => state.meta_right = true,
-                                "CapsLock" => state.caps_lock = !state.caps_lock,
+                            match key {
+                                rdev::Key::ShiftLeft => state.shift_left = true,
+                                rdev::Key::ShiftRight => state.shift_right = true,
+                                rdev::Key::ControlLeft => state.ctrl_left = true,
+                                rdev::Key::ControlRight => state.ctrl_right = true,
+                                rdev::Key::Alt => state.alt_left = true,
+                                rdev::Key::AltGr => state.alt_right = true,
+                                rdev::Key::MetaLeft => state.meta_left = true,
+                                rdev::Key::MetaRight => state.meta_right = true,
+                                rdev::Key::CapsLock => state.caps_lock = !state.caps_lock,
                                 _ => {}
                             }
-                            (*state, key_codes::from_rdev_key(key))
+                            let code = perf::time(perf::TimerKind::KeyCodeMap, || key_codes::from_rdev_key(key));
+                            (*state, code)
                         };
-                        if let Some(code) = code.clone() {
-                            keyboard_piano::emit_key(&callback_handle, code);
-                        }
+                        keyboard_piano::emit_key(&callback_handle, code.as_ref());
 
-                        let (is_shifted, shortcut) = if let Some(code) = code.as_deref() {
+                        let (is_shifted, shortcut) = {
                             let shift_down = snapshot.shift();
-                            let is_shifted =
-                                effective_shifted(code, shift_down, snapshot.caps_lock);
+                            let is_shifted = effective_shifted(code.as_ref(), shift_down, snapshot.caps_lock);
                             let shortcut = if (snapshot.ctrl() || snapshot.alt() || snapshot.meta())
-                                && !is_modifier_code(code)
+                                && !is_modifier_code(code.as_ref())
                             {
                                 Some(shortcut_id(
                                     snapshot.meta(),
                                     snapshot.ctrl(),
                                     snapshot.alt(),
                                     shift_down,
-                                    code,
+                                    code.as_ref(),
                                 ))
                             } else {
                                 None
                             };
                             (Some(is_shifted), shortcut)
-                        } else {
-                            (None, None)
                         };
 
-                        (InputSource::Keyboard, 1u64, code, is_shifted, shortcut)
+                        (InputSource::Keyboard, 1u64, Some(code), is_shifted, shortcut)
                     }
                     EventType::KeyRelease(key) => {
-                        let raw = format!("{:?}", key);
                         let mut state = MOD_STATE.lock();
-                        match raw.as_str() {
-                            "ShiftLeft" => state.shift_left = false,
-                            "ShiftRight" => state.shift_right = false,
-                            "ControlLeft" => state.ctrl_left = false,
-                            "ControlRight" => state.ctrl_right = false,
-                            "Alt" | "AltLeft" => state.alt_left = false,
-                            "AltGr" | "AltRight" => state.alt_right = false,
-                            "MetaLeft" | "Super" => state.meta_left = false,
-                            "MetaRight" => state.meta_right = false,
+                        match key {
+                            rdev::Key::ShiftLeft => state.shift_left = false,
+                            rdev::Key::ShiftRight => state.shift_right = false,
+                            rdev::Key::ControlLeft => state.ctrl_left = false,
+                            rdev::Key::ControlRight => state.ctrl_right = false,
+                            rdev::Key::Alt => state.alt_left = false,
+                            rdev::Key::AltGr => state.alt_right = false,
+                            rdev::Key::MetaLeft => state.meta_left = false,
+                            rdev::Key::MetaRight => state.meta_right = false,
                             _ => {}
                         }
                         return;
                     }
                     EventType::ButtonPress(button) => {
+                        perf::inc_input_mouse_click();
                         let pos = {
                             let st = MOUSE_STATE.lock();
                             st.has_position.then_some((st.x, st.y))
@@ -421,14 +445,15 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         }
 
                         let code = match button {
-                            rdev::Button::Left => Some("MouseLeft".to_string()),
-                            rdev::Button::Right => Some("MouseRight".to_string()),
+                            rdev::Button::Left => Some(key_codes::intern("MouseLeft")),
+                            rdev::Button::Right => Some(key_codes::intern("MouseRight")),
                             _ => None,
                         };
 
                         (InputSource::MouseSingle, 1u64, code, None, None)
                     }
                     EventType::MouseMove { x, y } => {
+                        perf::inc_input_mouse_move();
                         mouse_distance::record_mouse_move(
                             click_heatmap::CoordinateSpace::Physical,
                             x,

@@ -37,14 +37,14 @@ pub fn is_enabled() -> bool {
     ENABLED.load(Ordering::SeqCst)
 }
 
-pub fn emit_key(app_handle: &AppHandle, code: String) {
+pub fn emit_key(app_handle: &AppHandle, code: &str) {
     if !is_enabled() {
         return;
     }
     if code.is_empty() {
         return;
     }
-    if IGNORED_CODES.contains(code.as_str()) {
+    if IGNORED_CODES.contains(code) {
         return;
     }
 
@@ -53,6 +53,10 @@ pub fn emit_key(app_handle: &AppHandle, code: String) {
         return;
     };
 
-    let _ = window.emit(EVENT_KEY, KeyboardPianoKeyEvent { code });
+    let _ = window.emit(
+        EVENT_KEY,
+        KeyboardPianoKeyEvent {
+            code: code.to_string(),
+        },
+    );
 }
-

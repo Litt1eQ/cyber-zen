@@ -1,10 +1,12 @@
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use parking_lot::{Mutex, RwLock};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::core::click_heatmap::CoordinateSpace;
 use crate::core::MeritStorage;
@@ -13,6 +15,7 @@ const MP_PER_PX: u64 = 1000;
 const FLUSH_INTERVAL: Duration = Duration::from_millis(650);
 const MONITOR_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_JUMP_PX: f64 = 2400.0;
+const SEND_INTERVAL_MS: u64 = 90;
 
 #[derive(Debug, Clone, Default)]
 struct CursorState {
@@ -21,12 +24,6 @@ struct CursorState {
     has_position: bool,
     monitor: Option<MonitorSnapshot>,
     monitors_version: u64,
-}
-
-#[derive(Debug, Default)]
-struct TrackingState {
-    cursor: CursorState,
-    pending_distance_mp_by_display: HashMap<Arc<str>, u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,11 +75,39 @@ impl MonitorSnapshot {
 static THREAD_STARTED: AtomicBool = AtomicBool::new(false);
 static TRACKING_ENABLED: AtomicBool = AtomicBool::new(true);
 static FORCE_MONITOR_REFRESH: AtomicBool = AtomicBool::new(false);
-static STATE: Lazy<Mutex<TrackingState>> = Lazy::new(|| Mutex::new(TrackingState::default()));
 static MONITORS: Lazy<RwLock<Vec<MonitorSnapshot>>> = Lazy::new(|| RwLock::new(Vec::new()));
 static MONITORS_VERSION: AtomicU64 = AtomicU64::new(1);
 static APP_HANDLE: Lazy<Mutex<Option<AppHandle>>> = Lazy::new(|| Mutex::new(None));
 static UNKNOWN_DISPLAY_ID: Lazy<Arc<str>> = Lazy::new(|| Arc::from("unknown"));
+static MOVE_TX: OnceCell<mpsc::Sender<MoveDelta>> = OnceCell::new();
+static CLEAR_PENDING: AtomicBool = AtomicBool::new(false);
+
+#[derive(Debug, Clone)]
+struct MoveDelta {
+    display_id: Arc<str>,
+    mp: u64,
+}
+
+#[derive(Debug, Default)]
+struct LocalState {
+    cursor: CursorState,
+    current_display_id: Option<Arc<str>>,
+    current_mp: u64,
+    last_send_ms: u64,
+    had_tracking_enabled: bool,
+}
+
+thread_local! {
+    static LOCAL: RefCell<LocalState> = RefCell::new(LocalState::default());
+}
+
+fn now_ms() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
 
 pub fn init(app_handle: AppHandle) {
     if THREAD_STARTED.swap(true, Ordering::SeqCst) {
@@ -100,21 +125,44 @@ pub fn init(app_handle: AppHandle) {
 
     refresh_monitors(&app_handle);
 
+    let (tx, rx) = mpsc::channel::<MoveDelta>();
+    let _ = MOVE_TX.set(tx);
+
     std::thread::spawn(move || {
         let mut last_monitor_refresh = Instant::now()
             .checked_sub(MONITOR_REFRESH_INTERVAL)
             .unwrap_or_else(Instant::now);
 
+        let mut pending_distance_mp_by_display: HashMap<Arc<str>, u64> = HashMap::new();
+        let mut last_flush = Instant::now()
+            .checked_sub(FLUSH_INTERVAL)
+            .unwrap_or_else(Instant::now);
+
         loop {
             let enabled = TRACKING_ENABLED.load(Ordering::SeqCst);
-            let sleep_for = if enabled {
-                FLUSH_INTERVAL
+            let timeout = if enabled {
+                Duration::from_millis(120)
             } else {
                 Duration::from_secs(2)
             };
-            std::thread::sleep(sleep_for);
 
-            if !enabled {
+            match rx.recv_timeout(timeout) {
+                Ok(delta) => {
+                    if enabled && delta.mp > 0 {
+                        pending_distance_mp_by_display
+                            .entry(delta.display_id)
+                            .and_modify(|v| *v = v.saturating_add(delta.mp))
+                            .or_insert(delta.mp);
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => return,
+            }
+
+            if CLEAR_PENDING.swap(false, Ordering::SeqCst) || !enabled {
+                pending_distance_mp_by_display.clear();
+                // Drain any queued deltas while disabled to avoid unbounded growth.
+                while rx.try_recv().is_ok() {}
                 continue;
             }
 
@@ -125,68 +173,82 @@ pub fn init(app_handle: AppHandle) {
                 last_monitor_refresh = Instant::now();
             }
 
-            let drained = {
-                let mut st = STATE.lock();
-                std::mem::take(&mut st.pending_distance_mp_by_display)
-            };
-            if drained.is_empty() {
+            if last_flush.elapsed() < FLUSH_INTERVAL {
                 continue;
             }
 
-            let (stats, carry) = {
-                let mut carry: HashMap<Arc<str>, u64> = HashMap::new();
-                let storage = MeritStorage::instance();
-                let mut storage = storage.write();
-                let mut changed = false;
+            let drained = std::mem::take(&mut pending_distance_mp_by_display);
+            if drained.is_empty() {
+                last_flush = Instant::now();
+                continue;
+            }
 
-                for (display_id, mp) in drained {
-                    if mp == 0 {
-                        continue;
-                    }
-                    let px = mp / MP_PER_PX;
-                    let remainder = mp % MP_PER_PX;
-                    if remainder > 0 {
-                        carry
-                            .entry(Arc::clone(&display_id))
-                            .and_modify(|v| *v = v.saturating_add(remainder))
-                            .or_insert(remainder);
-                    }
-                    if px == 0 {
-                        continue;
+            let (stats, carry) = crate::core::perf::time(
+                crate::core::perf::TimerKind::MouseDistanceFlush,
+                || {
+                    let mut carry: HashMap<Arc<str>, u64> = HashMap::new();
+                    let storage = MeritStorage::instance();
+                    let mut storage = storage.write();
+                    let mut changed = false;
+
+                    for (display_id, mp) in drained {
+                        if mp == 0 {
+                            continue;
+                        }
+                        let px = mp / MP_PER_PX;
+                        let remainder = mp % MP_PER_PX;
+                        if remainder > 0 {
+                            carry
+                                .entry(Arc::clone(&display_id))
+                                .and_modify(|v| *v = v.saturating_add(remainder))
+                                .or_insert(remainder);
+                        }
+                        if px == 0 {
+                            continue;
+                        }
+
+                        if storage.add_mouse_move_distance_px_for_display_silent(
+                            Some(display_id.as_ref()),
+                            px,
+                        ) {
+                            changed = true;
+                        }
                     }
 
-                    if storage.add_mouse_move_distance_px_for_display_silent(
-                        Some(display_id.as_ref()),
-                        px,
-                    ) {
-                        changed = true;
-                    }
-                }
-
-                let stats = changed.then(|| storage.get_stats().lite());
-                (stats, carry)
-            };
+                    let stats = changed.then(|| storage.get_stats().lite());
+                    (stats, carry)
+                },
+            );
 
             let Some(stats) = stats else {
                 // No effective change (e.g. tracking disabled while flushing).
+                last_flush = Instant::now();
                 continue;
             };
 
-            if !carry.is_empty() && TRACKING_ENABLED.load(Ordering::SeqCst) {
-                let mut st = STATE.lock();
-                for (id, mp) in carry {
-                    if mp == 0 {
-                        continue;
-                    }
-                    st.pending_distance_mp_by_display
-                        .entry(Arc::clone(&id))
-                        .and_modify(|v| *v = v.saturating_add(mp))
-                        .or_insert(mp);
+            for (id, mp) in carry {
+                if mp == 0 {
+                    continue;
                 }
+                pending_distance_mp_by_display
+                    .entry(Arc::clone(&id))
+                    .and_modify(|v| *v = v.saturating_add(mp))
+                    .or_insert(mp);
             }
 
-            let _ = app_handle.emit("merit-updated", stats);
+            if crate::core::main_window_bounds::is_visible() {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.emit("merit-updated", &stats);
+                }
+            }
+            crate::core::ui_emit::emit_to_any_visible_windows(
+                &app_handle,
+                &["settings", "custom_statistics"],
+                "merit-updated",
+                &stats,
+            );
             crate::core::persistence::request_save();
+            last_flush = Instant::now();
         }
     });
 }
@@ -194,7 +256,7 @@ pub fn init(app_handle: AppHandle) {
 pub fn set_tracking_enabled(enabled: bool) {
     TRACKING_ENABLED.store(enabled, Ordering::SeqCst);
     if !enabled {
-        *STATE.lock() = TrackingState::default();
+        CLEAR_PENDING.store(true, Ordering::SeqCst);
         return;
     }
 
@@ -205,91 +267,113 @@ pub fn set_tracking_enabled(enabled: bool) {
 }
 
 pub fn record_mouse_move(space: CoordinateSpace, x: f64, y: f64) {
-    if !(x.is_finite() && y.is_finite()) {
-        return;
-    }
-
-    if !TRACKING_ENABLED.load(Ordering::Relaxed) {
-        return;
-    }
-
-    let monitors_version = MONITORS_VERSION.load(Ordering::Relaxed);
-    let mut st = STATE.lock();
-    if st.cursor.monitors_version != monitors_version {
-        st.cursor.monitor = None;
-        st.cursor.monitors_version = monitors_version;
-    }
-
-    let mut monitor = st.cursor.monitor.take();
-    let (display_id, px, py) = match space {
-        CoordinateSpace::Physical => {
-            if let Some(m) = monitor
-                .as_ref()
-                .filter(|m| m.contains(CoordinateSpace::Physical, x, y))
-            {
-                (Some(Arc::clone(&m.id)), x, y)
-            } else {
-                monitor = monitor_for_point(CoordinateSpace::Physical, x, y);
-                monitor
-                    .as_ref()
-                    .map(|m| (Some(Arc::clone(&m.id)), x, y))
-                    .unwrap_or((None, x, y))
-            }
+    crate::core::perf::time(crate::core::perf::TimerKind::MouseDistanceMove, || {
+        if !(x.is_finite() && y.is_finite()) {
+            return;
         }
-        CoordinateSpace::Logical => {
-            if let Some(m) = monitor
-                .as_ref()
-                .filter(|m| m.contains(CoordinateSpace::Logical, x, y))
-            {
-                if let Some((px, py)) = m.physical_from_logical(x, y) {
-                    (Some(Arc::clone(&m.id)), px, py)
-                } else {
-                    st.cursor = CursorState::default();
-                    st.cursor.monitors_version = monitors_version;
-                    return;
+
+        let enabled = TRACKING_ENABLED.load(Ordering::Relaxed);
+        let now = now_ms();
+        LOCAL.with(|local| {
+            let mut local = local.borrow_mut();
+
+            if !enabled {
+                if local.had_tracking_enabled {
+                    local.cursor = CursorState::default();
+                    local.current_display_id = None;
+                    local.current_mp = 0;
+                    local.last_send_ms = 0;
+                    local.had_tracking_enabled = false;
                 }
-            } else {
-                monitor = monitor_for_point(CoordinateSpace::Logical, x, y);
-                let Some(m) = monitor.as_ref() else {
-                    st.cursor = CursorState::default();
-                    st.cursor.monitors_version = monitors_version;
-                    return;
-                };
-
-                let Some((px, py)) = m.physical_from_logical(x, y) else {
-                    st.cursor = CursorState::default();
-                    st.cursor.monitors_version = monitors_version;
-                    return;
-                };
-                (Some(Arc::clone(&m.id)), px, py)
+                return;
             }
-        }
-    };
+            local.had_tracking_enabled = true;
 
-    if st.cursor.has_position {
-        let dx = px - st.cursor.x;
-        let dy = py - st.cursor.y;
-        if dx.is_finite() && dy.is_finite() {
-            if dx.abs() <= MAX_JUMP_PX && dy.abs() <= MAX_JUMP_PX {
-                let dist = (dx * dx + dy * dy).sqrt();
-                if dist.is_finite() && dist > 0.0 {
-                    let mp = (dist * MP_PER_PX as f64).round();
-                    if mp.is_finite() && mp > 0.0 {
-                        let key = display_id.unwrap_or_else(|| Arc::clone(&UNKNOWN_DISPLAY_ID));
-                        st.pending_distance_mp_by_display
-                            .entry(key)
-                            .and_modify(|v| *v = v.saturating_add(mp as u64))
-                            .or_insert(mp as u64);
+            let monitors_version = MONITORS_VERSION.load(Ordering::Relaxed);
+            if local.cursor.monitors_version != monitors_version {
+                local.cursor.monitor = None;
+                local.cursor.monitors_version = monitors_version;
+            }
+
+            let mut monitor = local.cursor.monitor.take();
+            let (display_id, px, py) = match space {
+                CoordinateSpace::Physical => {
+                    if let Some(m) = monitor
+                        .as_ref()
+                        .filter(|m| m.contains(CoordinateSpace::Physical, x, y))
+                    {
+                        (Some(Arc::clone(&m.id)), x, y)
+                    } else {
+                        monitor = monitor_for_point(CoordinateSpace::Physical, x, y);
+                        monitor
+                            .as_ref()
+                            .map(|m| (Some(Arc::clone(&m.id)), x, y))
+                            .unwrap_or((None, x, y))
+                    }
+                }
+                CoordinateSpace::Logical => {
+                    if let Some(m) = monitor
+                        .as_ref()
+                        .filter(|m| m.contains(CoordinateSpace::Logical, x, y))
+                    {
+                        let Some((px, py)) = m.physical_from_logical(x, y) else {
+                            local.cursor = CursorState::default();
+                            local.cursor.monitors_version = monitors_version;
+                            return;
+                        };
+                        (Some(Arc::clone(&m.id)), px, py)
+                    } else {
+                        monitor = monitor_for_point(CoordinateSpace::Logical, x, y);
+                        let Some(m) = monitor.as_ref() else {
+                            local.cursor = CursorState::default();
+                            local.cursor.monitors_version = monitors_version;
+                            return;
+                        };
+                        let Some((px, py)) = m.physical_from_logical(x, y) else {
+                            local.cursor = CursorState::default();
+                            local.cursor.monitors_version = monitors_version;
+                            return;
+                        };
+                        (Some(Arc::clone(&m.id)), px, py)
+                    }
+                }
+            };
+
+            let display_id = display_id.unwrap_or_else(|| Arc::clone(&UNKNOWN_DISPLAY_ID));
+
+            if local.cursor.has_position {
+                let dx = px - local.cursor.x;
+                let dy = py - local.cursor.y;
+                if dx.is_finite() && dy.is_finite() && dx.abs() <= MAX_JUMP_PX && dy.abs() <= MAX_JUMP_PX {
+                    let dist = (dx * dx + dy * dy).sqrt();
+                    if dist.is_finite() && dist > 0.0 {
+                        let mp = (dist * MP_PER_PX as f64).round();
+                        if mp.is_finite() && mp > 0.0 {
+                            let mp_u64 = mp as u64;
+                            let cur_id = local.current_display_id.as_ref();
+                            if cur_id.is_none()
+                                || cur_id.is_some_and(|id| id.as_ref() != display_id.as_ref())
+                            {
+                                flush_local(&mut local);
+                                local.current_display_id = Some(Arc::clone(&display_id));
+                            }
+                            local.current_mp = local.current_mp.saturating_add(mp_u64);
+                        }
                     }
                 }
             }
-        }
-    }
 
-    st.cursor.x = px;
-    st.cursor.y = py;
-    st.cursor.has_position = true;
-    st.cursor.monitor = monitor;
+            local.cursor.x = px;
+            local.cursor.y = py;
+            local.cursor.has_position = true;
+            local.cursor.monitor = monitor;
+
+            if local.current_mp > 0 && now.saturating_sub(local.last_send_ms) >= SEND_INTERVAL_MS {
+                flush_local(&mut local);
+                local.last_send_ms = now;
+            }
+        });
+    })
 }
 
 fn monitor_for_point(space: CoordinateSpace, x: f64, y: f64) -> Option<MonitorSnapshot> {
@@ -338,4 +422,22 @@ fn refresh_monitors(app_handle: &AppHandle) {
 
     *MONITORS.write() = out;
     MONITORS_VERSION.fetch_add(1, Ordering::SeqCst);
+}
+
+fn flush_local(local: &mut LocalState) {
+    let Some(display_id) = local.current_display_id.as_ref() else {
+        local.current_mp = 0;
+        return;
+    };
+    let mp = std::mem::take(&mut local.current_mp);
+    if mp == 0 {
+        return;
+    }
+    let Some(tx) = MOVE_TX.get() else {
+        return;
+    };
+    let _ = tx.send(MoveDelta {
+        display_id: Arc::clone(display_id),
+        mp,
+    });
 }

@@ -70,6 +70,8 @@ export const COMMANDS = {
   READ_LOGS: 'read_logs',
   CLEAR_LOGS: 'clear_logs',
   OPEN_LOGS_DIRECTORY: 'open_logs_directory',
+  GET_PERF_SNAPSHOT: 'get_perf_snapshot',
+  SET_PERF_ENABLED: 'set_perf_enabled',
   SHOW_LOGS_WINDOW: 'show_logs_window',
   HIDE_LOGS_WINDOW: 'hide_logs_window',
   TOGGLE_LOGS_WINDOW: 'toggle_logs_window',

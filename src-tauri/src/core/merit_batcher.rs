@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use super::active_app::AppContext;
 
@@ -27,9 +27,9 @@ struct Key {
 struct Trigger {
     key: Key,
     count: u64,
-    key_code: Option<String>,
+    key_code: Option<Arc<str>>,
     is_shifted: Option<bool>,
-    shortcut: Option<String>,
+    shortcut: Option<Arc<str>>,
     app: Option<AppContext>,
     app_handle: AppHandle,
 }
@@ -76,20 +76,23 @@ impl MeritBatcher {
                     },
                 };
 
-                if let Some(first) = first {
-                        let mut triggers = vec![first];
-                        while let Ok(next) = rx.try_recv() {
-                            triggers.push(next);
-                        }
+                    if let Some(first) = first {
+                            let mut triggers = vec![first];
+                            while let Ok(next) = rx.try_recv() {
+                                triggers.push(next);
+                            }
 
-                        process_triggers(
-                            triggers,
-                            &mut rng,
-                            &mut anim,
-                            &mut stats_dirty,
-                            &mut stats_handle,
-                        );
-                }
+                            let started = Instant::now();
+                            let triggers_len = triggers.len() as u64;
+                            process_triggers(
+                                triggers,
+                                &mut rng,
+                                &mut anim,
+                                &mut stats_dirty,
+                                &mut stats_handle,
+                            );
+                            crate::core::perf::record_batch_process(triggers_len, started.elapsed());
+                    }
 
                 let now = Instant::now();
                 if stats_dirty && now.duration_since(last_stats_emit) >= STATS_EMIT_INTERVAL {
@@ -113,9 +116,9 @@ impl MeritBatcher {
         origin: InputOrigin,
         source: InputSource,
         count: u64,
-        key_code: Option<String>,
+        key_code: Option<Arc<str>>,
         is_shifted: Option<bool>,
-        shortcut: Option<String>,
+        shortcut: Option<Arc<str>>,
         app: Option<AppContext>,
     ) {
         if count == 0 {
@@ -141,12 +144,13 @@ pub fn enqueue_merit_trigger(
     origin: InputOrigin,
     source: InputSource,
     count: u64,
-    key_code: Option<String>,
+    key_code: Option<Arc<str>>,
     is_shifted: Option<bool>,
-    shortcut: Option<String>,
+    shortcut: Option<Arc<str>>,
     app: Option<AppContext>,
 ) {
     crate::core::activity::touch();
+    crate::core::perf::inc_enqueue_triggers(count);
     BATCHER.enqueue(
         app_handle, origin, source, count, key_code, is_shifted, shortcut, app,
     );
@@ -162,13 +166,13 @@ fn process_triggers(
     let mut by_key: HashMap<Key, (u64, AppHandle)> = HashMap::new();
     let mut by_app: HashMap<(InputOrigin, InputSource, Arc<str>), (u64, Option<Arc<str>>)> =
         HashMap::new();
-    let mut keyboard_key_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
-    let mut keyboard_key_counts_unshifted: HashMap<InputOrigin, HashMap<String, u64>> =
+    let mut keyboard_key_counts: HashMap<InputOrigin, HashMap<Arc<str>, u64>> = HashMap::new();
+    let mut keyboard_key_counts_unshifted: HashMap<InputOrigin, HashMap<Arc<str>, u64>> =
         HashMap::new();
-    let mut keyboard_key_counts_shifted: HashMap<InputOrigin, HashMap<String, u64>> =
+    let mut keyboard_key_counts_shifted: HashMap<InputOrigin, HashMap<Arc<str>, u64>> =
         HashMap::new();
-    let mut shortcut_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
-    let mut mouse_button_counts: HashMap<InputOrigin, HashMap<String, u64>> = HashMap::new();
+    let mut shortcut_counts: HashMap<InputOrigin, HashMap<Arc<str>, u64>> = HashMap::new();
+    let mut mouse_button_counts: HashMap<InputOrigin, HashMap<Arc<str>, u64>> = HashMap::new();
 
     for trigger in triggers {
         if trigger.count == 0 {
@@ -197,7 +201,7 @@ fn process_triggers(
                     keyboard_key_counts
                         .entry(trigger.key.origin)
                         .or_default()
-                        .entry(code.clone())
+                        .entry(Arc::clone(code))
                         .and_modify(|v| *v = v.saturating_add(trigger.count))
                         .or_insert(trigger.count);
 
@@ -206,14 +210,14 @@ fn process_triggers(
                             keyboard_key_counts_shifted
                                 .entry(trigger.key.origin)
                                 .or_default()
-                                .entry(code.clone())
+                                .entry(Arc::clone(code))
                                 .and_modify(|v| *v = v.saturating_add(trigger.count))
                                 .or_insert(trigger.count);
                         } else {
                             keyboard_key_counts_unshifted
                                 .entry(trigger.key.origin)
                                 .or_default()
-                                .entry(code.clone())
+                                .entry(Arc::clone(code))
                                 .and_modify(|v| *v = v.saturating_add(trigger.count))
                                 .or_insert(trigger.count);
                         }
@@ -223,7 +227,7 @@ fn process_triggers(
                     mouse_button_counts
                         .entry(trigger.key.origin)
                         .or_default()
-                        .entry(code.clone())
+                        .entry(Arc::clone(code))
                         .and_modify(|v| *v = v.saturating_add(trigger.count))
                         .or_insert(trigger.count);
                 }
@@ -234,7 +238,7 @@ fn process_triggers(
             shortcut_counts
                 .entry(trigger.key.origin)
                 .or_default()
-                .entry(shortcut.clone())
+                .entry(Arc::clone(shortcut))
                 .and_modify(|v| *v = v.saturating_add(trigger.count))
                 .or_insert(trigger.count);
         }
@@ -367,7 +371,14 @@ fn emit_input_event(app_handle: &AppHandle, key: Key, chunk: u64) {
         return;
     }
 
-    let _ = app_handle.emit(
+    // Input animation is only relevant for the main window; avoid broadcasting to all windows.
+    if !crate::core::main_window_bounds::is_visible() {
+        return;
+    }
+    let Some(window) = app_handle.get_webview_window("main") else {
+        return;
+    };
+    let _ = window.emit(
         "input-event",
         InputEvent {
             origin: key.origin,
@@ -384,7 +395,18 @@ fn emit_stats_updated(app_handle: &AppHandle) {
         storage.get_stats().lite()
     };
 
-    let _ = app_handle.emit("merit-updated", stats);
+    // Avoid broadcasting to all windows; only windows that can render stats need updates.
+    if crate::core::main_window_bounds::is_visible() {
+        if let Some(window) = app_handle.get_webview_window("main") {
+            let _ = window.emit("merit-updated", &stats);
+        }
+    }
+    crate::core::ui_emit::emit_to_any_visible_windows(
+        app_handle,
+        &["settings", "custom_statistics"],
+        "merit-updated",
+        &stats,
+    );
     crate::core::persistence::request_save();
 }
 
