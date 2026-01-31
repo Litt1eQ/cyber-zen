@@ -338,10 +338,10 @@ mod imp {
     use windows_sys::Win32::System::Threading::{
         OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
     };
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
-    use windows_sys::Win32::UI::Accessibility::{
-        SetWinEventHook, HWINEVENTHOOK, EVENT_SYSTEM_FOREGROUND,
-        WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
+    use windows_sys::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowThreadProcessId, EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT,
+        WINEVENT_SKIPOWNPROCESS,
     };
 
     pub(super) fn query_frontmost_app() -> Option<AppContext> {
