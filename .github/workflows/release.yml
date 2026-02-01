@@ -50,7 +50,7 @@ jobs:
       # Keep the new names too in case future tooling expects them.
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.TAURI_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || secrets.TAURI_PRIVATE_KEY_PASSWORD }}
-      # Optional: macOS self-signed code signing (stabilizes TCC identity across updates).
+      # macOS signing (self-signed, for stable identity across updates).
       # Store your `.p12` as base64 in a secret, e.g.:
       #   base64 -i cyberzen-codesign.p12 | pbcopy
       # If `security import` fails on GitHub macOS runners, re-export a legacy-compatible p12:
@@ -105,115 +105,38 @@ jobs:
       - name: Install front-end dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and upload release assets
-        uses: tauri-apps/tauri-action@v0
+      - name: Build Tauri bundles (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        run: pnpm -s tauri build --ci --target ${{ matrix.target }} --bundles app
+
+      - name: Build Tauri bundles (non-macOS)
+        if: "!startsWith(matrix.platform, 'macos')"
+        run: pnpm -s tauri build --ci --target ${{ matrix.target }}
+
+      - name: Import macOS code signing certificate
+        if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          bash scripts/ci/macos-import-codesign-cert.sh
+
+      - name: Package signed macOS artifacts (signed .app + signed .dmg)
+        if: startsWith(matrix.platform, 'macos')
         env:
-          CI: false
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ inputs.tag || github.ref_name }}
-          releaseName: CyberZen ${{ inputs.tag || github.ref_name }}
-          releaseBody: ""
-          releaseDraft: true
-          prerelease: false
-          args: --target ${{ matrix.target }}
-
-      - name: Import macOS code signing certificate (self-signed)
-        if: startsWith(matrix.platform, 'macos')
+          TAG: ${{ inputs.tag || github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ -z "${MACOS_CODESIGN_P12_BASE64:-}" ] || [ -z "${MACOS_CODESIGN_P12_PASSWORD:-}" ] || [ -z "${MACOS_KEYCHAIN_PASSWORD:-}" ]; then
-            echo "Missing macOS code signing secrets. Configure MACOS_CODESIGN_P12_BASE64, MACOS_CODESIGN_P12_PASSWORD, MACOS_KEYCHAIN_PASSWORD (and optionally MACOS_CODESIGN_IDENTITY)."
-            exit 1
-          fi
+          VERSION="${TAG#v}"
+          MAC_ASSET_ARCH=""
+          case "${{ matrix.target }}" in
+            aarch64-apple-darwin) MAC_ASSET_ARCH="aarch64" ;;
+            x86_64-apple-darwin) MAC_ASSET_ARCH="x64" ;;
+            *) echo "Unsupported macOS target: ${{ matrix.target }}"; exit 1 ;;
+          esac
 
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
-          P12_PATH="$RUNNER_TEMP/macos-codesign.p12"
-          ORIGINAL_KEYCHAINS="$(security list-keychains -d user | tr -d '\"' || true)"
-
-          if base64 --help 2>&1 | grep -q -- '--decode'; then
-            printf '%s' "$MACOS_CODESIGN_P12_BASE64" | base64 --decode > "$P12_PATH"
-          else
-            printf '%s' "$MACOS_CODESIGN_P12_BASE64" | base64 -D > "$P12_PATH"
-          fi
-
-          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Keep the original search list so system certs remain available,
-          # but prepend our ephemeral keychain so the identity can be found reliably.
-          # Note: ORIGINAL_KEYCHAINS is a newline-separated list; shell word-splitting is desired here.
-          # shellcheck disable=SC2086
-          security list-keychains -d user -s "$KEYCHAIN_PATH" $ORIGINAL_KEYCHAINS
-          security default-keychain -d user -s "$KEYCHAIN_PATH"
-
-          security import "$P12_PATH" -k "$KEYCHAIN_PATH" -P "$MACOS_CODESIGN_P12_PASSWORD" \
-            -T /usr/bin/codesign -T /usr/bin/security
-
-          # Some exported p12 files contain CA certs but they don't always get imported consistently.
-          # Import any CA certs and attempt to trust them in this ephemeral keychain to avoid chain warnings.
-          if command -v openssl >/dev/null 2>&1; then
-            CA_PEM="$RUNNER_TEMP/macos-codesign-ca.pem"
-            if openssl pkcs12 -in "$P12_PATH" -passin pass:"$MACOS_CODESIGN_P12_PASSWORD" -cacerts -nokeys -out "$CA_PEM" >/dev/null 2>&1; then
-              CERT_COUNT="$(awk 'BEGIN{c=0} /BEGIN CERTIFICATE/{c++} END{print c}' "$CA_PEM")"
-              if [ "${CERT_COUNT:-0}" -gt 0 ]; then
-                csplit -s -f "$RUNNER_TEMP/macos-codesign-ca-" -b "%02d.pem" "$CA_PEM" '/-----BEGIN CERTIFICATE-----/' '{*}' || true
-                for f in "$RUNNER_TEMP"/macos-codesign-ca-*.pem; do
-                  [ -s "$f" ] || continue
-                  security import "$f" -k "$KEYCHAIN_PATH" -T /usr/bin/codesign -T /usr/bin/security >/dev/null 2>&1 || true
-                  security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$f" >/dev/null 2>&1 || true
-                done
-              fi
-            fi
-          fi
-
-          # Allow `codesign` to access the private key non-interactively on CI.
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-
-      - name: Codesign macOS app bundle (for updater payload)
-        if: startsWith(matrix.platform, 'macos')
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
-          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
-          if [ ! -d "$BUNDLE_DIR" ]; then
-            echo "Bundle dir not found: $BUNDLE_DIR"
-            exit 1
-          fi
-
-          if [ -z "${MACOS_KEYCHAIN_PASSWORD:-}" ]; then
-            echo "MACOS_KEYCHAIN_PASSWORD is empty (required to unlock the ephemeral keychain)."
-            exit 1
-          fi
-          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          APP_DIR="$(find "$BUNDLE_DIR" -type d -name '*.app' -print -quit || true)"
-          if [ -z "$APP_DIR" ]; then
-            echo "Could not find .app under: $BUNDLE_DIR"
-            find "$BUNDLE_DIR" -maxdepth 4 -print | sed -n '1,200p'
-            exit 1
-          fi
-
-          # Prefer an explicit identity if provided; otherwise default to the expected common name.
-          # Note: `security find-identity` only prints *valid* identities; self-signed certs may show as 0.
-          IDENTITY="${MACOS_CODESIGN_IDENTITY:-CyberZen Code Signing}"
-
-          if ! codesign --force --deep --timestamp=none --keychain "$KEYCHAIN_PATH" --sign "$IDENTITY" "$APP_DIR"; then
-            echo "codesign failed; printing keychain diagnostics"
-            security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
-            security find-certificate -a -c "$IDENTITY" -Z "$KEYCHAIN_PATH" || true
-            exit 1
-          fi
-
-          codesign -dv --verbose=4 "$APP_DIR"
-          codesign -dr - "$APP_DIR"
+          TARGET_TRIPLE="${{ matrix.target }}" VERSION="$VERSION" MAC_ASSET_ARCH="$MAC_ASSET_ARCH" \
+            bash scripts/ci/macos-package-and-sign-dmg.sh
 
       - name: Generate updater entry (for latest.json)
         id: updater_entry
@@ -235,7 +158,6 @@ jobs:
             exit 1
           fi
 
-          UPLOAD_ASSET="false"
           ARCH_LABEL=""
           MAC_ASSET_ARCH=""
           PATTERNS=""
@@ -271,13 +193,7 @@ jobs:
 
           ARCHIVE=""
           if [[ "${{ matrix.target }}" == *apple-darwin ]]; then
-            APP_DIR="$(find "$BUNDLE_DIR" -type d -name '*.app' -print -quit || true)"
-            if [ -n "$APP_DIR" ]; then
-              mkdir -p updater-payloads
-              ARCHIVE="updater-payloads/CyberZen_${MAC_ASSET_ARCH}.selfsigned.app.tar.gz"
-              tar -czf "$ARCHIVE" -C "$(dirname "$APP_DIR")" "$(basename "$APP_DIR")"
-              UPLOAD_ASSET="true"
-            fi
+            ARCHIVE="release-assets/CyberZen_${VERSION}_${MAC_ASSET_ARCH}.app.tar.gz"
           else
             for pattern in $PATTERNS; do
               found="$(find "$BUNDLE_DIR" -type f -name "$pattern" -print -quit || true)"
@@ -316,14 +232,69 @@ jobs:
             node -e 'const fs=require("fs");const entry={json_target:process.env.JSON_TARGET,asset_name:process.env.ASSET_NAME,signature:process.env.SIGNATURE};fs.writeFileSync(process.env.OUT_JSON, JSON.stringify(entry) + "\n");'
 
           echo "archive_path=$ARCHIVE" >> "$GITHUB_OUTPUT"
-          echo "upload_asset=$UPLOAD_ASSET" >> "$GITHUB_OUTPUT"
 
-      - name: Upload derived updater asset to release
-        if: steps.updater_entry.outputs.upload_asset == 'true'
+      - name: Collect release assets
+        id: collect_assets
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${TAG#v}"
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+
+          files=()
+
+          if [[ "${{ matrix.target }}" == *apple-darwin ]]; then
+            MAC_ASSET_ARCH=""
+            case "${{ matrix.target }}" in
+              aarch64-apple-darwin) MAC_ASSET_ARCH="aarch64" ;;
+              x86_64-apple-darwin) MAC_ASSET_ARCH="x64" ;;
+              *) echo "Unsupported macOS target: ${{ matrix.target }}"; exit 1 ;;
+            esac
+            mac_dmg="release-assets/CyberZen_${VERSION}_${MAC_ASSET_ARCH}.dmg"
+            mac_updater="release-assets/CyberZen_${VERSION}_${MAC_ASSET_ARCH}.app.tar.gz"
+            if [[ ! -f "$mac_dmg" || ! -f "$mac_updater" ]]; then
+              echo "Expected macOS release assets not found."
+              echo "Expected:"
+              echo "  - $mac_dmg"
+              echo "  - $mac_updater"
+              echo "Found in release-assets/:"
+              ls -la release-assets || true
+              exit 1
+            fi
+            files+=("$mac_dmg")
+            files+=("$mac_updater")
+          elif [[ "${{ matrix.target }}" == *windows* ]]; then
+            while IFS= read -r -d '' f; do files+=("$f"); done < <(find "$BUNDLE_DIR" -type f \( -name '*-setup.exe' -o -name '*-setup.exe.zip' -o -name '*.msi' -o -name '*.msi.zip' \) -print0)
+          else
+            while IFS= read -r -d '' f; do files+=("$f"); done < <(find "$BUNDLE_DIR" -type f \( -name '*.AppImage*' -o -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' \) -print0)
+          fi
+
+          if [[ "${#files[@]}" -eq 0 ]]; then
+            echo "No release assets found to upload."
+            echo "Bundle dir content:"
+            find "$BUNDLE_DIR" -maxdepth 4 -print | sed -n '1,200p' || true
+            exit 1
+          fi
+
+          printf '%s\n' "${files[@]}" > release-files.txt
+          echo "Will upload the following files:"
+          cat release-files.txt
+
+          {
+            echo 'files<<EOF'
+            cat release-files.txt
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
-          files: ${{ steps.updater_entry.outputs.archive_path }}
+          files: ${{ steps.collect_assets.outputs.files }}
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
