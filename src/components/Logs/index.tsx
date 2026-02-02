@@ -87,6 +87,8 @@ export function Logs() {
   const [perfLastUpdatedAt, setPerfLastUpdatedAt] = useState<number | null>(null)
   const prevPerfRef = useRef<{ snap: PerfSnapshot; atMs: number } | null>(null)
   const perfToggleSeqRef = useRef(0)
+  const perfRefreshSeqRef = useRef(0)
+  const perfInFlightSeqRef = useRef(0)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -95,17 +97,22 @@ export function Logs() {
   }, [query, records])
 
   const refreshPerf = useCallback(async (opts?: { silent?: boolean }) => {
+    const seq = ++perfRefreshSeqRef.current
+    perfInFlightSeqRef.current = seq
     if (!opts?.silent) setPerfBusy(true)
     try {
       setPerfError(null)
       const snap = await invoke<PerfSnapshot>(COMMANDS.GET_PERF_SNAPSHOT)
       if (!mountedRef.current) return
+      if (seq !== perfRefreshSeqRef.current) return
       setPerf(snap)
       setPerfLastUpdatedAt(Date.now())
     } catch (e) {
       if (!mountedRef.current) return
+      if (seq !== perfRefreshSeqRef.current) return
       setPerfError(String(e))
     } finally {
+      if (perfInFlightSeqRef.current === seq) perfInFlightSeqRef.current = 0
       if (!opts?.silent && mountedRef.current) setPerfBusy(false)
     }
   }, [])
@@ -180,15 +187,20 @@ export function Logs() {
   }, [i18n.resolvedLanguage, refresh, t])
 
   useEffect(() => {
-    if (!perfAutoRefresh) return
     void refreshPerf({ silent: true })
+  }, [refreshPerf])
+
+  useEffect(() => {
+    if (!perfAutoRefresh) return
+    if (perf?.supported !== true) return
+    if (!perf?.enabled) return
     const id = window.setInterval(() => {
       if (document.hidden) return
-      if (perfBusy) return
+      if (perfInFlightSeqRef.current !== 0) return
       void refreshPerf({ silent: true })
     }, 500)
     return () => window.clearInterval(id)
-  }, [perfAutoRefresh, perfBusy, refreshPerf])
+  }, [perfAutoRefresh, perf?.enabled, perf?.supported, refreshPerf])
 
   const perfRates = useMemo(() => {
     if (!perf) return null
@@ -228,6 +240,9 @@ export function Logs() {
     }
   }, [refresh])
 
+  const showPerfCard = perf?.supported === true
+  const showPerfStats = showPerfCard && !!perf?.enabled
+
   return (
     <div className="w-full h-full bg-slate-50 text-slate-900" onPointerDown={startDragging}>
       <div className="h-full flex flex-col px-4 pb-4 pt-6 gap-3">
@@ -258,85 +273,76 @@ export function Logs() {
           {error && <div className="text-xs text-red-600">{error}</div>}
         </div>
 
-        <Card className="p-3" data-no-drag>
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold">Perf Snapshot</div>
-              <div className="text-xs text-slate-500">
-                {perf?.supported === false ? 'unsupported' : perf?.enabled ? 'enabled' : 'disabled'} · {perfLastUpdatedAt ? `updated ${new Date(perfLastUpdatedAt).toLocaleTimeString()}` : 'not loaded'}
-              </div>
-            </div>
-            <div className="shrink-0 flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-slate-600">Enabled</Label>
-                <Switch
-                  checked={!!perf?.enabled}
-                  onCheckedChange={(v) => void setPerfEnabled(v)}
-                  disabled={perf?.supported === false || perfBusy}
-                  data-no-drag
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-slate-600">Auto</Label>
-                <Switch checked={perfAutoRefresh} onCheckedChange={setPerfAutoRefresh} data-no-drag />
-              </div>
-              <Button size="sm" variant="outline" onClick={() => void refreshPerf()} disabled={perfBusy} data-no-drag>
-                Refresh
-              </Button>
-            </div>
-          </div>
-
-          {perfError && <div className="mt-2 text-xs text-red-600">{perfError}</div>}
-
-          {perf?.supported !== false && !perf?.enabled && (
-            <div className="mt-2 text-xs text-slate-500">Enable perf to start collecting counters/timings.</div>
-          )}
-          {perf?.supported === false && (
-            <div className="mt-2 text-xs text-slate-500">
-              This build does not include perf counters. Use <span className="font-mono">pnpm tauri dev</span> (debug build), or build with the Cargo feature <span className="font-mono">perf</span>.
-            </div>
-          )}
-
-          <CardContent className="p-0 pt-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
-                <div className="text-xs font-medium text-slate-600">Rates</div>
-                <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs tabular-nums">
-                  <div className="text-slate-500">input</div>
-                  <div>{perfRates?.inputEventsTotal ?? '—'}</div>
-                  <div className="text-slate-500">click</div>
-                  <div>{perfRates?.clicks ?? '—'}</div>
-                  <div className="text-slate-500">move</div>
-                  <div>{perfRates?.moves ?? '—'}</div>
-                  <div className="text-slate-500">key</div>
-                  <div>{perfRates?.keys ?? '—'}</div>
-                  <div className="text-slate-500">trigger</div>
-                  <div>{perfRates?.triggers ?? '—'}</div>
-                  <div className="text-slate-500">heatmap emit</div>
-                  <div>{perfRates?.heatmapEmits ?? '—'}</div>
+        {showPerfCard && (
+          <Card className="p-3" data-no-drag>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold">Perf Snapshot</div>
+                <div className="text-xs text-slate-500">
+                  {perf?.enabled ? 'enabled' : 'disabled'} ·{' '}
+                  {perfLastUpdatedAt ? `updated ${new Date(perfLastUpdatedAt).toLocaleTimeString()}` : 'not loaded'}
                 </div>
               </div>
-
-              <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
-                <div className="text-xs font-medium text-slate-600">Avg Duration</div>
-                <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs tabular-nums">
-                  <div className="text-slate-500">keycode map</div>
-                  <div>{fmtNs(perf?.timings?.keycodeMap?.avgNs)}</div>
-                  <div className="text-slate-500">active app</div>
-                  <div>{fmtNs(perf?.timings?.activeAppQuery?.avgNs)}</div>
-                  <div className="text-slate-500">click heatmap</div>
-                  <div>{fmtNs(perf?.timings?.clickHeatmap?.avgNs)}</div>
-                  <div className="text-slate-500">mouse distance (move)</div>
-                  <div>{fmtNs(perf?.timings?.mouseDistanceMove?.avgNs)}</div>
-                  <div className="text-slate-500">mouse distance (flush)</div>
-                  <div>{fmtNs(perf?.timings?.mouseDistanceFlush?.avgNs)}</div>
-                  <div className="text-slate-500">batch process</div>
-                  <div>{fmtNs(perf?.timings?.batchProcess?.avgNs)}</div>
+              <div className="shrink-0 flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-slate-600">Enabled</Label>
+                  <Switch checked={!!perf?.enabled} onCheckedChange={(v) => void setPerfEnabled(v)} disabled={perfBusy} data-no-drag />
                 </div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-slate-600">Auto</Label>
+                  <Switch checked={perfAutoRefresh} onCheckedChange={setPerfAutoRefresh} data-no-drag />
+                </div>
+                <Button size="sm" variant="outline" onClick={() => void refreshPerf()} disabled={perfBusy} data-no-drag>
+                  Refresh
+                </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+
+            {perfError && <div className="mt-2 text-xs text-red-600">{perfError}</div>}
+
+            {showPerfStats && (
+              <CardContent className="p-0 pt-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
+                    <div className="text-xs font-medium text-slate-600">Rates</div>
+                    <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs tabular-nums">
+                      <div className="text-slate-500">input</div>
+                      <div>{perfRates?.inputEventsTotal ?? '—'}</div>
+                      <div className="text-slate-500">click</div>
+                      <div>{perfRates?.clicks ?? '—'}</div>
+                      <div className="text-slate-500">move</div>
+                      <div>{perfRates?.moves ?? '—'}</div>
+                      <div className="text-slate-500">key</div>
+                      <div>{perfRates?.keys ?? '—'}</div>
+                      <div className="text-slate-500">trigger</div>
+                      <div>{perfRates?.triggers ?? '—'}</div>
+                      <div className="text-slate-500">heatmap emit</div>
+                      <div>{perfRates?.heatmapEmits ?? '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border border-slate-200/60 bg-white px-3 py-2">
+                    <div className="text-xs font-medium text-slate-600">Avg Duration</div>
+                    <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs tabular-nums">
+                      <div className="text-slate-500">keycode map</div>
+                      <div>{fmtNs(perf?.timings?.keycodeMap?.avgNs)}</div>
+                      <div className="text-slate-500">active app</div>
+                      <div>{fmtNs(perf?.timings?.activeAppQuery?.avgNs)}</div>
+                      <div className="text-slate-500">click heatmap</div>
+                      <div>{fmtNs(perf?.timings?.clickHeatmap?.avgNs)}</div>
+                      <div className="text-slate-500">mouse distance (move)</div>
+                      <div>{fmtNs(perf?.timings?.mouseDistanceMove?.avgNs)}</div>
+                      <div className="text-slate-500">mouse distance (flush)</div>
+                      <div>{fmtNs(perf?.timings?.mouseDistanceFlush?.avgNs)}</div>
+                      <div className="text-slate-500">batch process</div>
+                      <div>{fmtNs(perf?.timings?.batchProcess?.avgNs)}</div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
 
         <div className="flex-1 overflow-auto rounded-lg border border-slate-200/60 bg-white shadow-sm">
           <div className="sticky top-0 z-10 border-b border-slate-200/60 bg-white/90 backdrop-blur px-3 py-2 text-xs font-medium text-slate-600 grid grid-cols-[170px_70px_160px_1fr] gap-2">

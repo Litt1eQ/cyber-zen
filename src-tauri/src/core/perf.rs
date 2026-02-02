@@ -1,10 +1,8 @@
 use serde::Serialize;
 
-// Full perf instrumentation is available in debug builds, and optionally in release builds via
-// `--features perf`. This keeps release builds clean/lean by default while still allowing
-// production profiling when explicitly enabled.
+// Perf instrumentation is opt-in via `--features perf` to keep default builds lean.
 
-#[cfg(any(debug_assertions, feature = "perf"))]
+#[cfg(feature = "perf")]
 mod imp {
     use super::Serialize;
     use once_cell::sync::Lazy;
@@ -268,7 +266,7 @@ mod imp {
     }
 }
 
-#[cfg(not(any(debug_assertions, feature = "perf")))]
+#[cfg(not(feature = "perf"))]
 mod imp {
     use super::Serialize;
     use once_cell::sync::Lazy;
@@ -341,13 +339,13 @@ pub fn snapshot() -> PerfSnapshot {
 }
 
 pub fn set_enabled(enabled: bool) -> Result<(), String> {
-    #[cfg(any(debug_assertions, feature = "perf"))]
+    #[cfg(feature = "perf")]
     {
         imp::set_enabled(enabled);
         Ok(())
     }
 
-    #[cfg(not(any(debug_assertions, feature = "perf")))]
+    #[cfg(not(feature = "perf"))]
     {
         let _ = enabled;
         Err("perf not supported in this build".to_string())

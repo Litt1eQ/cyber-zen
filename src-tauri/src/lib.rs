@@ -24,8 +24,7 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             core::activity::init();
-            // Perf is enabled by default in debug builds and in release builds built with
-            // `--features perf`. No runtime env var is required.
+            // Perf counters are enabled only when built with `--features perf`.
             core::active_app::init_sampler();
             core::app_log::install_panic_hook(app_handle.clone());
             let _ = core::app_log::info(&app_handle, "app", "startup");

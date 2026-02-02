@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Required env:
 #   - TARGET_TRIPLE (e.g. x86_64-apple-darwin)
-#   - VERSION (e.g. 0.1.40)
+#   - VERSION (e.g. 0.1.41)
 #   - MAC_ASSET_ARCH (e.g. x64 or aarch64)
 #   - MACOS_KEYCHAIN_PASSWORD
 #
