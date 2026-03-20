@@ -4,8 +4,10 @@ use tauri::{
     Manager,
     Monitor,
     PhysicalPosition,
+    PhysicalSize,
     Position,
     Runtime,
+    Size,
     WebviewUrl,
     WebviewWindow,
     WebviewWindowBuilder,
@@ -30,8 +32,25 @@ fn apply_platform_window_chrome<'a, R: Runtime, M: Manager<R>>(
     }
 }
 
+fn apply_window_size_constraints(window: &WebviewWindow) {
+    if let Some(constraints) = crate::core::window_placement::window_size_constraints(window.label())
+    {
+        let _ = window.set_size_constraints(constraints);
+    }
+
+    let Ok(size) = window.outer_size() else {
+        return;
+    };
+    let (width, height) =
+        crate::core::window_placement::clamp_window_size(window.label(), size.width, size.height);
+    if width != size.width || height != size.height {
+        let _ = window.set_size(Size::Physical(PhysicalSize { width, height }));
+    }
+}
+
 fn ensure_settings_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
     if let Some(window) = app_handle.get_webview_window("settings") {
+        apply_window_size_constraints(&window);
         return Ok(window);
     }
 
@@ -49,12 +68,16 @@ fn ensure_settings_window(app_handle: &AppHandle) -> Result<WebviewWindow, Strin
     .always_on_top(false)
     .accept_first_mouse(true)
     .inner_size(760.0, 560.0)
-    .min_inner_size(640.0, 520.0);
+    .inner_size_constraints(
+        crate::core::window_placement::window_size_constraints("settings")
+            .expect("settings window constraints must exist"),
+    );
 
     let window = apply_platform_window_chrome(builder)
         .build()
         .map_err(|e| format!("Failed to create settings window: {}", e))?;
 
+    apply_window_size_constraints(&window);
     crate::core::window_placement::restore_all(app_handle);
     Ok(window)
 }

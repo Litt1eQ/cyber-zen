@@ -4,10 +4,82 @@ use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::time::Duration;
 use tauri::{
-    AppHandle, Manager, Monitor, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow,
+    AppHandle, LogicalUnit, Manager, Monitor, PhysicalPosition, PhysicalSize, PixelUnit,
+    Position, Size, WebviewWindow, WindowSizeConstraints,
 };
 
 static CAPTURE_TOKENS: Lazy<Mutex<HashMap<String, u64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+#[derive(Clone, Copy)]
+struct WindowSizeBounds {
+    min_width: u32,
+    min_height: u32,
+    max_width: Option<u32>,
+    max_height: Option<u32>,
+}
+
+pub const SETTINGS_WINDOW_MAX_WIDTH: u32 = 1180;
+
+fn window_size_bounds(label: &str) -> Option<WindowSizeBounds> {
+    match label {
+        "settings" => Some(WindowSizeBounds {
+            min_width: 640,
+            min_height: 520,
+            max_width: Some(SETTINGS_WINDOW_MAX_WIDTH),
+            max_height: None,
+        }),
+        "custom_statistics" => Some(WindowSizeBounds {
+            min_width: 720,
+            min_height: 560,
+            max_width: None,
+            max_height: None,
+        }),
+        "logs" => Some(WindowSizeBounds {
+            min_width: 720,
+            min_height: 520,
+            max_width: None,
+            max_height: None,
+        }),
+        "sprite_studio" => Some(WindowSizeBounds {
+            min_width: 860,
+            min_height: 640,
+            max_width: None,
+            max_height: None,
+        }),
+        _ => None,
+    }
+}
+
+pub fn window_size_constraints(label: &str) -> Option<WindowSizeConstraints> {
+    let bounds = window_size_bounds(label)?;
+    Some(WindowSizeConstraints {
+        min_width: Some(PixelUnit::new(LogicalUnit::new(bounds.min_width as f64))),
+        min_height: Some(PixelUnit::new(LogicalUnit::new(bounds.min_height as f64))),
+        max_width: bounds
+            .max_width
+            .map(|v| PixelUnit::new(LogicalUnit::new(v as f64))),
+        max_height: bounds
+            .max_height
+            .map(|v| PixelUnit::new(LogicalUnit::new(v as f64))),
+    })
+}
+
+pub fn clamp_window_size(label: &str, width: u32, height: u32) -> (u32, u32) {
+    let Some(bounds) = window_size_bounds(label) else {
+        return (width, height);
+    };
+
+    let width = bounds
+        .max_width
+        .map_or(width, |max_width| width.min(max_width))
+        .max(bounds.min_width);
+    let height = bounds
+        .max_height
+        .map_or(height, |max_height| height.min(max_height))
+        .max(bounds.min_height);
+
+    (width, height)
+}
 
 fn next_token(label: &str) -> u64 {
     let mut guard = CAPTURE_TOKENS.lock();
@@ -106,7 +178,7 @@ fn should_restore_size(label: &str) -> bool {
 async fn restore_window(window: WebviewWindow, placement: WindowPlacement) {
     let label = window.label().to_string();
     let target_size = should_restore_size(&label)
-        .then_some((placement.width, placement.height))
+        .then_some(clamp_window_size(&label, placement.width, placement.height))
         .filter(|(w, h)| *w > 0 && *h > 0);
 
     if let Some((width, height)) = target_size {
@@ -131,7 +203,7 @@ async fn restore_window(window: WebviewWindow, placement: WindowPlacement) {
                     x,
                     y,
                     clamp_size,
-                    Some((placement.width, placement.height)),
+                    target_size,
                 );
                 x = cx;
                 y = cy;
@@ -144,7 +216,7 @@ async fn restore_window(window: WebviewWindow, placement: WindowPlacement) {
                 x,
                 y,
                 clamp_size,
-                Some((placement.width, placement.height)),
+                target_size,
             );
             x = cx;
             y = cy;
