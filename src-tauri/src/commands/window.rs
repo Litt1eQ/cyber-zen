@@ -1,16 +1,7 @@
 use crate::core::MeritStorage;
 use tauri::{
-    AppHandle,
-    Manager,
-    Monitor,
-    PhysicalPosition,
-    PhysicalSize,
-    Position,
-    Runtime,
-    Size,
-    WebviewUrl,
-    WebviewWindow,
-    WebviewWindowBuilder,
+    AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Position, Runtime, Size,
+    WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 #[cfg(target_os = "macos")]
@@ -33,18 +24,29 @@ fn apply_platform_window_chrome<'a, R: Runtime, M: Manager<R>>(
 }
 
 fn apply_window_size_constraints(window: &WebviewWindow) {
-    if let Some(constraints) = crate::core::window_placement::window_size_constraints(window.label())
+    if let Some(constraints) =
+        crate::core::window_placement::window_size_constraints(window.label())
     {
         let _ = window.set_size_constraints(constraints);
     }
 
-    let Ok(size) = window.outer_size() else {
+    let Ok(size) = window.inner_size() else {
         return;
     };
-    let (width, height) =
-        crate::core::window_placement::clamp_window_size(window.label(), size.width, size.height);
-    if width != size.width || height != size.height {
-        let _ = window.set_size(Size::Physical(PhysicalSize { width, height }));
+    let Ok(scale) = window.scale_factor() else {
+        return;
+    };
+    let logical = size.to_logical::<u32>(scale);
+    let (width, height) = crate::core::window_placement::clamp_window_size(
+        window.label(),
+        logical.width,
+        logical.height,
+    );
+    if width != logical.width || height != logical.height {
+        let _ = window.set_size(Size::Logical(LogicalSize {
+            width: width as f64,
+            height: height as f64,
+        }));
     }
 }
 
@@ -78,7 +80,7 @@ fn ensure_settings_window(app_handle: &AppHandle) -> Result<WebviewWindow, Strin
         .map_err(|e| format!("Failed to create settings window: {}", e))?;
 
     apply_window_size_constraints(&window);
-    crate::core::window_placement::restore_all(app_handle);
+    crate::core::window_placement::restore_single(app_handle, "settings");
     Ok(window)
 }
 
@@ -107,7 +109,7 @@ fn ensure_custom_statistics_window(app_handle: &AppHandle) -> Result<WebviewWind
         .build()
         .map_err(|e| format!("Failed to create custom statistics window: {}", e))?;
 
-    crate::core::window_placement::restore_all(app_handle);
+    crate::core::window_placement::restore_single(app_handle, "custom_statistics");
     Ok(window)
 }
 
@@ -116,27 +118,24 @@ fn ensure_logs_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
         return Ok(window);
     }
 
-    let builder = WebviewWindowBuilder::new(
-        app_handle,
-        "logs",
-        WebviewUrl::App("logs.html".into()),
-    )
-        .title("日志 - 赛博木鱼")
-        .resizable(true)
-        .decorations(true)
-        .transparent(false)
-        .shadow(true)
-        .skip_taskbar(false)
-        .always_on_top(false)
-        .accept_first_mouse(true)
-        .inner_size(900.0, 640.0)
-        .min_inner_size(720.0, 520.0);
+    let builder =
+        WebviewWindowBuilder::new(app_handle, "logs", WebviewUrl::App("logs.html".into()))
+            .title("日志 - 赛博木鱼")
+            .resizable(true)
+            .decorations(true)
+            .transparent(false)
+            .shadow(true)
+            .skip_taskbar(false)
+            .always_on_top(false)
+            .accept_first_mouse(true)
+            .inner_size(900.0, 640.0)
+            .min_inner_size(720.0, 520.0);
 
     let window = apply_platform_window_chrome(builder)
         .build()
         .map_err(|e| format!("Failed to create logs window: {}", e))?;
 
-    crate::core::window_placement::restore_all(app_handle);
+    crate::core::window_placement::restore_single(app_handle, "logs");
     Ok(window)
 }
 
@@ -165,7 +164,7 @@ fn ensure_sprite_studio_window(app_handle: &AppHandle) -> Result<WebviewWindow, 
         .build()
         .map_err(|e| format!("Failed to create sprite studio window: {}", e))?;
 
-    crate::core::window_placement::restore_all(app_handle);
+    crate::core::window_placement::restore_single(app_handle, "sprite_studio");
     Ok(window)
 }
 
@@ -355,6 +354,7 @@ fn dock_to_corner(
 #[tauri::command]
 pub async fn show_settings_window(app_handle: AppHandle) -> Result<(), String> {
     let window = ensure_settings_window(&app_handle)?;
+    crate::core::window_placement::verify_and_restore_if_offscreen(&window);
 
     window
         .show()
@@ -394,6 +394,7 @@ pub async fn toggle_settings_window(app_handle: AppHandle) -> Result<(), String>
         return Ok(());
     }
 
+    crate::core::window_placement::verify_and_restore_if_offscreen(&window);
     window
         .show()
         .map_err(|e| format!("Failed to show settings: {}", e))?;
@@ -407,6 +408,7 @@ pub async fn toggle_settings_window(app_handle: AppHandle) -> Result<(), String>
 #[tauri::command]
 pub async fn show_custom_statistics_window(app_handle: AppHandle) -> Result<(), String> {
     let window = ensure_custom_statistics_window(&app_handle)?;
+    crate::core::window_placement::verify_and_restore_if_offscreen(&window);
 
     window
         .show()
@@ -446,6 +448,7 @@ pub async fn toggle_custom_statistics_window(app_handle: AppHandle) -> Result<()
         return Ok(());
     }
 
+    crate::core::window_placement::verify_and_restore_if_offscreen(&window);
     window
         .show()
         .map_err(|e| format!("Failed to show custom statistics: {}", e))?;
@@ -459,6 +462,7 @@ pub async fn toggle_custom_statistics_window(app_handle: AppHandle) -> Result<()
 #[tauri::command]
 pub async fn show_logs_window(app_handle: AppHandle) -> Result<(), String> {
     let window = ensure_logs_window(&app_handle)?;
+    crate::core::window_placement::verify_and_restore_if_offscreen(&window);
 
     window
         .show()
@@ -498,6 +502,7 @@ pub async fn toggle_logs_window(app_handle: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
+    crate::core::window_placement::verify_and_restore_if_offscreen(&window);
     window
         .show()
         .map_err(|e| format!("Failed to show logs: {}", e))?;
@@ -511,6 +516,7 @@ pub async fn toggle_logs_window(app_handle: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn show_sprite_studio_window(app_handle: AppHandle) -> Result<(), String> {
     let window = ensure_sprite_studio_window(&app_handle)?;
+    crate::core::window_placement::verify_and_restore_if_offscreen(&window);
     window
         .show()
         .map_err(|e| format!("Failed to show window: {}", e))?;

@@ -1,11 +1,12 @@
 use crate::{core::MeritStorage, models::WindowPlacement};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::Duration;
 use tauri::{
-    AppHandle, LogicalUnit, Manager, Monitor, PhysicalPosition, PhysicalSize, PixelUnit,
-    Position, Size, WebviewWindow, WindowSizeConstraints,
+    AppHandle, LogicalSize, LogicalUnit, Manager, Monitor, PhysicalPosition, PhysicalSize,
+    PixelUnit, Position, Size, WebviewWindow, WindowSizeConstraints,
 };
 
 static CAPTURE_TOKENS: Lazy<Mutex<HashMap<String, u64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
@@ -113,25 +114,33 @@ pub fn capture_immediately(window: &WebviewWindow) {
     let Ok(position) = window.outer_position() else {
         return;
     };
-    let Ok(size) = window.outer_size() else {
+    let Ok(size) = window.inner_size() else {
         return;
     };
 
     let monitor = window.current_monitor().ok().flatten();
-    let (display_name, rel_x, rel_y) = match monitor.as_ref() {
-        Some(m) => {
-            let origin = m.position();
-            (
-                m.name().cloned(),
-                position.x - origin.x,
-                position.y - origin.y,
-            )
-        }
-        None => (None, 0, 0),
-    };
+    let (display_name, display_width, display_height, display_scale, rel_x, rel_y) =
+        match monitor.as_ref() {
+            Some(m) => {
+                let origin = m.position();
+                let size = m.size();
+                (
+                    m.name().cloned(),
+                    size.width,
+                    size.height,
+                    m.scale_factor(),
+                    position.x - origin.x,
+                    position.y - origin.y,
+                )
+            }
+            None => (None, 0, 0, 0.0, 0, 0),
+        };
 
     let placement = WindowPlacement {
         display_name,
+        display_width,
+        display_height,
+        display_scale,
         x: position.x,
         y: position.y,
         width: size.width,
@@ -172,55 +181,95 @@ pub fn restore_all(app_handle: &AppHandle) {
 fn should_restore_size(label: &str) -> bool {
     // The main window size is controlled by app settings (window scale).
     // Resizable windows (like settings) should restore their last user size.
-    label == "settings" || label == "custom_statistics" || label == "logs"
+    label == "settings"
+        || label == "custom_statistics"
+        || label == "logs"
+        || label == "sprite_studio"
 }
 
 async fn restore_window(window: WebviewWindow, placement: WindowPlacement) {
-    let label = window.label().to_string();
-    let target_size = should_restore_size(&label)
-        .then_some(clamp_window_size(&label, placement.width, placement.height))
+    apply_placement(&window, &placement);
+}
+
+pub fn restore_single(app_handle: &AppHandle, label: &str) {
+    let placement = {
+        let storage = MeritStorage::instance();
+        let storage = storage.read();
+        storage.get_window_placements().get(label).cloned()
+    };
+    let Some(placement) = placement else {
+        return;
+    };
+    let Some(window) = app_handle.get_webview_window(label) else {
+        return;
+    };
+
+    apply_placement(&window, &placement);
+}
+
+pub fn verify_and_restore_if_offscreen(window: &WebviewWindow) {
+    let Ok(position) = window.outer_position() else {
+        return;
+    };
+    let Ok(monitors) = window.available_monitors() else {
+        return;
+    };
+
+    if monitor_containing_point(&monitors, position.x, position.y).is_some() {
+        return;
+    }
+
+    let placement = {
+        let storage = MeritStorage::instance();
+        let storage = storage.read();
+        storage.get_window_placements().get(window.label()).cloned()
+    };
+    let Some(placement) = placement else {
+        return;
+    };
+
+    apply_placement(window, &placement);
+}
+
+fn apply_placement(window: &WebviewWindow, placement: &WindowPlacement) {
+    let label = window.label();
+    let scale = if placement.display_scale > 0.0 {
+        placement.display_scale
+    } else {
+        window.scale_factor().ok().unwrap_or(1.0)
+    };
+    let stored_logical_size = physical_to_logical_size(placement.width, placement.height, scale);
+    let target_size = should_restore_size(label)
+        .then_some(clamp_window_size(
+            label,
+            stored_logical_size.0,
+            stored_logical_size.1,
+        ))
         .filter(|(w, h)| *w > 0 && *h > 0);
 
     if let Some((width, height)) = target_size {
-        let _ = window.set_size(Size::Physical(PhysicalSize { width, height }));
+        let _ = window.set_size(Size::Logical(LogicalSize {
+            width: width as f64,
+            height: height as f64,
+        }));
     }
 
+    let monitors = window.available_monitors().ok().unwrap_or_default();
+    let clamp_size = window.outer_size().ok().map(|s| (s.width, s.height));
+
+    let (monitor_opt, use_relative) = find_monitor_for_placement(&monitors, placement);
     let (mut x, mut y) = (placement.x, placement.y);
-    let clamp_size = target_size.or_else(|| window.outer_size().ok().map(|s| (s.width, s.height)));
 
-    let monitors = window.available_monitors().ok();
-    if let Some(monitors) = monitors.as_ref() {
-        if let Some(name) = placement.display_name.as_ref() {
-            if let Some(monitor) = monitors
-                .iter()
-                .find(|m| m.name().map(String::as_str) == Some(name.as_str()))
-            {
-                let origin = monitor.position();
-                x = origin.x + placement.rel_x;
-                y = origin.y + placement.rel_y;
-                let (cx, cy) = clamp_to_monitor(
-                    monitor,
-                    x,
-                    y,
-                    clamp_size,
-                    target_size,
-                );
-                x = cx;
-                y = cy;
-            }
+    if let Some(monitor) = monitor_opt {
+        if use_relative {
+            let origin = monitor.position();
+            x = origin.x + placement.rel_x;
+            y = origin.y + placement.rel_y;
         }
 
-        if let Some(monitor) = monitor_containing_point(monitors, x, y) {
-            let (cx, cy) = clamp_to_monitor(
-                monitor,
-                x,
-                y,
-                clamp_size,
-                target_size,
-            );
-            x = cx;
-            y = cy;
-        }
+        let (clamped_x, clamped_y) = clamp_to_monitor(monitor, x, y, clamp_size, target_size);
+        x = clamped_x;
+        y = clamped_y;
     }
 
     let _ = window.set_position(Position::Physical(PhysicalPosition { x, y }));
@@ -264,4 +313,130 @@ fn clamp_to_monitor(
     };
 
     (clamped_x, clamped_y)
+}
+
+fn point_to_rect_distance(px: i32, py: i32, rx: i32, ry: i32, rw: u32, rh: u32) -> f64 {
+    let rx2 = rx + rw as i32;
+    let ry2 = ry + rh as i32;
+    let nearest_x = px.clamp(rx, rx2);
+    let nearest_y = py.clamp(ry, ry2);
+    let dx = (px - nearest_x) as f64;
+    let dy = (py - nearest_y) as f64;
+    (dx * dx + dy * dy).sqrt()
+}
+
+fn physical_to_logical_size(width: u32, height: u32, scale: f64) -> (u32, u32) {
+    let scale = if scale > 0.0 { scale } else { 1.0 };
+    let logical = PhysicalSize::new(width, height).to_logical::<u32>(scale);
+    (logical.width, logical.height)
+}
+
+#[cfg(test)]
+fn logical_to_physical_size(width: u32, height: u32, scale: f64) -> (u32, u32) {
+    let scale = if scale > 0.0 { scale } else { 1.0 };
+    let physical = LogicalSize::new(width, height).to_physical::<u32>(scale);
+    (physical.width, physical.height)
+}
+
+fn find_monitor_for_placement<'a>(
+    monitors: &'a [Monitor],
+    placement: &WindowPlacement,
+) -> (Option<&'a Monitor>, bool) {
+    if monitors.is_empty() {
+        return (None, false);
+    }
+
+    let has_fingerprint = placement.display_width > 0
+        && placement.display_height > 0
+        && placement.display_scale > 0.0;
+
+    if has_fingerprint {
+        if let Some(name) = placement.display_name.as_deref() {
+            if let Some(monitor) = monitors.iter().find(|monitor| {
+                monitor.name().map(|value| value.as_str()) == Some(name)
+                    && monitor.size().width == placement.display_width
+                    && monitor.size().height == placement.display_height
+                    && (monitor.scale_factor() - placement.display_scale).abs() < 0.01
+            }) {
+                return (Some(monitor), true);
+            }
+        }
+
+        if let Some(monitor) = monitors.iter().find(|monitor| {
+            monitor.size().width == placement.display_width
+                && monitor.size().height == placement.display_height
+                && (monitor.scale_factor() - placement.display_scale).abs() < 0.01
+        }) {
+            return (Some(monitor), true);
+        }
+    }
+
+    let nearest = monitors.iter().min_by(|left, right| {
+        let left_pos = left.position();
+        let left_size = left.size();
+        let right_pos = right.position();
+        let right_size = right.size();
+        let left_distance = point_to_rect_distance(
+            placement.x,
+            placement.y,
+            left_pos.x,
+            left_pos.y,
+            left_size.width,
+            left_size.height,
+        );
+        let right_distance = point_to_rect_distance(
+            placement.x,
+            placement.y,
+            right_pos.x,
+            right_pos.y,
+            right_size.width,
+            right_size.height,
+        );
+
+        left_distance
+            .partial_cmp(&right_distance)
+            .unwrap_or(Ordering::Equal)
+    });
+
+    (nearest, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn physical_size_converts_to_logical_on_high_dpi_display() {
+        let logical = physical_to_logical_size(1520, 1120, 2.0);
+        assert_eq!(logical, (760, 560));
+    }
+
+    #[test]
+    fn logical_size_restores_back_to_same_physical_size_for_scale() {
+        let physical = logical_to_physical_size(760, 560, 2.0);
+        assert_eq!(physical, (1520, 1120));
+    }
+
+    #[test]
+    fn distance_inside_rect_is_zero() {
+        assert_eq!(point_to_rect_distance(50, 50, 0, 0, 100, 100), 0.0);
+    }
+
+    #[test]
+    fn distance_left_of_rect() {
+        let d = point_to_rect_distance(-10, 50, 0, 0, 100, 100);
+        assert!((d - 10.0).abs() < 1e-9, "expected 10.0, got {d}");
+    }
+
+    #[test]
+    fn distance_above_rect() {
+        let d = point_to_rect_distance(50, -20, 0, 0, 100, 100);
+        assert!((d - 20.0).abs() < 1e-9, "expected 20.0, got {d}");
+    }
+
+    #[test]
+    fn distance_corner_345_triangle() {
+        let d = point_to_rect_distance(-3, -4, 0, 0, 100, 100);
+        assert!((d - 5.0).abs() < 1e-9, "expected 5.0, got {d}");
+    }
 }
