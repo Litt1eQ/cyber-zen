@@ -169,6 +169,9 @@ pub fn restore_all(app_handle: &AppHandle) {
     };
 
     for (label, placement) in placements {
+        if !should_restore_in_bulk(&label) {
+            continue;
+        }
         let Some(window) = app_handle.get_webview_window(&label) else {
             continue;
         };
@@ -176,6 +179,10 @@ pub fn restore_all(app_handle: &AppHandle) {
             restore_window(window, placement).await;
         });
     }
+}
+
+fn should_restore_in_bulk(label: &str) -> bool {
+    label != "main"
 }
 
 fn should_restore_size(label: &str) -> bool {
@@ -415,6 +422,12 @@ mod tests {
     fn logical_size_restores_back_to_same_physical_size_for_scale() {
         let physical = logical_to_physical_size(760, 560, 2.0);
         assert_eq!(physical, (1520, 1120));
+    }
+
+    #[test]
+    fn bulk_restore_skips_main_window() {
+        assert!(!should_restore_in_bulk("main"));
+        assert!(should_restore_in_bulk("settings"));
     }
 
     #[test]

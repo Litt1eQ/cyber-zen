@@ -170,6 +170,17 @@ pub fn run() {
             }
 
             core::window_placement::restore_all(&app_handle);
+            {
+                let app_handle = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+                    core::window_placement::restore_single(&app_handle, "main");
+                    if let Some(main_window) = app_handle.get_webview_window("main") {
+                        core::window_placement::verify_and_restore_if_offscreen(&main_window);
+                        core::main_window_bounds::refresh_from_window(&main_window);
+                    }
+                });
+            }
             core::init_input_listener(app_handle.clone())
                 .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
             core::main_window_bounds::refresh_from_app_handle(&app_handle);
