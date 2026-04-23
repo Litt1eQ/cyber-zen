@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { save } from '@tauri-apps/plugin-dialog'
 import { Trash2 } from 'lucide-react'
-import { WOODEN_FISH_SKINS, type BuiltinWoodenFishSkinId, type WoodenFishSkin, type WoodenFishSkinId } from '../WoodenFish/skins'
+import { WOODEN_FISH_SKINS, type AppSkinId, type BuiltinWoodenFishSkinId, type WoodenFishSkin, type WoodenFishSkinId } from '../WoodenFish/skins'
 import { useCustomWoodenFishSkins } from '../../hooks/useCustomWoodenFishSkins'
 import { COMMANDS } from '../../types/events'
 import type { CustomWoodenFishSkin } from '@/types/skins'
@@ -16,6 +16,7 @@ import i18n from '@/i18n'
 import { precacheCustomSkinSpriteSheet } from '@/sprites/spriteSheetCache'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SpriteSheetStudioDialog } from '@/components/Settings/SpriteSheetStudioDialog'
+import { Live2DManager } from '@/components/Settings/Live2DManager'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { clampSpriteRowIndex, getSpritePreviewRowCount, SPRITE_DEFAULT_IDLE_ROW_INDEX, spriteRowIndexToFrameIntervalMs } from '@/sprites/spritePreview'
@@ -31,14 +32,14 @@ type SkinOption = {
   author?: string
 }
 
-type SkinView = 'legacy' | 'sprite'
+type SkinView = 'legacy' | 'sprite' | 'live2d'
 
 export function SkinManager({
   selectedId,
   onSelect,
 }: {
-  selectedId: string
-  onSelect: (id: string) => void
+  selectedId: AppSkinId
+  onSelect: (id: AppSkinId) => void
 }) {
   const { t } = useTranslation()
   const { skins: customSkins, mapById: customSkinsById, loading, error, reload } = useCustomWoodenFishSkins()
@@ -69,6 +70,7 @@ export function SkinManager({
     return [...builtin, ...custom]
   }, [customSkins, t])
 
+  const selectedIsLive2D = selectedId.startsWith('live2d:')
   const selectedOption = useMemo(() => {
     const builtin = WOODEN_FISH_SKINS[selectedId as BuiltinWoodenFishSkinId]
     if (builtin) {
@@ -79,12 +81,12 @@ export function SkinManager({
       return { id: selectedId as WoodenFishSkinId, title, skin: builtin, kind: 'builtin' as const }
     }
     const custom = customSkinsById.get(selectedId)
-      if (custom) return { id: custom.id, title: stripZipSuffix(custom.name), skin: custom.skin, kind: 'custom' as const }
+    if (custom) return { id: custom.id, title: stripZipSuffix(custom.name), skin: custom.skin, kind: 'custom' as const }
     return { id: 'rosewood' as const, title: t('settings.skins.builtin.rosewood'), skin: WOODEN_FISH_SKINS.rosewood, kind: 'builtin' as const }
   }, [customSkinsById, selectedId, t])
 
   const effectiveSelectedId = selectedOption.id
-  const selectedView: SkinView = selectedOption.skin.sprite_sheet?.src ? 'sprite' : 'legacy'
+  const selectedView: SkinView = selectedIsLive2D ? 'live2d' : selectedOption.skin.sprite_sheet?.src ? 'sprite' : 'legacy'
   const [view, setView] = useState<SkinView>(selectedView)
 
   useEffect(() => {
@@ -195,6 +197,7 @@ export function SkinManager({
               <TabsList className="h-9 bg-slate-50 border border-slate-200/60">
                 <TabsTrigger value="legacy">{t('settings.skins.tabs.legacy')}</TabsTrigger>
                 <TabsTrigger value="sprite">{t('settings.skins.tabs.sprite')}</TabsTrigger>
+                <TabsTrigger value="live2d">{t('settings.skins.tabs.live2d')}</TabsTrigger>
               </TabsList>
             </div>
 
@@ -206,7 +209,7 @@ export function SkinManager({
                   <span className="font-mono">hammer.png</span>
                   {t('settings.skins.legacyHintSuffix')}
                 </>
-              ) : (
+              ) : view === 'sprite' ? (
                 <>
                   {t('settings.skins.spriteHintPrefix')}{' '}
                   <span className="font-mono">sprite.png</span>
@@ -214,15 +217,19 @@ export function SkinManager({
                   <span className="font-mono">sprite.jpg</span> / <span className="font-mono">sprite.jpeg</span>
                   {t('settings.skins.spriteHintSuffix')}
                 </>
+              ) : (
+                <>{t('settings.skins.live2d.tabHint')}</>
               )}
             </div>
             {loading && <div className="text-xs text-slate-500 mt-2">{t('settings.skins.loading')}</div>}
             {error && <div className="text-xs text-red-600 mt-2">{error}</div>}
           </div>
           <div className="shrink-0 flex flex-wrap items-center justify-end gap-2" data-no-drag>
-            <Button variant="secondary" onClick={() => setPreviewId(selectedOption.id)}>
-              {t('settings.skins.previewReference')}
-            </Button>
+            {view !== 'live2d' ? (
+              <Button variant="secondary" onClick={() => setPreviewId(selectedOption.id)}>
+                {t('settings.skins.previewReference')}
+              </Button>
+            ) : null}
             {view === 'sprite' && (
               <Button variant="secondary" onClick={() => void openSpriteStudio()} disabled={exportBusy || importBusy}>
                 {t('settings.skins.studio.open')}
@@ -237,33 +244,37 @@ export function SkinManager({
                 {t('settings.skins.downloadTemplate')}
               </Button>
             )}
-            <Button
-              variant="secondary"
-              disabled={exportBusy}
-              onClick={() =>
-                void handleDownloadZip(
-                  effectiveSelectedId,
-                  sanitizeFileName(`wooden-fish-skin-${selectedOption.title}-${effectiveSelectedId}.czs`)
-                )
-              }
-            >
-              {t('settings.skins.exportCurrentZip')}
-            </Button>
-            <Button onClick={openImport} disabled={importBusy}>
-              {importBusy ? t('settings.skins.importing') : t('settings.skins.importZip')}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".czs,.zip,application/zip"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.currentTarget.files?.[0]
-                e.currentTarget.value = ''
-                if (!f) return
-                void handleImportFile(f)
-              }}
-            />
+            {view !== 'live2d' ? (
+              <>
+                <Button
+                  variant="secondary"
+                  disabled={exportBusy}
+                  onClick={() =>
+                    void handleDownloadZip(
+                      effectiveSelectedId,
+                      sanitizeFileName(`wooden-fish-skin-${selectedOption.title}-${effectiveSelectedId}.czs`)
+                    )
+                  }
+                >
+                  {t('settings.skins.exportCurrentZip')}
+                </Button>
+                <Button onClick={openImport} disabled={importBusy}>
+                  {importBusy ? t('settings.skins.importing') : t('settings.skins.importZip')}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".czs,.zip,application/zip"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.currentTarget.files?.[0]
+                    e.currentTarget.value = ''
+                    if (!f) return
+                    void handleImportFile(f)
+                  }}
+                />
+              </>
+            ) : null}
           </div>
         </div>
         {importError && <div className="text-xs text-red-600 mt-2">{importError}</div>}
@@ -273,6 +284,9 @@ export function SkinManager({
           </div>
         )}
 
+        <TabsContent value="live2d" className="mt-4" data-no-drag>
+          <Live2DManager selectedId={selectedId} onSelect={onSelect} />
+        </TabsContent>
         <TabsContent value="legacy" className="mt-4" data-no-drag>
           <SkinGrid
             options={legacyOptions}

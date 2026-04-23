@@ -8,6 +8,7 @@ pub mod click_heatmap;
 pub mod date_key;
 pub mod intern;
 pub mod history_db;
+pub mod live2d_models;
 pub mod notification_env;
 pub mod perf;
 pub mod keyboard_piano;

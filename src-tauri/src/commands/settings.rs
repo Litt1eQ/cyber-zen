@@ -41,16 +41,17 @@ fn normalize_scale(scale: u32) -> u32 {
 }
 
 fn normalize_skin_id(app_handle: &AppHandle, id: String) -> String {
-    match id.as_str() {
-        "rosewood" | "wood" => id,
-        _ => {
-            if let Some(raw_id) = wooden_fish_skins::parse_custom_skin_settings_id(&id) {
-                if wooden_fish_skins::custom_skin_exists(app_handle, raw_id) {
-                    return id;
-                }
-            }
-            "rosewood".to_string()
-        }
+    let has_custom_skin = wooden_fish_skins::parse_custom_skin_settings_id(&id)
+        .is_some_and(|raw_id| wooden_fish_skins::custom_skin_exists(app_handle, raw_id));
+    normalize_skin_id_value(&id, has_custom_skin)
+}
+
+fn normalize_skin_id_value(id: &str, has_custom_skin: bool) -> String {
+    match id {
+        "rosewood" | "wood" => id.to_string(),
+        _ if id.starts_with("live2d:") => id.to_string(),
+        _ if id.starts_with("custom:") && has_custom_skin => id.to_string(),
+        _ => "rosewood".to_string(),
     }
 }
 
@@ -267,6 +268,21 @@ fn normalize_mouse_distance_displays(
     out
 }
 
+fn normalize_live2d_action_shortcuts(
+    shortcuts: std::collections::HashMap<String, String>,
+) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    for (action_key, shortcut) in shortcuts {
+        let trimmed_action_key = action_key.trim();
+        let trimmed_shortcut = shortcut.trim();
+        if trimmed_action_key.is_empty() || trimmed_shortcut.is_empty() {
+            continue;
+        }
+        out.insert(trimmed_action_key.to_string(), trimmed_shortcut.to_string());
+    }
+    out
+}
+
 #[tauri::command]
 pub async fn get_settings() -> Result<Settings, String> {
     let storage = MeritStorage::instance();
@@ -302,6 +318,8 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
         normalize_custom_statistics_range(settings.custom_statistics_range);
     settings.mouse_distance_displays =
         normalize_mouse_distance_displays(settings.mouse_distance_displays);
+    settings.live2d_action_shortcuts =
+        normalize_live2d_action_shortcuts(settings.live2d_action_shortcuts);
     settings.statistics_blocks = normalize_statistics_blocks(settings.statistics_blocks);
     settings.shortcut_toggle_main = normalize_shortcut(settings.shortcut_toggle_main);
     settings.shortcut_toggle_settings = normalize_shortcut(settings.shortcut_toggle_settings);
@@ -366,4 +384,46 @@ pub async fn toggle_always_on_top(app_handle: AppHandle) -> Result<(), String> {
     let mut settings = current_settings();
     settings.always_on_top = !settings.always_on_top;
     update_settings(app_handle, settings).await
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::{normalize_live2d_action_shortcuts, normalize_skin_id_value};
+
+    #[test]
+    fn normalize_skin_id_keeps_live2d_prefix_ids() {
+        assert_eq!(
+            normalize_skin_id_value("live2d:test-model", false),
+            "live2d:test-model"
+        );
+    }
+
+    #[test]
+    fn normalize_skin_id_keeps_existing_builtin_ids() {
+        assert_eq!(normalize_skin_id_value("rosewood", false), "rosewood");
+        assert_eq!(normalize_skin_id_value("wood", false), "wood");
+    }
+
+    #[test]
+    fn normalize_skin_id_falls_back_for_missing_custom_ids() {
+        assert_eq!(normalize_skin_id_value("custom:missing", false), "rosewood");
+    }
+
+    #[test]
+    fn normalize_live2d_action_shortcuts_trims_and_drops_empty_entries() {
+        let mut shortcuts = HashMap::new();
+        shortcuts.insert(" motion:uuid1:tap:0 ".to_string(), " F1 ".to_string());
+        shortcuts.insert("".to_string(), "F2".to_string());
+        shortcuts.insert("expression:uuid1:1".to_string(), "   ".to_string());
+
+        let normalized = normalize_live2d_action_shortcuts(shortcuts);
+
+        assert_eq!(normalized.len(), 1);
+        assert_eq!(
+            normalized.get("motion:uuid1:tap:0"),
+            Some(&"F1".to_string())
+        );
+    }
 }

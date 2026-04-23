@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { WoodenFish } from './components/WoodenFish'
+import { Live2DCanvas } from './components/Live2D/Live2DCanvas'
 import { MeritPop } from './components/MeritPop'
-import { DEFAULT_WOODEN_FISH_SKIN_ID, WOODEN_FISH_SKINS, type BuiltinWoodenFishSkinId, type WoodenFishSkinId } from './components/WoodenFish/skins'
+import { DEFAULT_WOODEN_FISH_SKIN_ID, WOODEN_FISH_SKINS, type AppSkinId, type BuiltinWoodenFishSkinId, type Live2DSkinId } from './components/WoodenFish/skins'
 import { useDailyReset } from './hooks/useDailyReset'
 import { useInputListener } from './hooks/useInputListener'
 import { useInputMonitoringPermission } from './hooks/useInputMonitoringPermission'
@@ -16,6 +17,7 @@ import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { useAutoFade } from './hooks/useAutoFade'
 import { useMeritStore } from './stores/useMeritStore'
 import { useSettingsStore } from './stores/useSettingsStore'
+import { useLive2DStore } from './stores/useLive2DStore'
 import { useAchievementUnlocker } from './hooks/useAchievementUnlocker'
 import { useKeyboardPiano } from './hooks/useKeyboardPiano'
 import { showMainQuickMenu } from './utils/quickMenu'
@@ -28,6 +30,7 @@ function App() {
   const { t, i18n } = useTranslation()
   const fetchStats = useMeritStore((s) => s.fetchStats)
   const fetchSettings = useSettingsStore((s) => s.fetchSettings)
+  const loadLive2DModels = useLive2DStore((s) => s.loadModels)
   const settings = useSettingsStore((s) => s.settings)
   useInputListener()
   useAppLocaleSync()
@@ -46,7 +49,8 @@ function App() {
   useEffect(() => {
     fetchSettings()
     fetchStats()
-  }, [fetchSettings, fetchStats])
+    void loadLive2DModels()
+  }, [fetchSettings, fetchStats, loadLive2DModels])
 
   useEffect(() => {
     try {
@@ -83,10 +87,11 @@ function App() {
   const windowScale = settings?.window_scale ?? 100
   const popScale = windowScale / 100
   const { mapById: customSkinsById, loading: customSkinsLoading } = useCustomWoodenFishSkins()
-  const skinId = (settings?.wooden_fish_skin as WoodenFishSkinId | undefined) ?? DEFAULT_WOODEN_FISH_SKIN_ID
+  const skinId = (settings?.wooden_fish_skin as AppSkinId | undefined) ?? DEFAULT_WOODEN_FISH_SKIN_ID
   const builtinSkin = WOODEN_FISH_SKINS[skinId as BuiltinWoodenFishSkinId]
   const customSkin = customSkinsById.get(skinId)?.skin
   const wantsCustomSkin = skinId.startsWith('custom:')
+  const wantsLive2DSkin = skinId.startsWith('live2d:')
   const skin = builtinSkin ?? customSkin ?? (wantsCustomSkin && customSkinsLoading ? undefined : WOODEN_FISH_SKINS[DEFAULT_WOODEN_FISH_SKIN_ID])
   const meritPopLite = !!skin?.sprite_sheet?.src
   const animationSpeed = settings?.animation_speed ?? 1
@@ -168,7 +173,14 @@ function App() {
     >
       <div className="absolute inset-0 pointer-events-none" />
 
-      {skin ? (
+      {wantsLive2DSkin ? (
+        <Live2DCanvas
+          skinId={skinId as Live2DSkinId}
+          onHit={handleHit}
+          dragEnabled={!(settings?.lock_window_position ?? false)}
+          dragHoldMs={settings?.drag_hold_ms ?? 0}
+        />
+      ) : skin ? (
         <WoodenFish
           isAnimating={isAnimating}
           hitSignal={lastHitAt}

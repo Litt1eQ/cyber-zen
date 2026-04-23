@@ -21,6 +21,13 @@ pub struct ClickHeatmapUpdatedPayload {
     pub display_id: Arc<str>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct NormalizedMonitorPoint {
+    pub display_id: Arc<str>,
+    pub x: f64,
+    pub y: f64,
+}
+
 #[derive(Debug, Clone)]
 struct MonitorSnapshot {
     id: Arc<str>,
@@ -223,6 +230,36 @@ fn opposite_space(space: CoordinateSpace) -> CoordinateSpace {
         CoordinateSpace::Physical => CoordinateSpace::Logical,
         CoordinateSpace::Logical => CoordinateSpace::Physical,
     }
+}
+
+pub fn normalize_global_point(
+    app_handle: &AppHandle,
+    preferred_space: CoordinateSpace,
+    x: f64,
+    y: f64,
+) -> Option<NormalizedMonitorPoint> {
+    refresh_monitors_if_stale(app_handle, Duration::from_secs(2));
+    let monitors_version = MONITORS_VERSION.load(Ordering::Relaxed);
+    let monitor = cached_monitor_for_point(monitors_version, preferred_space, x, y)
+        .or_else(|| cached_monitor_for_point(monitors_version, opposite_space(preferred_space), x, y))?;
+    let (rel_x, rel_y) = monitor
+        .rel_physical_from_point(preferred_space, x, y)
+        .or_else(|| monitor.rel_physical_from_point(opposite_space(preferred_space), x, y))?;
+
+    if !(rel_x.is_finite() && rel_y.is_finite() && monitor.width.is_finite() && monitor.height.is_finite()) {
+        return None;
+    }
+    if monitor.width <= 0.0 || monitor.height <= 0.0 {
+        return None;
+    }
+
+    let clamped_x = (rel_x / monitor.width).clamp(0.0, 1.0);
+    let clamped_y = (rel_y / monitor.height).clamp(0.0, 1.0);
+    Some(NormalizedMonitorPoint {
+        display_id: Arc::clone(&monitor.id),
+        x: clamped_x * 2.0 - 1.0,
+        y: 1.0 - clamped_y * 2.0,
+    })
 }
 
 pub fn record_global_click(app_handle: &AppHandle, preferred_space: CoordinateSpace, x: f64, y: f64) {

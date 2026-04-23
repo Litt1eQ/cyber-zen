@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 #[cfg(target_os = "macos")]
 use std::sync::mpsc;
 use std::thread;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::core::key_codes;
 use crate::core::keyboard_piano;
@@ -28,6 +28,9 @@ use crate::core::active_app;
 static THREAD_STARTED: AtomicBool = AtomicBool::new(false);
 static IS_ENABLED: AtomicBool = AtomicBool::new(true);
 static SUPPRESS_MOUSE_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
+static LAST_LIVE2D_MOUSE_EMIT_MS: AtomicU64 = AtomicU64::new(0);
+const LIVE2D_INPUT_EVENT: &str = "live2d-input-event";
+const LIVE2D_MOUSE_EMIT_INTERVAL_MS: u64 = 16;
 
 static LAST_ERROR: Lazy<RwLock<Option<InputListenerError>>> = Lazy::new(|| RwLock::new(None));
 
@@ -162,6 +165,14 @@ pub struct InputListenerError {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Live2DInputEventPayload {
+    MouseMove { x: f64, y: f64, display_id: String },
+    KeyDown { code: String },
+    KeyUp { code: String },
+}
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -194,6 +205,63 @@ fn should_ignore_global_mouse_click(
     main_window_bounds::refresh_if_stale(app_handle, std::time::Duration::from_secs(2));
 
     main_window_bounds::contains_point(space, x, y)
+}
+
+fn emit_live2d_input_event(app_handle: &AppHandle, payload: Live2DInputEventPayload) {
+    if !crate::core::main_window_bounds::is_visible() {
+        return;
+    }
+    let Some(window) = app_handle.get_webview_window("main") else {
+        return;
+    };
+    let _ = window.emit(LIVE2D_INPUT_EVENT, &payload);
+}
+
+fn emit_live2d_key_event(app_handle: &AppHandle, is_down: bool, code: &str) {
+    if code.is_empty() {
+        return;
+    }
+    let payload = if is_down {
+        Live2DInputEventPayload::KeyDown {
+            code: code.to_string(),
+        }
+    } else {
+        Live2DInputEventPayload::KeyUp {
+            code: code.to_string(),
+        }
+    };
+    emit_live2d_input_event(app_handle, payload);
+}
+
+fn emit_live2d_mouse_move(
+    app_handle: &AppHandle,
+    space: click_heatmap::CoordinateSpace,
+    x: f64,
+    y: f64,
+) {
+    let now = now_ms();
+    let last = LAST_LIVE2D_MOUSE_EMIT_MS.load(Ordering::Relaxed);
+    if now.saturating_sub(last) < LIVE2D_MOUSE_EMIT_INTERVAL_MS {
+        return;
+    }
+    if LAST_LIVE2D_MOUSE_EMIT_MS
+        .compare_exchange(last, now, Ordering::Relaxed, Ordering::Relaxed)
+        .is_err()
+    {
+        return;
+    }
+
+    let Some(point) = click_heatmap::normalize_global_point(app_handle, space, x, y) else {
+        return;
+    };
+    emit_live2d_input_event(
+        app_handle,
+        Live2DInputEventPayload::MouseMove {
+            x: point.x,
+            y: point.y,
+            display_id: point.display_id.to_string(),
+        },
+    );
 }
 
 pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
@@ -239,6 +307,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             });
                             if let Some(code) = code.as_ref() {
                                 keyboard_piano::emit_key(&worker_handle, code.as_ref());
+                                emit_live2d_key_event(&worker_handle, true, code.as_ref());
                             }
                             let (is_shifted, shortcut) = if let Some(code) = code.as_deref() {
                                 const MASK_ALPHA_SHIFT: u64 = 1 << 16;
@@ -275,6 +344,15 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                                 shortcut,
                                 Some(active_app::current_or_unknown()),
                             );
+                            continue;
+                        }
+                        crate::core::macos_event_tap::RawInputEvent::KeyUp { keycode } => {
+                            let code = perf::time(perf::TimerKind::KeyCodeMap, || {
+                                key_codes::from_macos_virtual_keycode_arc(keycode)
+                            });
+                            if let Some(code) = code.as_ref() {
+                                emit_live2d_key_event(&worker_handle, false, code.as_ref());
+                            }
                             continue;
                         }
                         crate::core::macos_event_tap::RawInputEvent::MouseDown { button, x, y } => {
@@ -315,6 +393,12 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         crate::core::macos_event_tap::RawInputEvent::MouseMove { x, y } => {
                             perf::inc_input_mouse_move();
                             mouse_distance::record_mouse_move(
+                                click_heatmap::CoordinateSpace::Logical,
+                                x,
+                                y,
+                            );
+                            emit_live2d_mouse_move(
+                                &worker_handle,
                                 click_heatmap::CoordinateSpace::Logical,
                                 x,
                                 y,
@@ -378,6 +462,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             (*state, code)
                         };
                         keyboard_piano::emit_key(&callback_handle, code.as_ref());
+                        emit_live2d_key_event(&callback_handle, true, code.as_ref());
 
                         let (is_shifted, shortcut) = {
                             let shift_down = snapshot.shift();
@@ -401,6 +486,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         (InputSource::Keyboard, 1u64, Some(code), is_shifted, shortcut)
                     }
                     EventType::KeyRelease(key) => {
+                        let code = perf::time(perf::TimerKind::KeyCodeMap, || key_codes::from_rdev_key(key));
                         let mut state = MOD_STATE.lock();
                         match key {
                             rdev::Key::ShiftLeft => state.shift_left = false,
@@ -413,6 +499,7 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             rdev::Key::MetaRight => state.meta_right = false,
                             _ => {}
                         }
+                        emit_live2d_key_event(&callback_handle, false, code.as_ref());
                         return;
                     }
                     EventType::ButtonPress(button) => {
@@ -455,6 +542,12 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                     EventType::MouseMove { x, y } => {
                         perf::inc_input_mouse_move();
                         mouse_distance::record_mouse_move(
+                            click_heatmap::CoordinateSpace::Physical,
+                            x,
+                            y,
+                        );
+                        emit_live2d_mouse_move(
+                            &callback_handle,
                             click_heatmap::CoordinateSpace::Physical,
                             x,
                             y,

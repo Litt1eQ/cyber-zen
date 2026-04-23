@@ -5,6 +5,7 @@ pub mod notifications;
 pub mod logs;
 pub mod click_heatmap;
 pub mod input;
+pub mod live2d;
 pub mod merit;
 pub mod permissions;
 pub mod perf;

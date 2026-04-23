@@ -8,6 +8,8 @@ export const EVENTS = {
   ACHIEVEMENTS_UPDATED: 'achievements-updated',
   WOODEN_FISH_SKINS_UPDATED: 'wooden-fish-skins-updated',
   APP_UPDATE_DOWNLOAD: 'app-update-download',
+  LIVE2D_INPUT_EVENT: 'live2d-input-event',
+  LIVE2D_ACTION_EVENT: 'live2d-action-event',
 } as const
 
 export const COMMANDS = {
@@ -76,4 +78,8 @@ export const COMMANDS = {
   HIDE_LOGS_WINDOW: 'hide_logs_window',
   TOGGLE_LOGS_WINDOW: 'toggle_logs_window',
   SHOW_SPRITE_STUDIO_WINDOW: 'show_sprite_studio_window',
+  IMPORT_LIVE2D_MODEL: 'import_live2d_model',
+  LIST_LIVE2D_MODELS: 'list_live2d_models',
+  DELETE_LIVE2D_MODEL: 'delete_live2d_model',
+  GET_LIVE2D_MODEL_JSON: 'get_live2d_model_json',
 } as const

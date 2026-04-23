@@ -13,8 +13,15 @@ pub enum RawInputEvent {
     ///
     /// `keycode` is the inferred *logical* keycode (after macOS modifier remaps).
     KeyDown { keycode: u16, flags: u64 },
+    KeyUp { keycode: u16 },
     MouseDown { button: RawMouseButton, x: f64, y: f64 },
     MouseMove { x: f64, y: f64 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct KeyTransition {
+    keycode: u16,
+    is_down: bool,
 }
 
 // CoreGraphics constants: CGEventFlags (CGEventTypes.h)
@@ -164,7 +171,7 @@ fn process_flags_changed(
     state: &mut FlagsChangedState,
     physical_keycode: u16,
     flags: u64,
-) -> Option<u16> {
+) -> Option<KeyTransition> {
     let idx = physical_keycode as usize;
     if idx >= 256 {
         return None;
@@ -183,15 +190,32 @@ fn process_flags_changed(
     let Some(group) = effective_group else {
         // Fallback: maintain old best-effort toggling behavior.
         let was_down = state.down[idx];
-        state.down[idx] = !was_down;
-        return (!was_down).then_some(logical_keycode);
+        let is_down = !was_down;
+        state.down[idx] = is_down;
+        return Some(KeyTransition {
+            keycode: logical_keycode,
+            is_down,
+        });
     };
 
     if group == ModifierGroup::CapsLock {
         // CapsLock is a toggle; only count the key press when the alpha-shift bit changes.
         // (macOS may also emit a second `flagsChanged` on key release with no flag change.)
-        state.down[idx] = false;
-        return ((changed & FLAG_MASK_ALPHA_SHIFT) != 0).then_some(logical_keycode);
+        if (changed & FLAG_MASK_ALPHA_SHIFT) != 0 {
+            state.down[idx] = true;
+            return Some(KeyTransition {
+                keycode: logical_keycode,
+                is_down: true,
+            });
+        }
+        if state.down[idx] {
+            state.down[idx] = false;
+            return Some(KeyTransition {
+                keycode: logical_keycode,
+                is_down: false,
+            });
+        }
+        return None;
     }
 
     // For non-toggle modifiers, infer press/release from the corresponding flag bit, which is more
@@ -200,7 +224,10 @@ fn process_flags_changed(
     let is_down_now = (flags & mask) != 0;
     let was_down = state.down[idx];
     state.down[idx] = is_down_now;
-    (is_down_now && !was_down).then_some(logical_keycode)
+    (is_down_now != was_down).then_some(KeyTransition {
+        keycode: logical_keycode,
+        is_down: is_down_now,
+    })
 }
 
 #[cfg(target_os = "macos")]
@@ -245,6 +272,7 @@ mod imp {
     const K_CG_EVENT_RIGHT_MOUSE_DRAGGED: CGEventType = 7;
     const K_CG_EVENT_OTHER_MOUSE_DRAGGED: CGEventType = 27;
     const K_CG_EVENT_KEY_DOWN: CGEventType = 10;
+    const K_CG_EVENT_KEY_UP: CGEventType = 11;
     const K_CG_EVENT_FLAGS_CHANGED: CGEventType = 12;
 
     const K_CG_EVENT_TAP_DISABLED_BY_TIMEOUT: CGEventType = u32::MAX - 1; // -2
@@ -338,6 +366,12 @@ mod imp {
                     let keycode = code as u16;
                     RawInputEvent::KeyDown { keycode, flags }
                 }
+                K_CG_EVENT_KEY_UP => {
+                    let code =
+                        unsafe { CGEventGetIntegerValueField(event, K_CG_KEYBOARD_EVENT_KEYCODE) };
+                    let keycode = code as u16;
+                    RawInputEvent::KeyUp { keycode }
+                }
                 // Modifier keys on macOS are reported via `flagsChanged`, not `keyDown`.
                 K_CG_EVENT_FLAGS_CHANGED => {
                     let code =
@@ -351,13 +385,19 @@ mod imp {
                         None
                     };
 
-                    let Some(logical_keycode) = logical_keycode else {
+                    let Some(transition) = logical_keycode else {
                         return;
                     };
 
-                    RawInputEvent::KeyDown {
-                        keycode: logical_keycode,
-                        flags,
+                    if transition.is_down {
+                        RawInputEvent::KeyDown {
+                            keycode: transition.keycode,
+                            flags,
+                        }
+                    } else {
+                        RawInputEvent::KeyUp {
+                            keycode: transition.keycode,
+                        }
                     }
                 }
                 K_CG_EVENT_LEFT_MOUSE_DOWN => {
@@ -422,6 +462,7 @@ mod imp {
 
         let events = mask_for(&[
             K_CG_EVENT_KEY_DOWN,
+            K_CG_EVENT_KEY_UP,
             K_CG_EVENT_FLAGS_CHANGED,
             K_CG_EVENT_LEFT_MOUSE_DOWN,
             K_CG_EVENT_RIGHT_MOUSE_DOWN,
@@ -500,7 +541,13 @@ mod tests {
 
         // Physical keycode is CapsLock (57), but flags indicate Control is down.
         let keycode = process_flags_changed(&mut st, 57, control_down);
-        assert_eq!(keycode, Some(59)); // ControlLeft
+        assert_eq!(
+            keycode,
+            Some(KeyTransition {
+                keycode: 59,
+                is_down: true,
+            })
+        ); // ControlLeft
     }
 
     #[test]
@@ -510,7 +557,13 @@ mod tests {
 
         // Physical keycode is ControlLeft (59), but flags indicate CapsLock toggled on.
         let keycode = process_flags_changed(&mut st, 59, caps_lock_on);
-        assert_eq!(keycode, Some(57)); // CapsLock
+        assert_eq!(
+            keycode,
+            Some(KeyTransition {
+                keycode: 57,
+                is_down: true,
+            })
+        ); // CapsLock
     }
 
     #[test]
@@ -521,6 +574,35 @@ mod tests {
 
         // Pressing CapsLock toggles it off (alpha shift cleared). We should still emit a press.
         let keycode = process_flags_changed(&mut st, 57, 0);
-        assert_eq!(keycode, Some(57)); // CapsLock
+        assert_eq!(
+            keycode,
+            Some(KeyTransition {
+                keycode: 57,
+                is_down: true,
+            })
+        ); // CapsLock
+    }
+
+    #[test]
+    fn modifier_release_emits_key_up_transition() {
+        let mut st = FlagsChangedState::default();
+
+        let down = process_flags_changed(&mut st, 56, FLAG_MASK_SHIFT);
+        assert_eq!(
+            down,
+            Some(KeyTransition {
+                keycode: 56,
+                is_down: true,
+            })
+        );
+
+        let up = process_flags_changed(&mut st, 56, 0);
+        assert_eq!(
+            up,
+            Some(KeyTransition {
+                keycode: 56,
+                is_down: false,
+            })
+        );
     }
 }

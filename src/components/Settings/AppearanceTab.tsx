@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { Settings } from '@/types/merit'
 import { SettingsSection, SettingRow } from '@/components/Settings/SettingsLayout'
 import { SkinManager } from '@/components/Settings/SkinManager'
+import type { AppSkinId } from '@/components/WoodenFish/skins'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 
@@ -30,7 +31,7 @@ export function AppearanceTab({
     <div className="space-y-8">
       <SettingsSection title={t('settings.sections.appearance.title')}>
         <SkinManager
-          selectedId={settings.wooden_fish_skin ?? 'rosewood'}
+          selectedId={(settings.wooden_fish_skin as AppSkinId | undefined) ?? 'rosewood'}
           onSelect={(id) => updateSettings({ wooden_fish_skin: id })}
         />
 
@@ -106,4 +107,3 @@ export function AppearanceTab({
     </div>
   )
 }
-

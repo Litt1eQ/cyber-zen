@@ -64,6 +64,8 @@ export type WoodenFishSpriteSheet = {
 
 export type BuiltinWoodenFishSkinId = 'rosewood' | 'wood'
 export type WoodenFishSkinId = BuiltinWoodenFishSkinId | `custom:${string}`
+export type Live2DSkinId = `live2d:${string}`
+export type AppSkinId = WoodenFishSkinId | Live2DSkinId
 
 export const DEFAULT_WOODEN_FISH_SKIN_LAYOUT: Pick<WoodenFishSkin, 'body' | 'hammer'> = {
   body: {

@@ -310,6 +310,19 @@ export const zhCN = {
       tabs: {
         legacy: '旧版外观',
         sprite: '精灵图',
+        live2d: 'Live2D',
+      },
+      live2d: {
+        tabHint: '导入包含 .model3.json 的 Live2D Cubism 4 模型文件夹，角色会替换主窗口中的木鱼。',
+        hintPrefix: '导入包含',
+        hintSuffix: '的模型文件夹',
+        pickDirectory: '选择 Live2D 模型文件夹',
+        import: '导入模型',
+        importing: '导入中…',
+        empty: '暂无 Live2D 模型。点击「导入模型」选择包含 .model3.json 的文件夹。',
+        deleteTitle: '删除 Live2D 模型？',
+        deleteBodyPrefix: '将永久删除 ',
+        deleteBodySuffix: ' 的文件。',
       },
       studio: {
         open: '制作精灵图',
@@ -1367,6 +1380,19 @@ export const en: TranslationResource = {
       tabs: {
         legacy: 'Classic',
         sprite: 'Sprite Sheet',
+        live2d: 'Live2D',
+      },
+      live2d: {
+        tabHint: 'Import a folder containing a .model3.json Live2D Cubism 4 model; the character replaces the wooden fish in the main window.',
+        hintPrefix: 'Import a model folder containing',
+        hintSuffix: '',
+        pickDirectory: 'Choose Live2D model folder',
+        import: 'Import Model',
+        importing: 'Importing…',
+        empty: 'No Live2D models yet. Click "Import Model" and choose a folder containing .model3.json.',
+        deleteTitle: 'Delete Live2D model?',
+        deleteBodyPrefix: 'This will permanently delete ',
+        deleteBodySuffix: '.',
       },
       studio: {
         open: 'Create',
@@ -2418,6 +2444,19 @@ export const zhTW: TranslationResource = {
       tabs: {
         legacy: '舊版外觀',
         sprite: '精靈圖',
+        live2d: 'Live2D',
+      },
+      live2d: {
+        tabHint: '導入包含 .model3.json 的 Live2D Cubism 4 模型資料夾，角色會替換主視窗中的木魚。',
+        hintPrefix: '導入包含',
+        hintSuffix: '的模型資料夾',
+        pickDirectory: '選擇 Live2D 模型資料夾',
+        import: '導入模型',
+        importing: '導入中…',
+        empty: '暫無 Live2D 模型。點擊「導入模型」選擇包含 .model3.json 的資料夾。',
+        deleteTitle: '刪除 Live2D 模型？',
+        deleteBodyPrefix: '將永久刪除 ',
+        deleteBodySuffix: ' 的檔案。',
       },
       studio: {
         open: '製作精靈圖',
