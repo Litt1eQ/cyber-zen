@@ -15,6 +15,7 @@ pub enum RawInputEvent {
     KeyDown { keycode: u16, flags: u64 },
     KeyUp { keycode: u16 },
     MouseDown { button: RawMouseButton, x: f64, y: f64 },
+    MouseUp { button: RawMouseButton },
     MouseMove { x: f64, y: f64 },
 }
 
@@ -265,7 +266,9 @@ mod imp {
     const K_CG_EVENT_TAP_OPTION_LISTEN_ONLY: CGEventTapOptions = 1;
 
     const K_CG_EVENT_LEFT_MOUSE_DOWN: CGEventType = 1;
+    const K_CG_EVENT_LEFT_MOUSE_UP: CGEventType = 2;
     const K_CG_EVENT_RIGHT_MOUSE_DOWN: CGEventType = 3;
+    const K_CG_EVENT_RIGHT_MOUSE_UP: CGEventType = 4;
     const K_CG_EVENT_OTHER_MOUSE_DOWN: CGEventType = 25;
     const K_CG_EVENT_MOUSE_MOVED: CGEventType = 5;
     const K_CG_EVENT_LEFT_MOUSE_DRAGGED: CGEventType = 6;
@@ -408,6 +411,9 @@ mod imp {
                         y: p.y,
                     }
                 }
+                K_CG_EVENT_LEFT_MOUSE_UP => RawInputEvent::MouseUp {
+                    button: super::RawMouseButton::Left,
+                },
                 K_CG_EVENT_RIGHT_MOUSE_DOWN => {
                     let p = unsafe { CGEventGetLocation(event) };
                     RawInputEvent::MouseDown {
@@ -416,6 +422,9 @@ mod imp {
                         y: p.y,
                     }
                 }
+                K_CG_EVENT_RIGHT_MOUSE_UP => RawInputEvent::MouseUp {
+                    button: super::RawMouseButton::Right,
+                },
                 K_CG_EVENT_OTHER_MOUSE_DOWN => {
                     let p = unsafe { CGEventGetLocation(event) };
                     RawInputEvent::MouseDown {
@@ -465,7 +474,9 @@ mod imp {
             K_CG_EVENT_KEY_UP,
             K_CG_EVENT_FLAGS_CHANGED,
             K_CG_EVENT_LEFT_MOUSE_DOWN,
+            K_CG_EVENT_LEFT_MOUSE_UP,
             K_CG_EVENT_RIGHT_MOUSE_DOWN,
+            K_CG_EVENT_RIGHT_MOUSE_UP,
             K_CG_EVENT_OTHER_MOUSE_DOWN,
             K_CG_EVENT_MOUSE_MOVED,
             K_CG_EVENT_LEFT_MOUSE_DRAGGED,

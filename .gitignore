@@ -13,6 +13,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.worktrees/
 *.local
 src-tauri/icons/*.iconset/
 

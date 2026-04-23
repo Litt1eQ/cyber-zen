@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { useWindowDragGesture } from '@/hooks/useWindowDragGesture'
 import { useLive2DStore } from '@/stores/useLive2DStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
-import { readActionShortcuts } from '@/utils/live2dShortcuts'
 import type { Live2DSkinId } from '@/components/WoodenFish/skins'
 import type { Live2DActionEvent } from '@/types/live2d'
 import { EVENTS } from '@/types/events'
 import { useLive2DRenderer } from './useLive2DRenderer'
 import { useLive2DInput } from './useLive2DInput'
+import { useLive2DResources } from './useLive2DResources'
 
 type Live2DCanvasProps = {
   skinId: Live2DSkinId
@@ -26,11 +26,12 @@ export function Live2DCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const hitCooldownRef = useRef(false)
   const models = useLive2DStore((state) => state.models)
+  const loadModels = useLive2DStore((state) => state.loadModels)
   const isReady = useLive2DStore((state) => state.isReady)
   const isLoading = useLive2DStore((state) => state.isLoading)
   const error = useLive2DStore((state) => state.error)
   const settings = useSettingsStore((state) => state.settings)
-  const { load, triggerTapMotion, triggerMotion, setParam, setExpression } = useLive2DRenderer(canvasRef)
+  const { load, triggerTapMotion, triggerMotion, getParamRange, setParam, setExpression } = useLive2DRenderer(canvasRef)
   const dragGesture = useWindowDragGesture({
     enabled: dragEnabled,
     holdMs: dragHoldMs,
@@ -39,12 +40,37 @@ export function Live2DCanvas({
 
   const uuid = skinId.slice('live2d:'.length)
   const model = useMemo(() => models.find((entry) => entry.uuid === uuid) ?? null, [models, uuid])
-  const actionShortcuts = useMemo(() => readActionShortcuts(settings), [settings])
+  const [isRefreshingMissingModel, setIsRefreshingMissingModel] = useState(() => model == null)
+  const speedConfig = useMemo(() => settings?.live2d_speed_configs?.[uuid] ?? null, [settings, uuid])
+  const { backgroundSrc, overlaySrcs } = useLive2DResources(model?.uuid ?? null, isReady)
 
   useEffect(() => {
     if (!model) return
     void load(model.uuid, model.model_path)
   }, [load, model])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (model) {
+      setIsRefreshingMissingModel(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setIsRefreshingMissingModel(true)
+    void loadModels()
+      .catch(() => {})
+      .finally(() => {
+        if (cancelled) return
+        setIsRefreshingMissingModel(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [loadModels, model, uuid])
 
   useEffect(() => {
     paramOverridesRef.current = {}
@@ -77,7 +103,8 @@ export function Live2DCanvas({
   useLive2DInput({
     enabled: isReady,
     modelUuid: uuid,
-    actionShortcuts,
+    speedConfig,
+    getParamRange,
     setParam,
     paramOverridesRef,
     triggerTapMotion,
@@ -108,16 +135,35 @@ export function Live2DCanvas({
         onPointerCancel={dragGesture.onPointerCancel}
         onPointerLeave={dragGesture.onPointerLeave}
       >
+        {backgroundSrc ? (
+          <img
+            src={backgroundSrc}
+            alt=""
+            className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+            draggable={false}
+          />
+        ) : null}
+
         <canvas
           ref={canvasRef}
           className="absolute inset-0 h-full w-full"
           style={{ display: 'block' }}
         />
 
-        {!model && !isLoading ? (
+        {overlaySrcs.map((src) => (
+          <img
+            key={src}
+            src={src}
+            alt=""
+            className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+            draggable={false}
+          />
+        ))}
+
+        {!model && !isLoading && !isRefreshingMissingModel ? (
           <Live2DStatusOverlay text="当前 Live2D 模型不存在，请重新选择或导入。" tone="error" />
         ) : null}
-        {isLoading && models.length === 0 ? (
+        {(isLoading && models.length === 0) || isRefreshingMissingModel ? (
           <Live2DStatusOverlay text="正在加载 Live2D 模型列表…" tone="muted" />
         ) : null}
         {error ? <Live2DStatusOverlay text={error} tone="error" /> : null}

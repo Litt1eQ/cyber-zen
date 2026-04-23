@@ -13,6 +13,7 @@ type Live2DRendererApi = {
   load: (uuid: string, modelPath: string) => Promise<void>
   triggerTapMotion: () => Promise<void>
   triggerMotion: (group: string, no: number) => Promise<void>
+  getParamRange: (id: string) => { min: number; max: number } | null
   setParam: (id: string, value: number) => void
   setExpression: (index: number | null) => void
 }
@@ -241,6 +242,19 @@ export function useLive2DRenderer(canvasRef: React.RefObject<HTMLCanvasElement>)
     })
   }, [])
 
+  const getParamRange = useCallback((id: string) => {
+    const sprite = spriteRef.current
+    if (!sprite) return null
+
+    const range = sprite.getParameterValueRangeById(id)
+    if (!range) return null
+
+    return {
+      min: range.min,
+      max: range.max,
+    }
+  }, [])
+
   const setParam = useCallback((id: string, value: number) => {
     const sprite = spriteRef.current
     if (!sprite) return
@@ -269,7 +283,7 @@ export function useLive2DRenderer(canvasRef: React.RefObject<HTMLCanvasElement>)
     sprite.setExpression({ index: Math.min(index, expressionCount - 1) })
   }, [])
 
-  return { load, triggerTapMotion, triggerMotion, setParam, setExpression }
+  return { load, triggerTapMotion, triggerMotion, getParamRange, setParam, setExpression }
 }
 
 function groupMotions(motions: Live2DMotionInfo[]): Record<string, Live2DMotionInfo[]> {

@@ -1,3 +1,5 @@
+import type { ModelSpeedConfig } from './live2d'
+
 export interface InputSource {
   Keyboard: 'keyboard'
   MouseSingle: 'mouse_single'
@@ -110,6 +112,7 @@ export interface Settings {
   shortcut_open_custom_statistics?: string | null
   shortcut_close_custom_statistics?: string | null
   live2d_action_shortcuts?: Record<string, string>
+  live2d_speed_configs?: Record<string, ModelSpeedConfig>
   keyboard_heatmap_share_hide_numbers?: boolean
   keyboard_heatmap_share_hide_keys?: boolean
   keyboard_heatmap_share_show_merit_value?: boolean

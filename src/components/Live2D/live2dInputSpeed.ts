@@ -6,12 +6,17 @@ export const LIVE2D_TIER_THRESHOLDS_MS = {
   medium: 780,
 } as const
 
-export const LIVE2D_TIER_EXPRESSION_INDEX: Record<SpeedTier, number> = {
-  slow: 0,
-  medium: 1,
-  fast: 2,
-  very_fast: 3,
-}
+export const SPEED_TIER_META: Array<{
+  tier: SpeedTier
+  label: string
+  color: string
+  rangeLabel: string
+}> = [
+  { tier: 'slow', label: '慢速', color: '#5b8bff', rangeLabel: '> 780ms' },
+  { tier: 'medium', label: '中速', color: '#7fff7f', rangeLabel: '440 – 780ms' },
+  { tier: 'fast', label: '快速', color: '#ffd97f', rangeLabel: '240 – 440ms' },
+  { tier: 'very_fast', label: '极快', color: '#ff7f7f', rangeLabel: '< 240ms' },
+]
 
 export const LIVE2D_KEY_WINDOW_MS = 2200
 export const LIVE2D_KEY_MAX_COUNT = 12
@@ -54,12 +59,11 @@ export function keepRecentKeyTimestamps(
   return recent.slice(recent.length - maxCount)
 }
 
-export function nextSpeedTierState(previousTimestamps: number[], now: number) {
+export function nextSpeedTier(previousTimestamps: number[], now: number) {
   const timestamps = keepRecentKeyTimestamps([...previousTimestamps, now], now)
   const tier = tierByIntervalMs(effectiveIntervalMs(timestamps))
 
   return {
-    expressionIndex: LIVE2D_TIER_EXPRESSION_INDEX[tier],
     tier,
     timestamps,
   }

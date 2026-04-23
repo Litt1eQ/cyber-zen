@@ -48,7 +48,7 @@ const defaultSettings: Settings = {
   custom_statistics_widgets: ['trend', 'calendar'],
   custom_statistics_range: 'today',
   mouse_distance_displays: {},
-  live2d_action_shortcuts: {},
+  live2d_speed_configs: {},
   keyboard_heatmap_share_hide_numbers: true,
   keyboard_heatmap_share_hide_keys: true,
   keyboard_heatmap_share_show_merit_value: false,

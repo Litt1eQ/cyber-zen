@@ -82,4 +82,5 @@ export const COMMANDS = {
   LIST_LIVE2D_MODELS: 'list_live2d_models',
   DELETE_LIVE2D_MODEL: 'delete_live2d_model',
   GET_LIVE2D_MODEL_JSON: 'get_live2d_model_json',
+  GET_LIVE2D_MODEL_RESOURCES: 'get_live2d_model_resources',
 } as const

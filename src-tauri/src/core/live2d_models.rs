@@ -17,6 +17,19 @@ pub struct Live2DModelMeta {
     pub model_file: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Live2DOverlayImage {
+    pub key: String,
+    pub group: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Live2DResourceManifest {
+    pub background_path: Option<String>,
+    pub overlay_images: Vec<Live2DOverlayImage>,
+}
+
 pub fn models_dir(app_handle: &AppHandle) -> Result<PathBuf> {
     let dir = app_handle
         .path()
@@ -46,6 +59,11 @@ pub fn delete(app_handle: &AppHandle, uuid: &str) -> Result<()> {
 pub fn read_model_json(app_handle: &AppHandle, uuid: &str) -> Result<String> {
     let root = models_dir(app_handle)?;
     read_model_json_from_root(&root, uuid)
+}
+
+pub fn read_model_resources(app_handle: &AppHandle, uuid: &str) -> Result<Live2DResourceManifest> {
+    let root = models_dir(app_handle)?;
+    read_model_resources_from_root(&root, uuid)
 }
 
 fn import_model_into_root(root: &Path, src_dir: &Path) -> Result<Live2DModelMeta> {
@@ -140,6 +158,56 @@ fn read_model_json_from_root(root: &Path, uuid: &str) -> Result<String> {
     let model_path = dir.join(&meta.model_file);
     fs::read_to_string(&model_path)
         .with_context(|| format!("Failed to read Live2D model json: {}", model_path.display()))
+}
+
+fn read_model_resources_from_root(root: &Path, uuid: &str) -> Result<Live2DResourceManifest> {
+    if !is_safe_model_id(uuid) {
+        return Err(anyhow!("Invalid Live2D model id: {uuid}"));
+    }
+
+    let dir = root.join(uuid);
+    let _meta = read_meta(&dir)?;
+    let resources_dir = dir.join("resources");
+    let background_path = resources_dir
+        .join("background.png")
+        .is_file()
+        .then(|| resources_dir.join("background.png").to_string_lossy().to_string());
+
+    let mut overlay_images = Vec::new();
+    for group in ["left-keys", "right-keys"] {
+        let group_dir = resources_dir.join(group);
+        if !group_dir.is_dir() {
+            continue;
+        }
+
+        let mut entries = fs::read_dir(&group_dir)
+            .with_context(|| format!("Failed to read Live2D resources dir: {}", group_dir.display()))?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .with_context(|| format!("Failed to iterate Live2D resources dir: {}", group_dir.display()))?;
+        entries.sort_by_key(|entry| entry.path());
+
+        for entry in entries {
+            let path = entry.path();
+            if !path.is_file() || !is_supported_resource_image(&path) {
+                continue;
+            }
+
+            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                continue;
+            };
+
+            overlay_images.push(Live2DOverlayImage {
+                key: stem.to_string(),
+                group: group.to_string(),
+                path: path.to_string_lossy().to_string(),
+            });
+        }
+    }
+
+    Ok(Live2DResourceManifest {
+        background_path,
+        overlay_images,
+    })
 }
 
 fn read_meta(dir: &Path) -> Result<Live2DModelMeta> {
@@ -243,6 +311,12 @@ fn is_safe_model_id(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+}
+
+fn is_supported_resource_image(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| matches!(ext.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif"))
 }
 
 #[cfg(test)]

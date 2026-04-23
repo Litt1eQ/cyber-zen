@@ -171,6 +171,8 @@ pub enum Live2DInputEventPayload {
     MouseMove { x: f64, y: f64, display_id: String },
     KeyDown { code: String },
     KeyUp { code: String },
+    MouseButtonDown { button: String },
+    MouseButtonUp { button: String },
 }
 
 fn now_ms() -> u64 {
@@ -262,6 +264,19 @@ fn emit_live2d_mouse_move(
             display_id: point.display_id.to_string(),
         },
     );
+}
+
+fn emit_live2d_mouse_button_event(app_handle: &AppHandle, button: &str, is_down: bool) {
+    let payload = if is_down {
+        Live2DInputEventPayload::MouseButtonDown {
+            button: button.to_string(),
+        }
+    } else {
+        Live2DInputEventPayload::MouseButtonUp {
+            button: button.to_string(),
+        }
+    };
+    emit_live2d_input_event(app_handle, payload);
 }
 
 pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
@@ -366,6 +381,15 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                                 y,
                             );
 
+                            let live2d_btn = match button {
+                                crate::core::macos_event_tap::RawMouseButton::Left => Some("Left"),
+                                crate::core::macos_event_tap::RawMouseButton::Right => Some("Right"),
+                                crate::core::macos_event_tap::RawMouseButton::Other => None,
+                            };
+                            if let Some(btn) = live2d_btn {
+                                emit_live2d_mouse_button_event(&worker_handle, btn, true);
+                            }
+
                             if should_suppress_mouse_press() {
                                 continue;
                             }
@@ -389,6 +413,17 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             };
 
                             (InputSource::MouseSingle, 1u64, code)
+                        }
+                        crate::core::macos_event_tap::RawInputEvent::MouseUp { button } => {
+                            let live2d_btn = match button {
+                                crate::core::macos_event_tap::RawMouseButton::Left => Some("Left"),
+                                crate::core::macos_event_tap::RawMouseButton::Right => Some("Right"),
+                                crate::core::macos_event_tap::RawMouseButton::Other => None,
+                            };
+                            if let Some(btn) = live2d_btn {
+                                emit_live2d_mouse_button_event(&worker_handle, btn, false);
+                            }
+                            continue;
                         }
                         crate::core::macos_event_tap::RawInputEvent::MouseMove { x, y } => {
                             perf::inc_input_mouse_move();
@@ -531,6 +566,15 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                             }
                         }
 
+                        let live2d_btn = match button {
+                            rdev::Button::Left => Some("Left"),
+                            rdev::Button::Right => Some("Right"),
+                            _ => None,
+                        };
+                        if let Some(btn) = live2d_btn {
+                            emit_live2d_mouse_button_event(&callback_handle, btn, true);
+                        }
+
                         let code = match button {
                             rdev::Button::Left => Some(key_codes::intern("MouseLeft")),
                             rdev::Button::Right => Some(key_codes::intern("MouseRight")),
@@ -538,6 +582,17 @@ pub fn init_input_listener(app_handle: AppHandle) -> Result<(), String> {
                         };
 
                         (InputSource::MouseSingle, 1u64, code, None, None)
+                    }
+                    EventType::ButtonRelease(button) => {
+                        let live2d_btn = match button {
+                            rdev::Button::Left => Some("Left"),
+                            rdev::Button::Right => Some("Right"),
+                            _ => None,
+                        };
+                        if let Some(btn) = live2d_btn {
+                            emit_live2d_mouse_button_event(&callback_handle, btn, false);
+                        }
+                        return;
                     }
                     EventType::MouseMove { x, y } => {
                         perf::inc_input_mouse_move();

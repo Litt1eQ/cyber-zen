@@ -241,6 +241,7 @@ pub fn run() {
             commands::live2d::list_live2d_models,
             commands::live2d::delete_live2d_model,
             commands::live2d::get_live2d_model_json,
+            commands::live2d::get_live2d_model_resources,
             commands::updater::check_update,
             commands::updater::download_and_install_update,
             commands::skins::get_custom_wooden_fish_skins,
