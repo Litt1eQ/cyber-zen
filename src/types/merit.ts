@@ -117,6 +117,7 @@ export interface Settings {
   keyboard_heatmap_share_hide_keys?: boolean
   keyboard_heatmap_share_show_merit_value?: boolean
   achievement_notifications_enabled?: boolean
+  achievement_custom_names?: Record<string, string>
   statistics_blocks?: Array<{
     id: string
     collapsed?: boolean

@@ -85,6 +85,8 @@ pub struct Settings {
     pub keyboard_heatmap_share_show_merit_value: bool,
     #[serde(default = "default_false")]
     pub achievement_notifications_enabled: bool,
+    #[serde(default)]
+    pub achievement_custom_names: HashMap<String, String>,
     pub statistics_blocks: Vec<StatisticsBlockState>,
 }
 
@@ -136,6 +138,7 @@ impl Default for Settings {
             keyboard_heatmap_share_hide_keys: true,
             keyboard_heatmap_share_show_merit_value: false,
             achievement_notifications_enabled: false,
+            achievement_custom_names: HashMap::new(),
             statistics_blocks: vec![
                 StatisticsBlockState {
                     id: "period_summary".to_string(),

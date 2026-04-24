@@ -145,3 +145,7 @@ sudo xattr -d com.apple.quarantine /Applications/CyberZen.app
 ## 许可证
 
 本项目采用 `GPL-3.0-only`，详见 `LICENSE`。
+
+## 致谢
+
+- [BongoCat](https://github.com/ayangweb/BongoCat)

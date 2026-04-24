@@ -53,6 +53,7 @@ const defaultSettings: Settings = {
   keyboard_heatmap_share_hide_keys: true,
   keyboard_heatmap_share_show_merit_value: false,
   achievement_notifications_enabled: false,
+  achievement_custom_names: {},
   statistics_blocks: [
     { id: 'period_summary', collapsed: false },
     { id: 'insights', collapsed: false },

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Circle, Flame, Keyboard, MousePointerClick, Sparkles, Sunrise, Trophy, CalendarDays, Move } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Circle, Flame, Keyboard, MousePointerClick, Move, Pencil, Sparkles, Sunrise, Trophy } from 'lucide-react'
 import type { DailyStats, DailyStatsLite, MeritStats, MeritStatsLite } from '@/types/merit'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { ACHIEVEMENT_DEFINITIONS, computeAchievementMetrics, computeAchievementSummary, computeAchievementsByCadence } from '@/lib/achievements'
+import { ACHIEVEMENT_DEFINITIONS, computeAchievementMetrics, computeAchievementSummary, computeAchievementsByCadence, resolveAchievementTitle } from '@/lib/achievements'
 import type { AchievementCadence, AchievementComputed, AchievementIcon } from '@/lib/achievements'
 import { Button } from '@/components/ui/button'
 import { useAchievementStore } from '@/stores/useAchievementStore'
@@ -13,6 +13,7 @@ import { useAchievementsSync } from '@/hooks/useAchievementsSync'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useDisplayMonitors } from '@/hooks/useDisplayMonitors'
 import { useMeritDaysLiteStore } from '@/stores/useMeritDaysLiteStore'
+import { AchievementCustomNamesDialog } from './AchievementCustomNamesDialog'
 
 function iconFor(kind: AchievementIcon) {
   switch (kind) {
@@ -54,7 +55,9 @@ function resetHintKeyForCadence(cadence: AchievementCadence) {
 export function AchievementsTab({ stats }: { stats: MeritStatsLite | null }) {
   const { t, i18n } = useTranslation()
   const [cadence, setCadence] = useState<AchievementCadence>('daily')
+  const [customNamesOpen, setCustomNamesOpen] = useState(false)
   const settings = useSettingsStore((s) => s.settings)
+  const customNames = useSettingsStore((s) => s.settings?.achievement_custom_names ?? {})
   const monitors = useDisplayMonitors()
   const { today: todayLite, history: historyLite, fetchRecentDaysLite } = useMeritDaysLiteStore()
   const achievementState = useAchievementStore((s) => s.state)
@@ -152,7 +155,7 @@ export function AchievementsTab({ stats }: { stats: MeritStatsLite | null }) {
       </Card>
 
       <Tabs value={cadence} onValueChange={(v) => setCadence(v as AchievementCadence)}>
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <TabsList className="bg-slate-100/70">
             <TabsTrigger value="daily">{t('settings.achievements.cadence.daily')}</TabsTrigger>
             <TabsTrigger value="weekly">{t('settings.achievements.cadence.weekly')}</TabsTrigger>
@@ -160,23 +163,35 @@ export function AchievementsTab({ stats }: { stats: MeritStatsLite | null }) {
             <TabsTrigger value="yearly">{t('settings.achievements.cadence.yearly')}</TabsTrigger>
             <TabsTrigger value="total">{t('settings.achievements.cadence.total')}</TabsTrigger>
           </TabsList>
-          <div className="text-xs text-slate-500">{t(resetHintKeyForCadence(cadence))}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-xs text-slate-500">{t(resetHintKeyForCadence(cadence))}</div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCustomNamesOpen(true)}
+              className="h-7 gap-1.5 px-2 text-xs"
+              data-no-drag
+            >
+              <Pencil className="h-3 w-3" />
+              {t('settings.achievements.customNames.button')}
+            </Button>
+          </div>
         </div>
 
         <TabsContent value="daily" className="mt-4">
-          <AchievementGrid items={vm.byCadence.daily} />
+          <AchievementGrid items={vm.byCadence.daily} customNames={customNames} />
         </TabsContent>
         <TabsContent value="weekly" className="mt-4">
-          <AchievementGrid items={vm.byCadence.weekly} />
+          <AchievementGrid items={vm.byCadence.weekly} customNames={customNames} />
         </TabsContent>
         <TabsContent value="monthly" className="mt-4">
-          <AchievementGrid items={vm.byCadence.monthly} />
+          <AchievementGrid items={vm.byCadence.monthly} customNames={customNames} />
         </TabsContent>
         <TabsContent value="yearly" className="mt-4">
-          <AchievementGrid items={vm.byCadence.yearly} />
+          <AchievementGrid items={vm.byCadence.yearly} customNames={customNames} />
         </TabsContent>
         <TabsContent value="total" className="mt-4">
-          <AchievementGrid items={vm.byCadence.total} />
+          <AchievementGrid items={vm.byCadence.total} customNames={customNames} />
         </TabsContent>
       </Tabs>
 
@@ -206,7 +221,7 @@ export function AchievementsTab({ stats }: { stats: MeritStatsLite | null }) {
                 typeof (rawArgs as { target?: unknown }).target === 'number'
                   ? { ...rawArgs, target: ((rawArgs as { target: number }).target).toLocaleString() }
                   : rawArgs
-              const title = def ? t(def.titleKey, titleArgs) : rec.achievement_id
+              const title = def ? resolveAchievementTitle(def.id, def.titleKey, def.titleArgs, titleArgs, customNames, t) : rec.achievement_id
               const when = timeFmt ? timeFmt.format(new Date(rec.unlocked_at_ms)) : new Date(rec.unlocked_at_ms).toLocaleString()
               return (
                 <div key={`${rec.achievement_id}::${rec.cadence}::${rec.period_key}::${rec.unlocked_at_ms}`} className="py-2.5 flex items-center justify-between gap-4">
@@ -228,6 +243,8 @@ export function AchievementsTab({ stats }: { stats: MeritStatsLite | null }) {
           </div>
         )}
       </Card>
+
+      <AchievementCustomNamesDialog open={customNamesOpen} onOpenChange={setCustomNamesOpen} />
     </div>
   )
 }
@@ -260,22 +277,23 @@ function SummaryPill({
   )
 }
 
-function AchievementGrid({ items }: { items: AchievementComputed[] }) {
+function AchievementGrid({ items, customNames }: { items: AchievementComputed[]; customNames: Record<string, string> }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {items.map((a) => (
-        <AchievementCard key={a.id} achievement={a} />
+        <AchievementCard key={a.id} achievement={a} customNames={customNames} />
       ))}
     </div>
   )
 }
 
-function AchievementCard({ achievement }: { achievement: AchievementComputed }) {
+function AchievementCard({ achievement, customNames }: { achievement: AchievementComputed; customNames: Record<string, string> }) {
   const { t } = useTranslation()
   const Icon = iconFor(achievement.icon)
   const { current, target, completed, detail, parts } = achievement.progress
   const pct = target > 0 ? Math.max(0, Math.min(100, (current / target) * 100)) : 0
   const fmtArgs = { target: target.toLocaleString() }
+  const resolvedTitle = resolveAchievementTitle(achievement.id, achievement.titleKey, achievement.titleArgs, fmtArgs, customNames, t)
 
   return (
     <Card
@@ -304,7 +322,7 @@ function AchievementCard({ achievement }: { achievement: AchievementComputed }) 
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className="font-semibold text-slate-900 truncate">{t(achievement.titleKey, { ...(achievement.titleArgs ?? {}), ...fmtArgs })}</div>
+              <div className="font-semibold text-slate-900 truncate">{resolvedTitle}</div>
               {completed ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-100/70 border border-emerald-200/60 rounded-full px-2 py-0.5">
                   <CheckCircle2 className="h-3.5 w-3.5" />

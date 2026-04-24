@@ -182,3 +182,16 @@ export function computeAchievementsByCadence(
   }
   return out
 }
+
+export function resolveAchievementTitle(
+  id: string,
+  titleKey: string,
+  titleArgs: Record<string, unknown> | undefined,
+  fmtArgs: Record<string, unknown>,
+  customNames: Record<string, string>,
+  t: (key: string, args?: Record<string, unknown>) => string
+): string {
+  const custom = customNames[id]?.trim()
+  if (custom) return custom
+  return t(titleKey, { ...(titleArgs ?? {}), ...fmtArgs })
+}

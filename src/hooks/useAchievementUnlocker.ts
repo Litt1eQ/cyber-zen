@@ -6,7 +6,7 @@ import { useAchievementStore } from '@/stores/useAchievementStore'
 import { useMeritDaysLiteStore } from '@/stores/useMeritDaysLiteStore'
 import { useAchievementsSync } from '@/hooks/useAchievementsSync'
 import { useDisplayMonitors } from '@/hooks/useDisplayMonitors'
-import { ACHIEVEMENT_DEFINITIONS, computeAchievementMetrics, computeAchievementsByCadence, periodKeyForCadence } from '@/lib/achievements'
+import { ACHIEVEMENT_DEFINITIONS, computeAchievementMetrics, computeAchievementsByCadence, periodKeyForCadence, resolveAchievementTitle } from '@/lib/achievements'
 import type { AchievementUnlockRecord } from '@/types/achievements'
 import { sendSystemNotification } from '@/lib/notifications'
 import type { DailyStats, DailyStatsLite, MeritStats } from '@/types/merit'
@@ -151,7 +151,8 @@ export function useAchievementUnlocker() {
             typeof (rawArgs as { target?: unknown }).target === 'number'
               ? { ...rawArgs, target: ((rawArgs as { target: number }).target).toLocaleString() }
               : rawArgs
-          const name = def ? t(def.titleKey, titleArgs) : rec.achievement_id
+          const customNames = settings.achievement_custom_names ?? {}
+          const name = def ? resolveAchievementTitle(def.id, def.titleKey, def.titleArgs, titleArgs, customNames, t) : rec.achievement_id
           await sendSystemNotification({
             title: t('settings.achievements.notifications.unlockedTitle'),
             body: t('settings.achievements.notifications.unlockedBody', { name }),
