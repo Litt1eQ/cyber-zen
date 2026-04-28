@@ -595,6 +595,43 @@ export function Settings() {
                       </Select>
                     }
                   />
+
+                  <SettingRow
+                    title={t('settings.keyboardPiano.harmonyMode')}
+                    control={
+                      <Switch
+                        checked={settings.keyboard_piano_harmony_mode ?? false}
+                        onCheckedChange={(v) => updateSettings({ keyboard_piano_harmony_mode: v })}
+                        disabled={!(settings.keyboard_piano_enabled ?? false)}
+                        data-no-drag
+                      />
+                    }
+                  />
+
+                  {(settings.keyboard_piano_harmony_mode ?? false) && (
+                    <SettingRow
+                      title={t('settings.keyboardPiano.harmonyProgression')}
+                      control={
+                        <Select
+                          value={settings.keyboard_piano_harmony_progression ?? 'pop'}
+                          onValueChange={(v) =>
+                            updateSettings({ keyboard_piano_harmony_progression: v as 'pop' | 'jazz' | 'classical' | 'folk' })
+                          }
+                          disabled={!(settings.keyboard_piano_enabled ?? false) || !(settings.keyboard_piano_harmony_mode ?? false)}
+                        >
+                          <SelectTrigger className="w-56" data-no-drag>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pop">{t('settings.keyboardPiano.progressions.pop')}</SelectItem>
+                            <SelectItem value="jazz">{t('settings.keyboardPiano.progressions.jazz')}</SelectItem>
+                            <SelectItem value="classical">{t('settings.keyboardPiano.progressions.classical')}</SelectItem>
+                            <SelectItem value="folk">{t('settings.keyboardPiano.progressions.folk')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      }
+                    />
+                  )}
                 </SettingsSection>
 
                 <SettingsSection

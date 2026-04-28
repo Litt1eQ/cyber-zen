@@ -746,7 +746,7 @@ dependencies = [
 
 [[package]]
 name = "cyber-zen"
-version = "0.1.47"
+version = "0.1.48"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

@@ -23,6 +23,8 @@ const defaultSettings: Settings = {
   keyboard_piano_volume: 0.25,
   keyboard_piano_scale: 'pentatonic_major',
   keyboard_piano_wave: 'triangle',
+  keyboard_piano_harmony_mode: false,
+  keyboard_piano_harmony_progression: 'pop',
   always_on_top: true,
   window_pass_through: false,
   show_taskbar_icon: false,

@@ -214,10 +214,18 @@ export const zhCN = {
       volume: '音量',
       scale: '音阶',
       wave: '音色',
+      harmonyMode: '和声引导模式',
+      harmonyProgression: '和弦进行',
       scales: {
         pentatonic_major: '五声音阶（推荐）',
         major: '自然大调',
         chromatic: '半音阶',
+      },
+      progressions: {
+        pop: '流行',
+        jazz: '爵士',
+        classical: '古典',
+        folk: '民谣',
       },
       waves: {
         sine: '正弦（柔和）',
@@ -1295,10 +1303,18 @@ export const en: TranslationResource = {
       volume: 'Volume',
       scale: 'Scale',
       wave: 'Tone',
+      harmonyMode: 'Harmony Guide Mode',
+      harmonyProgression: 'Progression',
       scales: {
         pentatonic_major: 'Major pentatonic (recommended)',
         major: 'Major',
         chromatic: 'Chromatic',
+      },
+      progressions: {
+        pop: 'Pop',
+        jazz: 'Jazz',
+        classical: 'Classical',
+        folk: 'Folk',
       },
       waves: {
         sine: 'Sine (soft)',
@@ -2370,10 +2386,18 @@ export const zhTW: TranslationResource = {
       volume: '音量',
       scale: '音階',
       wave: '音色',
+      harmonyMode: '和聲引導模式',
+      harmonyProgression: '和弦進行',
       scales: {
         pentatonic_major: '五聲音階（推薦）',
         major: '自然大調',
         chromatic: '半音階',
+      },
+      progressions: {
+        pop: '流行',
+        jazz: '爵士',
+        classical: '古典',
+        folk: '民謠',
       },
       waves: {
         sine: '正弦（柔和）',

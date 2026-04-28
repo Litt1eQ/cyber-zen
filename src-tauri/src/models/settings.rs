@@ -17,6 +17,10 @@ fn default_keyboard_piano_wave() -> String {
     "triangle".to_string()
 }
 
+fn default_keyboard_piano_harmony_progression() -> String {
+    "pop".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct MouseDistanceDisplaySettings {
@@ -47,6 +51,10 @@ pub struct Settings {
     pub keyboard_piano_scale: String,
     #[serde(default = "default_keyboard_piano_wave")]
     pub keyboard_piano_wave: String,
+    #[serde(default = "default_false")]
+    pub keyboard_piano_harmony_mode: bool,
+    #[serde(default = "default_keyboard_piano_harmony_progression")]
+    pub keyboard_piano_harmony_progression: String,
     pub always_on_top: bool,
     pub window_pass_through: bool,
     pub show_taskbar_icon: bool,
@@ -101,6 +109,8 @@ impl Default for Settings {
             keyboard_piano_volume: default_keyboard_piano_volume(),
             keyboard_piano_scale: default_keyboard_piano_scale(),
             keyboard_piano_wave: default_keyboard_piano_wave(),
+            keyboard_piano_harmony_mode: false,
+            keyboard_piano_harmony_progression: default_keyboard_piano_harmony_progression(),
             always_on_top: true,
             window_pass_through: false,
             show_taskbar_icon: false,
@@ -216,5 +226,79 @@ impl Default for Settings {
 impl Settings {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Settings;
+
+    #[test]
+    fn default_settings_include_harmony_guide_fields() {
+        let settings = Settings::default();
+
+        assert!(!settings.keyboard_piano_harmony_mode);
+        assert_eq!(settings.keyboard_piano_harmony_progression, "pop");
+    }
+
+    #[test]
+    fn deserialize_settings_preserves_harmony_guide_fields() {
+        let settings: Settings = serde_json::from_str(
+            r#"{
+                "app_locale":"system",
+                "auto_update_enabled":false,
+                "enable_keyboard":true,
+                "enable_mouse_single":true,
+                "keyboard_piano_enabled":true,
+                "keyboard_piano_volume":0.25,
+                "keyboard_piano_scale":"major",
+                "keyboard_piano_wave":"triangle",
+                "keyboard_piano_harmony_mode":true,
+                "keyboard_piano_harmony_progression":"jazz",
+                "always_on_top":true,
+                "window_pass_through":false,
+                "show_taskbar_icon":false,
+                "launch_on_startup":false,
+                "wooden_fish_skin":"rosewood",
+                "keyboard_layout":"tkl_80",
+                "opacity":0.95,
+                "wooden_fish_opacity":1.0,
+                "animation_speed":1.0,
+                "window_scale":100,
+                "heatmap_levels":10,
+                "click_heatmap_grid_cols":64,
+                "click_heatmap_grid_rows":36,
+                "lock_window_position":false,
+                "dock_margin_px":0,
+                "auto_fade_enabled":false,
+                "auto_fade_idle_opacity":0.35,
+                "auto_fade_delay_ms":800,
+                "auto_fade_duration_ms":180,
+                "drag_hold_ms":0,
+                "merit_pop_opacity":0.82,
+                "merit_pop_label":"功德",
+                "custom_statistics_widgets":["trend","calendar"],
+                "custom_statistics_range":"today",
+                "mouse_distance_displays":{},
+                "live2d_action_shortcuts":{},
+                "shortcut_toggle_main":null,
+                "shortcut_toggle_settings":null,
+                "shortcut_toggle_listening":null,
+                "shortcut_toggle_window_pass_through":null,
+                "shortcut_toggle_always_on_top":null,
+                "shortcut_open_custom_statistics":null,
+                "shortcut_close_custom_statistics":null,
+                "keyboard_heatmap_share_hide_numbers":true,
+                "keyboard_heatmap_share_hide_keys":true,
+                "keyboard_heatmap_share_show_merit_value":false,
+                "achievement_notifications_enabled":false,
+                "achievement_custom_names":{},
+                "statistics_blocks":[]
+            }"#,
+        )
+        .expect("settings JSON should deserialize");
+
+        assert!(settings.keyboard_piano_harmony_mode);
+        assert_eq!(settings.keyboard_piano_harmony_progression, "jazz");
     }
 }

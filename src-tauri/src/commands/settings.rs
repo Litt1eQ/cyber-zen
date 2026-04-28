@@ -134,6 +134,13 @@ fn normalize_keyboard_piano_wave(wave: String) -> String {
     }
 }
 
+fn normalize_keyboard_piano_harmony_progression(progression: String) -> String {
+    match progression.as_str() {
+        "pop" | "jazz" | "classical" | "folk" => progression,
+        _ => "pop".to_string(),
+    }
+}
+
 fn normalize_custom_statistics_widgets(widgets: Vec<String>) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for raw in widgets {
@@ -303,6 +310,8 @@ pub async fn update_settings(app_handle: AppHandle, settings: Settings) -> Resul
     settings.keyboard_piano_volume = normalize_keyboard_piano_volume(settings.keyboard_piano_volume);
     settings.keyboard_piano_scale = normalize_keyboard_piano_scale(settings.keyboard_piano_scale);
     settings.keyboard_piano_wave = normalize_keyboard_piano_wave(settings.keyboard_piano_wave);
+    settings.keyboard_piano_harmony_progression =
+        normalize_keyboard_piano_harmony_progression(settings.keyboard_piano_harmony_progression);
     settings.dock_margin_px = normalize_dock_margin_px(settings.dock_margin_px);
     settings.auto_fade_delay_ms = normalize_auto_fade_delay_ms(settings.auto_fade_delay_ms);
     settings.auto_fade_duration_ms =

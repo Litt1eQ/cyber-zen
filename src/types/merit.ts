@@ -73,6 +73,8 @@ export interface Settings {
   keyboard_piano_volume?: number
   keyboard_piano_scale?: 'pentatonic_major' | 'major' | 'chromatic'
   keyboard_piano_wave?: 'sine' | 'triangle' | 'square' | 'sawtooth'
+  keyboard_piano_harmony_mode?: boolean
+  keyboard_piano_harmony_progression?: 'pop' | 'jazz' | 'classical' | 'folk'
   always_on_top: boolean
   window_pass_through: boolean
   show_taskbar_icon: boolean
