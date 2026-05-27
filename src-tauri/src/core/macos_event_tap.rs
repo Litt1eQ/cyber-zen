@@ -231,6 +231,46 @@ fn process_flags_changed(
     })
 }
 
+const NX_SUBTYPE_AUX_CONTROL_BUTTONS: i64 = 8;
+const NX_KEY_STATE_DOWN: i64 = 0x0a;
+const NX_KEY_STATE_UP: i64 = 0x0b;
+
+fn aux_control_keycode_for_key_type(key_type: i64) -> Option<u16> {
+    match key_type {
+        3 => Some(122),  // NX_KEYTYPE_BRIGHTNESS_DOWN -> F1
+        2 => Some(120),  // NX_KEYTYPE_BRIGHTNESS_UP -> F2
+        22 => Some(96),  // NX_KEYTYPE_ILLUMINATION_DOWN -> F5
+        21 => Some(97),  // NX_KEYTYPE_ILLUMINATION_UP -> F6
+        18 => Some(98),  // NX_KEYTYPE_PREVIOUS -> F7
+        16 => Some(100), // NX_KEYTYPE_PLAY -> F8
+        17 => Some(101), // NX_KEYTYPE_NEXT -> F9
+        7 => Some(109),  // NX_KEYTYPE_MUTE -> F10
+        1 => Some(103),  // NX_KEYTYPE_SOUND_DOWN -> F11
+        0 => Some(111),  // NX_KEYTYPE_SOUND_UP -> F12
+        13 => Some(118), // NX_KEYTYPE_LAUNCH_PANEL -> F4
+        _ => None,
+    }
+}
+
+fn process_aux_control_event(subtype: i64, data1: i64) -> Option<KeyTransition> {
+    if subtype != NX_SUBTYPE_AUX_CONTROL_BUTTONS {
+        return None;
+    }
+
+    let key_type = (data1 >> 16) & 0xffff;
+    let key_state = (data1 >> 8) & 0xff;
+    let is_down = match key_state {
+        NX_KEY_STATE_DOWN => true,
+        NX_KEY_STATE_UP => false,
+        _ => return None,
+    };
+
+    Some(KeyTransition {
+        keycode: aux_control_keycode_for_key_type(key_type)?,
+        is_down,
+    })
+}
+
 #[cfg(target_os = "macos")]
 mod imp {
     use super::RawInputEvent;
@@ -277,6 +317,7 @@ mod imp {
     const K_CG_EVENT_KEY_DOWN: CGEventType = 10;
     const K_CG_EVENT_KEY_UP: CGEventType = 11;
     const K_CG_EVENT_FLAGS_CHANGED: CGEventType = 12;
+    const K_CG_EVENT_SYSTEM_DEFINED: CGEventType = 14;
 
     const K_CG_EVENT_TAP_DISABLED_BY_TIMEOUT: CGEventType = u32::MAX - 1; // -2
     const K_CG_EVENT_TAP_DISABLED_BY_USER_INPUT: CGEventType = u32::MAX - 2; // -3
@@ -307,6 +348,19 @@ mod imp {
         fn CGEventGetLocation(event: CGEventRef) -> CGPoint;
     }
 
+    type Id = *mut c_void;
+    type Sel = *mut c_void;
+
+    #[link(name = "AppKit", kind = "framework")]
+    extern "C" {}
+
+    #[link(name = "objc")]
+    extern "C" {
+        fn objc_getClass(name: *const i8) -> Id;
+        fn sel_registerName(name: *const i8) -> Sel;
+        fn objc_msgSend();
+    }
+
     #[repr(C)]
     #[derive(Debug, Clone, Copy)]
     struct CGPoint {
@@ -327,6 +381,40 @@ mod imp {
         fn CFRunLoopGetCurrent() -> CFRunLoopRef;
         fn CFRunLoopAddSource(rl: CFRunLoopRef, source: CFRunLoopSourceRef, mode: CFStringRef);
         fn CFRunLoopRun();
+    }
+
+    fn ns_event_integer(event: Id, selector: &'static [u8]) -> i64 {
+        if event.is_null() {
+            return 0;
+        }
+        let sel = unsafe { sel_registerName(selector.as_ptr().cast()) };
+        if sel.is_null() {
+            return 0;
+        }
+        let msg: unsafe extern "C" fn(Id, Sel) -> i64 =
+            unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+        unsafe { msg(event, sel) }
+    }
+
+    fn system_defined_transition(event: CGEventRef) -> Option<super::KeyTransition> {
+        let class = unsafe { objc_getClass(b"NSEvent\0".as_ptr().cast()) };
+        if class.is_null() {
+            return None;
+        }
+        let sel = unsafe { sel_registerName(b"eventWithCGEvent:\0".as_ptr().cast()) };
+        if sel.is_null() {
+            return None;
+        }
+        let msg: unsafe extern "C" fn(Id, Sel, CGEventRef) -> Id =
+            unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+        let ns_event = unsafe { msg(class, sel, event) };
+        if ns_event.is_null() {
+            return None;
+        }
+
+        let subtype = ns_event_integer(ns_event, b"subtype\0");
+        let data1 = ns_event_integer(ns_event, b"data1\0");
+        super::process_aux_control_event(subtype, data1)
     }
 
     struct CallbackCtx {
@@ -396,6 +484,21 @@ mod imp {
                         RawInputEvent::KeyDown {
                             keycode: transition.keycode,
                             flags,
+                        }
+                    } else {
+                        RawInputEvent::KeyUp {
+                            keycode: transition.keycode,
+                        }
+                    }
+                }
+                K_CG_EVENT_SYSTEM_DEFINED => {
+                    let Some(transition) = system_defined_transition(event) else {
+                        return;
+                    };
+                    if transition.is_down {
+                        RawInputEvent::KeyDown {
+                            keycode: transition.keycode,
+                            flags: unsafe { CGEventGetFlags(event) },
                         }
                     } else {
                         RawInputEvent::KeyUp {
@@ -473,6 +576,7 @@ mod imp {
             K_CG_EVENT_KEY_DOWN,
             K_CG_EVENT_KEY_UP,
             K_CG_EVENT_FLAGS_CHANGED,
+            K_CG_EVENT_SYSTEM_DEFINED,
             K_CG_EVENT_LEFT_MOUSE_DOWN,
             K_CG_EVENT_LEFT_MOUSE_UP,
             K_CG_EVENT_RIGHT_MOUSE_DOWN,
@@ -612,6 +716,32 @@ mod tests {
             up,
             Some(KeyTransition {
                 keycode: 56,
+                is_down: false,
+            })
+        );
+    }
+
+    #[test]
+    fn aux_control_brightness_down_maps_to_f1_press() {
+        let data1 = (3 << 16) | (0x0a << 8);
+
+        assert_eq!(
+            process_aux_control_event(8, data1),
+            Some(KeyTransition {
+                keycode: 122,
+                is_down: true,
+            })
+        );
+    }
+
+    #[test]
+    fn aux_control_volume_up_maps_to_f12_release() {
+        let data1 = (0 << 16) | (0x0b << 8);
+
+        assert_eq!(
+            process_aux_control_event(8, data1),
+            Some(KeyTransition {
+                keycode: 111,
                 is_down: false,
             })
         );
